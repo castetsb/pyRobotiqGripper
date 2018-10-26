@@ -1,2 +1,2 @@
 # pyRobotiqGripper
-Library to control Robotiq company grippers from python
+Library to control Robotiq grippers from python
