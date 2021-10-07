@@ -262,7 +262,7 @@ class RobotiqGripper( mm.Instrument ):
         #########################################
         #Second Byte: Pos request echo
         posRequestEchoReg3=bin(registers[1])[2:]
-        posRequestEchoReg3="0"*(8-len(posRequestEchoReg3))+posRequestEchoReg3
+        posRequestEchoReg3="0"*(16-len(posRequestEchoReg3))+posRequestEchoReg3
         posRequestEchoReg3=posRequestEchoReg3[8:]
         #########################################
         self.paramDic["gPR"]=posRequestEchoReg3
