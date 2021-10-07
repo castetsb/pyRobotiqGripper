@@ -222,11 +222,14 @@ class RobotiqGripper( mm.Instrument ):
         """
         self.paramDic={}
         
-        registers=self.read_registers(2000,6)
+        registers=self.read_registers(2000,3)#Changed from 6 to 3 register reading. This modification has not been tested.
         
         #########################################
         #Register 2000
-        #gripperStatus
+        #First Byte: gripperStatus
+        #Second Byte: RESERVED
+        
+        #First Byte: gripperStatus
         gripperStatusReg0=bin(registers[0])[2:]
         gripperStatusReg0="0"*(16-len(gripperStatusReg0))+gripperStatusReg0
         gripperStatusReg0=gripperStatusReg0[:8]
@@ -242,9 +245,12 @@ class RobotiqGripper( mm.Instrument ):
         #Activation status
         
         #########################################
-        #Register 2002
-        #fault status
-        faultStatusReg2=bin(registers[2])[2:]
+        #Register 2001
+        #First Byte: Fault status
+        #Second Byte: Pos request echo
+        
+        #First Byte: fault status
+        faultStatusReg2=bin(registers[1])[2:]
         faultStatusReg2="0"*(16-len(faultStatusReg2))+faultStatusReg2
         faultStatusReg2=faultStatusReg2[:8]
         #########################################
@@ -254,19 +260,21 @@ class RobotiqGripper( mm.Instrument ):
         #Fault
         
         #########################################
-        #Register 2003
-        #fault status
-        posRequestEchoReg3=bin(registers[3])[2:]
+        #Second Byte: Pos request echo
+        posRequestEchoReg3=bin(registers[1])[2:]
         posRequestEchoReg3="0"*(8-len(posRequestEchoReg3))+posRequestEchoReg3
-        posRequestEchoReg3=posRequestEchoReg3[:8]
+        posRequestEchoReg3=posRequestEchoReg3[8:]
         #########################################
         self.paramDic["gPR"]=posRequestEchoReg3
         #Echo of request position
         
         #########################################
-        #Register 2004
-        #position
-        positionReg4=bin(registers[4])[2:]
+        #Register 2002
+        #First Byte: Position
+        #Second Byte: Current
+        
+        #First Byte: Position
+        positionReg4=bin(registers[2])[2:]
         positionReg4="0"*(16-len(positionReg4))+positionReg4
         positionReg4=positionReg4[:8]
         #########################################
@@ -274,11 +282,10 @@ class RobotiqGripper( mm.Instrument ):
         #Actual position of the gripper
         
         #########################################
-        #Register 2005
-        #current
-        currentReg5=bin(registers[5])[2:]
+        #Second Byte: Current
+        currentReg5=bin(registers[2])[2:]
         currentReg5="0"*(16-len(currentReg5))+currentReg5
-        currentReg5=currentReg5[:8]
+        currentReg5=currentReg5[8:]
         #########################################
         self.paramDic["gCU"]=currentReg5
         #Current
