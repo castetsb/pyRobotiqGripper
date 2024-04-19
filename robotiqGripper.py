@@ -13,13 +13,14 @@ MinimalModbus: https://pypi.org/project/MinimalModbus/
 import minimalmodbus as mm
 import time
 import binascii
+import serial
 
 #Communication setup
-mm.BAUDRATE=115200
-mm.BYTESIZE=8
-mm.PARITY="N"
-mm.STOPBITS=1
-mm.TIMEOUT=0.2
+BAUDRATE=115200
+BYTESIZE=8
+PARITY="N"
+STOPBITS=1
+TIMEOUT=0.2
 
 
 __author__  = "Benoit CASTETS"
@@ -60,17 +61,23 @@ class RobotiqGripper( mm.Instrument ):
         slaveaddress:
             Address of the gripper (integer) usually 9.
         """
-        mm.Instrument.__init__(self, portname, slaveaddress=9)
-        self.debug=True
-        self.mode=mm.MODE_RTU
+        #Create a pyserial object to connect to the gripper
+        ser=serial.Serial(portname,BAUDRATE,BYTESIZE,PARITY,STOPBITS,TIMEOUT)
+
+        #Create the object using upper class contructor
+        mm.Instrument.__init__(self, ser, slaveaddress,mm.MODE_RTU,False,True)
         
+        #Variable to monitore if the gripper is processing
         self.processing=False
         
+        #Gripper action timeout
         self.timeOut=10
         
+        #Dictionnary where are stored register values retrived form the gripper
         self.registerDic={}
         self._buildRegisterDic()
         
+
         self.paramDic={}
         self.readAll()
         
