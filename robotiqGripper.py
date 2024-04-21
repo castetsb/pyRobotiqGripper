@@ -1,71 +1,86 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Created on Wed Oct 17 17:33:20 2018
-Driver to control robotiq gripper via python
+Python class to control robotiq gripper via python
 @author: Benoit CASTETS
 
 Dependencies:
 *************
 MinimalModbus: https://pypi.org/project/MinimalModbus/
 """
-#Libraries importation
+#Iport libraries
 import minimalmodbus as mm
 import time
-import binascii
 import serial
+import serial.tools.list_ports
 
-#Communication setup
+#Constants
 BAUDRATE=115200
 BYTESIZE=8
 PARITY="N"
 STOPBITS=1
 TIMEOUT=0.2
 
-
+#General information
 __author__  = "Benoit CASTETS"
 __email__   = "b.castets@robotiq.com"
-#__license__ = "Apache License, Version 2.0"
+__license__ = "Apache License, Version 2.0"
+
 
 class RobotiqGripper( mm.Instrument ):
-    """"Instrument class for Robotiq grippers (2F85, 2F140, hande,...). 
+    """"Class to control Robotiq grippers (2F85, 2F140, hande,...). 
+    Suppose that the gripper is connected via the USB/RS485 adapter to the PC executing this code.   
     
-    Communicates via Modbus RTU protocol (via RS232 or RS485), using the *MinimalModbus* Python module.    
-    Args:
-        * portname (str): port name
-        * slaveaddress (int): slave address in the range 1 to 247
-    Implemented with these function codes (in decimal):
-        
-    ==================  ====================
-    Description         Modbus function code
-    ==================  ====================
-    Read registers      3
-    Write registers     16
-    ==================  ====================
+    Some general information about robotiq gripper.
+
+    Modbus RTU function code supported by robotiq gripper
+    =====================================   ====================
+    Description                             Modbus function code
+    =====================================   ====================
+    Read registers                          4
+    Write registers                         16
+    Master read & write multiple registers  23
+    ==================                      ====================
     
     For more information for gripper communication please check gripper manual
     on Robotiq website.
     https://robotiq.com/support/2f-85-2f-140
     """
+
     
-    def __init__(self, portname, slaveaddress=9):
+    
+    def __init__(self, portname="auto",slaveAddress=9):
         """Create a RobotiqGripper object use to control Robotiq grippers
         using modbus RTU protocol USB/RS485 connection.
         
         Parameters
         ----------
         portname:
-            Name of the port (string) where is connected the gripper. Usually
-            /dev/ttyUSB0 on Linux. It is necesary to allow permission to access
-            this connection using the bash command sudo chmod 666 /dev/ttyUSB0
+            The serial port name, for example /dev/ttyUSB0 (Linux),
+            /dev/tty.usbserial (OS X) or COM4 (Windows).
+            It is necesary to allowpermission to access this connection
+            using the bash comman sudo chmod 666 /dev/ttyUSB0.
+            By default the portname is set ot auto. In this case the
+            connection is done with the first gripper dicovered as
+            connected to the PC.
+
         slaveaddress:
             Address of the gripper (integer) usually 9.
         """
+        self.slaveAddress=slaveAddress
+
+        if portname == "auto":
+            self.portname=self._autoConnect()
+        else:
+            self.portname=portname
+        
+        print("Device connected at port: ",self.portname)
+
+
         #Create a pyserial object to connect to the gripper
-        ser=serial.Serial(portname,BAUDRATE,BYTESIZE,PARITY,STOPBITS,TIMEOUT)
+        ser=serial.Serial(self.portname,BAUDRATE,BYTESIZE,PARITY,STOPBITS,TIMEOUT)
 
         #Create the object using upper class contructor
-        mm.Instrument.__init__(self, ser, slaveaddress,mm.MODE_RTU,False,True)
+        super().__init__(ser, self.slaveAddress, mm.MODE_RTU, close_port_after_each_call=False, debug=False)
         
         #Variable to monitore if the gripper is processing
         self.processing=False
@@ -77,7 +92,6 @@ class RobotiqGripper( mm.Instrument ):
         self.registerDic={}
         self._buildRegisterDic()
         
-
         self.paramDic={}
         self.readAll()
         
@@ -89,7 +103,42 @@ class RobotiqGripper( mm.Instrument ):
         
         self._aCoef=None
         self._bCoef=None
-        
+    
+    def _autoConnect(self):
+        """Return the name of the port on which is connected the gripper
+        """
+        ports=serial.tools.list_ports.comports()
+        portName=None
+
+        for port in ports:
+            try:
+                # Try opening the port
+                ser = serial.Serial(port.device,BAUDRATE,BYTESIZE,PARITY,STOPBITS,TIMEOUT)
+
+                device=mm.Instrument(ser,self.slaveAddress,mm.MODE_RTU,close_port_after_each_call=False,debug=False)
+
+                #Try to write the position 100
+                device.write_registers(1000,[0,100,0])
+                #Try to read the position request eco
+                registers=device.read_registers(2000,3,4)
+                posRequestEchoReg3=bin(registers[1])[2:]
+                posRequestEchoReg3="0"*(16-len(posRequestEchoReg3))+posRequestEchoReg3
+                posRequestEchoReg3=posRequestEchoReg3[8:]
+                posRequestEchoReg3=int(posRequestEchoReg3, 2)
+                if posRequestEchoReg3 != 100:
+                    raise Exception("Not a gripper")
+                portName=port.device
+                del device
+
+                ser.close()  # Close the port
+            except:
+                pass  # Skip if port cannot be opened
+    
+        # If no suitable port is found
+        return portName
+
+
+
     def _buildRegisterDic(self):
         """Build a dictionnary with comment to explain each register variable.
         The dictionnary is organize in 2 levels:
@@ -101,7 +150,7 @@ class RobotiqGripper( mm.Instrument ):
         #input register variable
         self.registerDic.update({"gOBJ":{},"gSTA":{},"gGTO":{},"gACT":{},
                                 "kFLT":{},"gFLT":{},"gPR":{},"gPO":{},"gCU":{}})
-        print(self.registerDic)
+        
         #gOBJ
         gOBJdic=self.registerDic["gOBJ"]
         
@@ -122,8 +171,8 @@ class RobotiqGripper( mm.Instrument ):
         
         gGTOdic[0]="Stopped (or performing activation / automatic release)."
         gGTOdic[1]="Go to Position Request."
-        #gGTOdic[2]="Stopped (or performing activation / automatic release)."
-        #gGTOdic[3]="Go to Position Request."
+        gGTOdic[2]="Unknown status"
+        gGTOdic[3]="Unknown status"
         
         #gACT
         gACTdic=self.registerDic["gACT"]
@@ -241,7 +290,7 @@ class RobotiqGripper( mm.Instrument ):
         gripperStatusReg0="0"*(16-len(gripperStatusReg0))+gripperStatusReg0
         gripperStatusReg0=gripperStatusReg0[:8]
         #########################################
-        print(gripperStatusReg0)
+        
         self.paramDic["gOBJ"]=gripperStatusReg0[0:2]
         #Object detection
         self.paramDic["gSTA"]=gripperStatusReg0[2:4]
@@ -304,31 +353,8 @@ class RobotiqGripper( mm.Instrument ):
     def reset(self):
         """Reset the gripper (clear previous activation if any)
         """
-        #Lexique:
-        
-        #byte=8bit
-        #bit=1 OR 0
-        
-        #Memo:
-        
-        #write a value with dec,hex or binary number
-        #binary
-        #inst.write_register(1000,int("0000000100000000",2))
-        #hex
-        #inst.write_register(1000,int("0x0100", 0))
-        #dec
-        #inst.write_register(1000,256)
-        
-        #Register 1000: Action Request
-        #A register have a size of 2Bytes
-        #(7-6)reserved/(5)rARD/(4)rATR/(3)rGTO/(2-1)reserved/(0)rACT/+8 unused bits
-        
-        #Register 1001:RESERVED
-        #register 1002:RESERVED
-        
         #Reset the gripper
         self.write_registers(1000,[0,0,0])
-        #09 10 03 E8 00 03 06 00 00 00 00 00 00 73 30
     
     def activate(self):
         """If not already activated. Activate the gripper
@@ -336,24 +362,26 @@ class RobotiqGripper( mm.Instrument ):
         #Turn the variable which indicate that the gripper is processing
         #an action to True
         self.processing=True
+
         #Activate the gripper
         self.write_registers(1000,[256,0,0])
-        #09 10 03 E8 00 03 06 01 00 00 00 00 00 72 E1
+
         #Waiting for activation to complete
-        timeIni=time.time()
-        loop=True
-        while loop:
+        activationStartTime=time.time()
+        activationCompleted=False
+        activationTime=0
+        while (not activationCompleted) and activationTime<self.timeOut:
+            activationTime = time.time() - activationStartTime
+            
             self.readAll()
             gSTA=self.paramDic["gSTA"]
-            if ((time.time()-timeIni)<self.timeOut):
-                loop=False
-                print("Activation never ended. Time out.")
-            elif gSTA==3:
-                loop=False
-                print("Activation completed")
-            else:
-                pass
-        
+
+            if gSTA==3:
+                activationCompleted=True
+                print("Activation completed. Activation time : ", activationTime)
+        if activationTime > self.timeOut:
+            print("Activation never ended. Time out.")
+
         self.processing=False
     
     def resetActivate(self):
@@ -364,8 +392,6 @@ class RobotiqGripper( mm.Instrument ):
         self.reset()
         #Activate the gripper
         self.activate()
-        
-        #TO DO: wait for the activation to complete
     
     def _intToHex(self,integer,digits=2):
         """Convert an integrer into a hexadeciaml number represented by a string
@@ -553,21 +579,33 @@ class RobotiqGripper( mm.Instrument ):
         for key,value in self.paramDic.items():
             print("{} : {}".format(key,value))
             print(self.registerDic[key][value])
+
+    def isActivated(self):
+        """Tells if the gripper is activated
+        
+        Return
+        ------
+        activated - bool:
+            True is the gripper is activated. False otherwise.
+        """
+        self.readAll()
+        self.paramDic["gACT"]
+
             
 #Test
 if True:
-    grip=RobotiqGripper("/dev/ttyUSB1")
-    #grip.resetActivate()
-    grip.reset()
-    grip.printInfo()
-    grip.activate()
-    grip.printInfo()
+    grip=RobotiqGripper()
+    grip.resetActivate()
+    #grip.reset()
+    #grip.printInfo()
+    #grip.activate()
+    #grip.printInfo()
     
-    grip.goTo(20)
-    grip.goTo(230)
-    grip.goTo(40)
-    grip.goTo(80)
+    #grip.goTo(20)
+    #grip.goTo(230)
+    #grip.goTo(40)
+    #grip.goTo(80)
     
-    grip.calibrate(0,40)
-    grip.goTomm(20,255,255)
-    grip.goTomm(40,1,255)
+    #grip.calibrate(0,40)
+    #grip.goTomm(20,255,255)
+    #grip.goTomm(40,1,255)
