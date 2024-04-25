@@ -2,10 +2,6 @@
 Created on Wed Oct 17 17:33:20 2018
 Python class to control robotiq gripper via python
 @author: Benoit CASTETS
-
-Dependencies:
-*************
-MinimalModbus: https://pypi.org/project/MinimalModbus/
 """
 #Iport libraries
 import minimalmodbus as mm
@@ -19,6 +15,7 @@ BYTESIZE=8
 PARITY="N"
 STOPBITS=1
 TIMEOUT=0.2
+AUTO_DETECTION="auto"
 
 #General information
 __author__  = "Benoit CASTETS"
@@ -48,7 +45,7 @@ class RobotiqGripper( mm.Instrument ):
 
     
     
-    def __init__(self, portname="auto",slaveAddress=9):
+    def __init__(self, portname=AUTO_DETECTION,slaveAddress=9):
         """Create a RobotiqGripper object use to control Robotiq grippers
         using modbus RTU protocol USB/RS485 connection.
         
@@ -59,46 +56,55 @@ class RobotiqGripper( mm.Instrument ):
             /dev/tty.usbserial (OS X) or COM4 (Windows).
             It is necesary to allowpermission to access this connection
             using the bash comman sudo chmod 666 /dev/ttyUSB0.
-            By default the portname is set ot auto. In this case the
-            connection is done with the first gripper dicovered as
+            By default the portname is set to "auto". In this case the
+            connection is done with the first gripper found as
             connected to the PC.
 
         slaveaddress:
             Address of the gripper (integer) usually 9.
         """
+        #Gripper salve address
         self.slaveAddress=slaveAddress
 
+        #Port on which is connected the gripper
         if portname == "auto":
             self.portname=self._autoConnect()
+            if self.portname is None:
+                raise Exception("No gripper detected")
         else:
             self.portname=portname
         
-        print("Device connected at port: ",self.portname)
-
-
         #Create a pyserial object to connect to the gripper
         ser=serial.Serial(self.portname,BAUDRATE,BYTESIZE,PARITY,STOPBITS,TIMEOUT)
 
-        #Create the object using upper class contructor
+        #Create the object using parent class contructor
         super().__init__(ser, self.slaveAddress, mm.MODE_RTU, close_port_after_each_call=False, debug=False)
         
-        #Variable to monitore if the gripper is processing
+        #Attribute to monitore if the gripper is processing an action
         self.processing=False
         
-        #Gripper action timeout
+        #Maximum allowed time to perform and action
         self.timeOut=10
         
-        #Dictionnary where are stored register values retrived form the gripper
+        #Dictionnary where are stored description of each register state
         self.registerDic={}
         self._buildRegisterDic()
         
+
+        #Dictionnary where are stored register values retrived from the gripper
         self.paramDic={}
         self.readAll()
         
+        #Attributes to store open and close distance state information
+        
+        #Distance between the fingers when gripper is closed
         self.closemm=None
+        #Position in bit when gripper is closed
         self.closebit=None
         
+        #Distance between the fingers when gripper is open
         self.openmm=None
+        #Position in bit when gripper is open
         self.openbit=None
         
         self._aCoef=None
@@ -119,12 +125,12 @@ class RobotiqGripper( mm.Instrument ):
 
                 #Try to write the position 100
                 device.write_registers(1000,[0,100,0])
+
                 #Try to read the position request eco
                 registers=device.read_registers(2000,3,4)
-                posRequestEchoReg3=bin(registers[1])[2:]
-                posRequestEchoReg3="0"*(16-len(posRequestEchoReg3))+posRequestEchoReg3
-                posRequestEchoReg3=posRequestEchoReg3[8:]
-                posRequestEchoReg3=int(posRequestEchoReg3, 2)
+                posRequestEchoReg3=registers[1] & 0b0000000011111111
+
+                #Check if position request eco reflect the requested position
                 if posRequestEchoReg3 != 100:
                     raise Exception("Not a gripper")
                 portName=port.device
@@ -232,50 +238,29 @@ class RobotiqGripper( mm.Instrument ):
     
     
         ######################################################################
-        #output register varaible
+        #output register variable
         self.registerDic.update({"rARD":{},"rATR":{},"rGTO":{},"rACT":{},"rPR":{},
                                 "rFR":{},"rSP":{}})
         
         ######################################################################
-        
-    def _extractKBits(integer,position,nbrBits): 
-        """Function to extract ‘k’ bits from a given 
-        position in a number.
-        
-        Parameters
-        ----------
-        integer:
-            Integer to by process as a binary number
-        position:
-            Position of the first bit to be extracted
-        nbrBits:
-            Number of bits to be extracted form the first bit position.
-        
-        Return
-        ------
-        extractedInt:
-            Integer representation of extracted bits.
-        """ 
-        # convert number into binary first 
-        binary=bin(integer) 
-      
-        # remove first two characters 
-        binary = binary[2:] 
-      
-        end = len(binary) - position
-        start = end - nbrBits + 1
-      
-        # extract k  bit sub-string 
-        extractedBits = binary[start : end+1] 
-      
-        # convert extracted sub-string into decimal again 
-        extractedInt=int(extractedBits,2)
-         
-        return extractedInt
      
     def readAll(self):
-        """Return a dictionnary will all variable saved in the register
+        """Retrieve gripper output register information and save it the parameter dictionnary
+
+        Dictionnary keys are:
+        - gOBJ Object detection status, is a built-in feature that provides information on possible object pick-up. Ignore if gGTO == 0.
+        - gSTA Gripper status, returns the current status and motion of the gripper fingers.
+        - gGTO Action status, echo of the rGTO bit (go to bit).
+        - gACT Activation status, echo of the rACT bit (activation bit).
+        - kFLT See your optional controller manual (input registers and status).
+        - gFLT Fault status returns general error messages that are useful for troubleshooting.
+               Fault LED (red) is present on the gripper chassis,LED can be blue, red or both and be solid or blinking.
+        - gPR Echo of the requested position for the gripper, value between 0x00 and 0xFF.
+        - gPO Actual position of the gripper obtained via the encoders, value between 0x00 and 0xFF.
+        - gCU The current is read instantaneously from the motor drive, value between 0x00 and 0xFF,
+              approximate current equivalent is 10 *value read in mA.
         """
+        #Clear parameter dictionnary data
         self.paramDic={}
         
         registers=self.read_registers(2000,3)#Changed from 6 to 3 register reading. This modification has not been tested.
@@ -286,19 +271,16 @@ class RobotiqGripper( mm.Instrument ):
         #Second Byte: RESERVED
         
         #First Byte: gripperStatus
-        gripperStatusReg0=bin(registers[0])[2:]
-        gripperStatusReg0="0"*(16-len(gripperStatusReg0))+gripperStatusReg0
-        gripperStatusReg0=gripperStatusReg0[:8]
+        gripperStatusReg0=(registers[0] >> 8) & 0b11111111 #xxxxxxxx00000000
         #########################################
-        
-        self.paramDic["gOBJ"]=gripperStatusReg0[0:2]
         #Object detection
-        self.paramDic["gSTA"]=gripperStatusReg0[2:4]
+        self.paramDic["gOBJ"]=(gripperStatusReg0 >> 6) & 0b11 #xx000000
         #Gripper status
-        self.paramDic["gGTO"]=gripperStatusReg0[4:6]
+        self.paramDic["gSTA"]=(gripperStatusReg0 >> 4) & 0b11 #00xx0000
         #Action status. echo of rGTO (go to bit)
-        self.paramDic["gACT"]=gripperStatusReg0[7]
+        self.paramDic["gGTO"]=(gripperStatusReg0 >> 3) & 0b1 #0000x000
         #Activation status
+        self.paramDic["gACT"]=gripperStatusReg0 & 0b00000001 #0000000x
         
         #########################################
         #Register 2001
@@ -306,23 +288,20 @@ class RobotiqGripper( mm.Instrument ):
         #Second Byte: Pos request echo
         
         #First Byte: fault status
-        faultStatusReg2=bin(registers[1])[2:]
-        faultStatusReg2="0"*(16-len(faultStatusReg2))+faultStatusReg2
-        faultStatusReg2=faultStatusReg2[:8]
+        faultStatusReg2= (registers[1] >>8)  & 0b11111111 #xxxxxxxx00000000
         #########################################
-        self.paramDic["kFLT"]=faultStatusReg2[0:4]
         #Universal controler
-        self.paramDic["gFLT"]=faultStatusReg2[4:]
+        self.paramDic["kFLT"]=(faultStatusReg2 >> 4) & 0b1111 #xxxx0000
         #Fault
+        self.paramDic["gFLT"]=faultStatusReg2 & 0b00001111 #0000xxxx
+        
         
         #########################################
         #Second Byte: Pos request echo
-        posRequestEchoReg3=bin(registers[1])[2:]
-        posRequestEchoReg3="0"*(16-len(posRequestEchoReg3))+posRequestEchoReg3
-        posRequestEchoReg3=posRequestEchoReg3[8:]
+        posRequestEchoReg3=registers[1] & 0b11111111 #00000000xxxxxxxx
         #########################################
-        self.paramDic["gPR"]=posRequestEchoReg3
         #Echo of request position
+        self.paramDic["gPR"]=posRequestEchoReg3
         
         #########################################
         #Register 2002
@@ -330,25 +309,18 @@ class RobotiqGripper( mm.Instrument ):
         #Second Byte: Current
         
         #First Byte: Position
-        positionReg4=bin(registers[2])[2:]
-        positionReg4="0"*(16-len(positionReg4))+positionReg4
-        positionReg4=positionReg4[:8]
+        positionReg4=(registers[2] >> 8) & 0b11111111 #xxxxxxxx00000000
+
         #########################################
-        self.paramDic["gPO"]=positionReg4
         #Actual position of the gripper
+        self.paramDic["gPO"]=positionReg4
         
         #########################################
         #Second Byte: Current
-        currentReg5=bin(registers[2])[2:]
-        currentReg5="0"*(16-len(currentReg5))+currentReg5
-        currentReg5=currentReg5[8:]
+        currentReg5=registers[2] & 0b0000000011111111 #00000000xxxxxxxx
         #########################################
-        self.paramDic["gCU"]=currentReg5
         #Current
-        
-        #Convert of variable from str to int
-        for key,value in self.paramDic.items():
-            self.paramDic[key]=int(value,2)
+        self.paramDic["gCU"]=currentReg5
     
     def reset(self):
         """Reset the gripper (clear previous activation if any)
@@ -364,12 +336,13 @@ class RobotiqGripper( mm.Instrument ):
         self.processing=True
 
         #Activate the gripper
-        self.write_registers(1000,[256,0,0])
+        self.write_registers(1000,[0b0000000100000000,0,0])#rACT=1 Activate Gripper (must stay on after activation routine is completed).
 
         #Waiting for activation to complete
         activationStartTime=time.time()
         activationCompleted=False
         activationTime=0
+        
         while (not activationCompleted) and activationTime<self.timeOut:
             activationTime = time.time() - activationStartTime
             
@@ -380,7 +353,7 @@ class RobotiqGripper( mm.Instrument ):
                 activationCompleted=True
                 print("Activation completed. Activation time : ", activationTime)
         if activationTime > self.timeOut:
-            print("Activation never ended. Time out.")
+            raise Exception("Activation did not complete without timeout.")
 
         self.processing=False
     
@@ -392,20 +365,6 @@ class RobotiqGripper( mm.Instrument ):
         self.reset()
         #Activate the gripper
         self.activate()
-    
-    def _intToHex(self,integer,digits=2):
-        """Convert an integrer into a hexadeciaml number represented by a string
-        
-        Parameters
-        ----------
-        integer:
-            Integer to be converted in hexadecimal
-        digits:
-            Number of digits requested. ex: F, 0F, 00F
-        """
-        exadecimal=hex(integer)[2:]
-        exadecimal="0"*(digits-len(exadecimal))+exadecimal
-        return exadecimal
     
     def goTo(self,position,speed=255,force=255):
         """Go to the position with determined speed and force.
@@ -427,36 +386,52 @@ class RobotiqGripper( mm.Instrument ):
         position:
             End position of the gripper
         """
-        objectDetected=False
+        position=int(position)
+        speed=int(speed)
+        force=int(force)
         
-        #TO DO: Check if gripper is activated and if not activate?
+        
+        #Check if the grippre is activated
+        if self.isActivated == False:
+            raise Exception ("Gripper must be activated before requesting an action.")
+
+        #Check input value
         if position>255:
-            print("maximum position is 255")
-        else:
-            #rARD(5) rATR(4) rGTO(3) rACT(0)
-            self.write_registers(1000,[int("00001001"+"00000000",2),
-                                       position,
-                                       int(self._intToHex(speed)+self._intToHex(force),16)])
-            timer=time.time()
-            loop=True
-            while loop or (time.time()-timer)>self.timeOut:
-                self.readAll()
-                gOBJ=self.paramDic["gOBJ"]
-                if gOBJ==1 or gOBJ==2:
-                    objectDetected=True
-                    loop=False
-                elif gOBJ==3:
-                    objectDetected=False
-                    loop=False
-                elif (time.time()-timer)>self.timeOut:
-                    loop=False
-                    print("Gripper never reach its requested position and no\
-                           object have been detected")
-                    
+            raise Exception("Position value cannot exceed 255")
+        elif position<0:
+            raise Exception("Position value cannot be under 0")
+        
+        self.processing=True
+        
+
+        #rARD(5) rATR(4) rGTO(3) rACT(0)
+        self.write_registers(1000,[0b0000100100000000,#gACT=1 (Gripper activation.) and gGTO=1 (Go to Position Request.)
+                                    position,
+                                    speed * 0b100000000 + force])
+        
+        #Waiting for activation to complete
+        motionStartTime=time.time()
+        motionCompleted=False
+        motionTime=0
+        objectDetected=False
+
+        while (not objectDetected) and (not motionCompleted) and (motionTime<self.timeOut):
+            motionTime= time.time()- motionStartTime
+            self.readAll()
+            gOBJ=self.paramDic["gOBJ"]#Object detection status, is a built-in feature that provides information on possible object pick-up. Ignore if gGTO == 0.
+
+            if gOBJ==1 or gOBJ==2: #Fingers have stopped due to a contact
+                objectDetected=True
+            elif gOBJ==3:#Fingers are at requested position.
+                objectDetected=False
+                motionCompleted=True
+        
+        if motionTime>self.timeOut:
+            raise Exception("Gripper never reach its requested position and no object have been detected")
         
         position=self.paramDic["gPO"]
-        
-        #TO DO: Check if gripper is in position. If no wait.
+
+        return position, objectDetected
         
     def closeGripper(self,speed=255,force=255):
         """Close the gripper
@@ -498,19 +473,16 @@ class RobotiqGripper( mm.Instrument ):
         ------
         Return 0 if succeed, 1 if failed.
         """
-        if self.openmm is None or self.closemm is None:
-            print("You have to calibrate the gripper before using \
-                  the function goTomm()")
-            return 1
-        elif positionmm>self.openmm:
-            print("The maximum opening is {}".format(positionmm))
-            return 1
-        else:
-            position=int(self._mmToBit(positionmm))
-            self.goTo(position,speed,force)
-            return 0
+        if self.isCalibrated == False:
+            raise Exception("The gripper must be calibrated before been requested to go to a position in mm")
+
+        if  positionmm>self.openmm:
+            raise Exception("The maximum opening is {}".format(self.openmm))
         
-    def getPositionCurrent(self):
+        position=int(self._mmToBit(positionmm))
+        self.goTo(position,speed,force)
+        
+    def getPosition(self):
         """Return the position of the gripper in bit.
         
         Return
@@ -520,12 +492,11 @@ class RobotiqGripper( mm.Instrument ):
         current:
             Motor current in bit. 1bit is about 10mA.
         """
-        
-        registers=self.read_registers(2002,1)
-        register=self._intToHex(registers[0])
-        position=int(register[:2],16)
-        current=int(register[2:],16)
-        return position,current
+        self.readAll()
+
+        position=self.paramDic["gPO"]
+
+        return position
     
     def _mmToBit(self,mm):
         """Convert a mm gripper opening in bit opening.
@@ -534,7 +505,6 @@ class RobotiqGripper( mm.Instrument ):
         bit=(mm-self._bCoef)/self._aCoef
         
         return bit
-        
         
     def _bitTomm(self,bit):
         """Convert a bit gripper opening in mm opening.
@@ -548,7 +518,7 @@ class RobotiqGripper( mm.Instrument ):
         """Return the position of the gripper in mm.
         Calibration is need to use this function.
         """
-        position=self.getPositionCurrent()[0]
+        position=self.getPosition()
         
         positionmm=self._bitTomm(position)
         return positionmm
@@ -559,14 +529,14 @@ class RobotiqGripper( mm.Instrument ):
         self.closemm=closemm
         self.openmm=openmm
         
-        self.goTo(0)
+        self.openGripper()
         #get open bit
-        self.openbit=self.getPositionCurrent()[0]
+        self.openbit=self.getPosition()
         obit=self.openbit
         
-        self.goTo(255)
+        self.closeGripper()
         #get close bit
-        self.closebit=self.getPositionCurrent()[0]
+        self.closebit=self.getPosition()
         cbit=self.closebit
         
         self._aCoef=(closemm-openmm)/(cbit-obit)
@@ -588,15 +558,33 @@ class RobotiqGripper( mm.Instrument ):
         activated - bool:
             True is the gripper is activated. False otherwise.
         """
+        
         self.readAll()
-        self.paramDic["gACT"]
+        is_activated = (self.paramDic["gSTA"]==3)
 
+        return is_activated
+    
+    def isCalibrated(self):
+        """Return if the gripper is qualibrated
+        """
+        is_calibrated = False
+        if (self.openmm is None) or (self.closemm is None):
+            is_calibrated = False
+        else:
+            is_calibrated=True
+        
+        return is_calibrated
             
 #Test
-if True:
+if False:
     grip=RobotiqGripper()
     grip.resetActivate()
     #grip.reset()
+    #grip.goTo(0)
+    #grip.goTo(255)
+    #grip.printInfo()
+    #grip.goTo(255)
+    #time.sleep(5)
     #grip.printInfo()
     #grip.activate()
     #grip.printInfo()
@@ -606,6 +594,6 @@ if True:
     #grip.goTo(40)
     #grip.goTo(80)
     
-    #grip.calibrate(0,40)
-    #grip.goTomm(20,255,255)
+    #grip.calibrate(0,36)
+    #grip.goTomm(10,255,255)
     #grip.goTomm(40,1,255)
