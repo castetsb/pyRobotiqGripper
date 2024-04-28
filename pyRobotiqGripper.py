@@ -48,8 +48,8 @@ class RobotiqGripper( mm.Instrument ):
     
     
     def __init__(self, portname=AUTO_DETECTION,slaveAddress=9):
-        """Create a RobotiqGripper object use to control Robotiq grippers
-        using modbus RTU protocol USB/RS485 connection.
+        """Create a RobotiqGripper object whic can be use to control Robotiq\
+            grippers using modbus RTU protocol USB/RS485 connection.
         
         Parameters
         ----------
@@ -247,25 +247,36 @@ class RobotiqGripper( mm.Instrument ):
         ######################################################################
      
     def readAll(self):
-        """Retrieve gripper output register information and save it the parameter dictionnary
+        """Retrieve gripper output register information and save it in the\
+            parameter dictionary.
 
-        Dictionnary keys are:
-        - gOBJ Object detection status, is a built-in feature that provides information on possible object pick-up. Ignore if gGTO == 0.
-        - gSTA Gripper status, returns the current status and motion of the gripper fingers.
-        - gGTO Action status, echo of the rGTO bit (go to bit).
-        - gACT Activation status, echo of the rACT bit (activation bit).
-        - kFLT See your optional controller manual (input registers and status).
-        - gFLT Fault status returns general error messages that are useful for troubleshooting.
-               Fault LED (red) is present on the gripper chassis,LED can be blue, red or both and be solid or blinking.
-        - gPR Echo of the requested position for the gripper, value between 0x00 and 0xFF.
-        - gPO Actual position of the gripper obtained via the encoders, value between 0x00 and 0xFF.
-        - gCU The current is read instantaneously from the motor drive, value between 0x00 and 0xFF,
-              approximate current equivalent is 10 *value read in mA.
+        The dictionary keys are as follows:
+
+        - gOBJ: Object detection status. This built-in feature provides\
+            information on possible object pick-up. Ignore if gGTO == 0.
+        - gSTA: Gripper status. Returns the current status and motion of the\
+            gripper fingers.
+        - gGTO: Action status. Echo of the rGTO bit (go-to bit).
+        - gACT: Activation status. Echo of the rACT bit (activation bit).
+        - kFLT: See your optional controller manual for input registers and\
+            status.
+        - gFLT: Fault status. Returns general error messages useful for\
+            troubleshooting. A fault LED (red) is present on the gripper\
+            chassis. The LED can be blue, red, or both, and can be solid\
+            or blinking.
+        - gPR: Echo of the requested position for the gripper. Value between\
+            0x00 and 0xFF.
+        - gPO: Actual position of the gripper obtained via the encoders.\
+            Value between 0x00 and 0xFF.
+        - gCU: The current is read instantaneously from the motor drive. Value\
+            between 0x00 and 0xFF. Approximate current equivalent is 10 times\
+            the value read in mA.
         """
         #Clear parameter dictionnary data
         self.paramDic={}
         
-        registers=self.read_registers(2000,3)#Changed from 6 to 3 register reading. This modification has not been tested.
+        #Read 3 16bits registers starting from register 2000
+        registers=self.read_registers(2000,3)
         
         #########################################
         #Register 2000
@@ -338,7 +349,9 @@ class RobotiqGripper( mm.Instrument ):
         self.processing=True
 
         #Activate the gripper
-        self.write_registers(1000,[0b0000000100000000,0,0])#rACT=1 Activate Gripper (must stay on after activation routine is completed).
+        #rACT=1 Activate Gripper (must stay on after activation routine is
+        #completed).
+        self.write_registers(1000,[0b0000000100000000,0,0])
 
         #Waiting for activation to complete
         activationStartTime=time.time()
@@ -371,22 +384,15 @@ class RobotiqGripper( mm.Instrument ):
     def goTo(self,position,speed=255,force=255):
         """Go to the position with determined speed and force.
         
-        Parameters
-        ----------
-        position:
-            Position of the gripper. Integer between 0 and 255. 0 being the
-            open position and 255 being the close position.
-        speed:
-            Gripper speed between 0 and 255
-        force:
-            Gripper force between 0 and 255
+        Args:
+            - position (int): Position of the gripper. Integer between 0 and 255.\
+            0 being the open position and 255 being the close position.
+            - speed (int): Gripper speed between 0 and 255
+            - force (int): Gripper force between 0 and 255
         
-        Return
-        ------
-        objectDetected:
-            True if object detected
-        position:
-            End position of the gripper
+        Returns:
+            - objectDetected (bool): True if object detected
+            - position (int): End position of the gripper in bits
         """
         position=int(position)
         speed=int(speed)
@@ -436,26 +442,23 @@ class RobotiqGripper( mm.Instrument ):
         return position, objectDetected
         
     def closeGripper(self,speed=255,force=255):
-        """Close the gripper
-        
-        Parameters
-        ----------
-        speed:
-            Gripper speed between 0 and 255
-        force:
-            Gripper force between 0 and 255
+        """Close the gripper.
+
+        Args:
+            - speed (int, optional): Gripper speed between 0 and 255.\
+            Default is 255.
+            - force (int, optional): Gripper force between 0 and 255.\
+            Default is 255.
         """
         self.goTo(255,speed,force)
     
     def openGripper(self,speed=255,force=255):
         """Open the gripper
         
-        Parameters
-        ----------
-        speed:
-            Gripper speed between 0 and 255
-        force:
-            Gripper force between 0 and 255
+        :param speed: int, optional
+            Gripper speed between 0 and 255. Default is 255.
+        :param force: int, optional
+            Gripper force between 0 and 255. Default is 255.
         """
         self.goTo(0,force,speed)
     
@@ -485,14 +488,10 @@ class RobotiqGripper( mm.Instrument ):
         self.goTo(position,speed,force)
         
     def getPosition(self):
-        """Return the position of the gripper in bit.
-        
-        Return
-        ------
-        position:
-            Gripper position in bit
-        current:
-            Motor current in bit. 1bit is about 10mA.
+        """Return the position of the gripper.
+
+        :return position: Position of the gripper in bits.
+        :rtype position: int
         """
         self.readAll()
 
