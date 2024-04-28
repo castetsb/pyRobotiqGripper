@@ -24,19 +24,21 @@ __license__ = "Apache License, Version 2.0"
 
 
 class RobotiqGripper( mm.Instrument ):
-    """"Class to control Robotiq grippers (2F85, 2F140, hande,...). 
+    """Class to control Robotiq grippers (2F85, 2F140, hande,...). 
     Suppose that the gripper is connected via the USB/RS485 adapter to the PC executing this code.   
     
     Some general information about robotiq gripper.
 
     Modbus RTU function code supported by robotiq gripper
-    =====================================   ====================
-    Description                             Modbus function code
-    =====================================   ====================
-    Read registers                          4
-    Write registers                         16
-    Master read & write multiple registers  23
-    ==================                      ====================
+
+
+    =======================================  ====================
+    Description                              Modbus function code
+    =======================================  ====================
+    Read registers                           4
+    Write registers                          16
+    Master read & write multiple registers   23
+    =======================================  ====================
     
     For more information for gripper communication please check gripper manual
     on Robotiq website.
