@@ -1,8 +1,24 @@
+"""pyRobotiqGripper: Python Driver for Robotiq Grippers via Modbus RTU
+
+pyRobotiqGripper is a Python library designed to facilitate control of Robotiq\
+grippers using Modbus RTU communication via serial port.
+
+Documentation
+-------------
+This module provides documentation in two formats:
+
+- Docstrings: Embedded within the code for easy access.
+- Online Documentation: Extensive documentation available at\
+    <https://pyrobotiqgripper.readthedocs.io/en/latest/>.
 """
-Created on Wed Oct 17 17:33:20 2018
-Python class to control robotiq gripper via python
-@author: Benoit CASTETS
-"""
+
+#General information
+__author__  = "Benoit CASTETS"
+__email__   = "opensourceeng@robotiq.com"
+__license__ = "Apache License, Version 2.0"
+__url__ = "https://github.com/castetsb/pyRobotiqGripper"
+__version__ = "1.0.0"
+
 #Iport libraries
 import minimalmodbus as mm
 import time
@@ -17,20 +33,13 @@ STOPBITS=1
 TIMEOUT=0.2
 AUTO_DETECTION="auto"
 
-#General information
-__author__  = "Benoit CASTETS"
-__email__   = "b.castets@robotiq.com"
-__license__ = "Apache License, Version 2.0"
-
-
 class RobotiqGripper( mm.Instrument ):
-    """Class to control Robotiq grippers (2F85, 2F140, hande,...). 
-    Suppose that the gripper is connected via the USB/RS485 adapter to the PC executing this code.   
-    
-    Some general information about robotiq gripper.
+    """Object control Robotiq grippers (2F85, 2F140 or hande).
+
+    Suppose that the gripper is connected via the USB/RS485 adapter to the PC\
+    executing this code.
 
     Modbus RTU function code supported by robotiq gripper
-
 
     =======================================  ====================
     Description                              Modbus function code
@@ -43,27 +52,25 @@ class RobotiqGripper( mm.Instrument ):
     For more information for gripper communication please check gripper manual
     on Robotiq website.
     https://robotiq.com/support/2f-85-2f-140
-    """
 
-    
+    .. note::
+        This object cannot be use to control epick, 3F or powerpick.
+    """    
     
     def __init__(self, portname=AUTO_DETECTION,slaveAddress=9):
         """Create a RobotiqGripper object whic can be use to control Robotiq\
-            grippers using modbus RTU protocol USB/RS485 connection.
+        grippers using modbus RTU protocol USB/RS485 connection.
         
-        Parameters
-        ----------
-        portname:
-            The serial port name, for example /dev/ttyUSB0 (Linux),
-            /dev/tty.usbserial (OS X) or COM4 (Windows).
-            It is necesary to allowpermission to access this connection
-            using the bash comman sudo chmod 666 /dev/ttyUSB0.
-            By default the portname is set to "auto". In this case the
-            connection is done with the first gripper found as
-            connected to the PC.
-
-        slaveaddress:
-            Address of the gripper (integer) usually 9.
+        Args:
+            - portname (str, optional): The serial port name, for example\
+                /dev/ttyUSB0 (Linux), /dev/tty.usbserial (OS X) or COM4\
+                (Windows). It is necesary to allowpermission to access this\
+                connection using the bash comman sudo chmod 666 /dev/ttyUSB0.\
+                By default the portname is set to "auto". In this case the\
+                connection is done with the first gripper found as connected\
+                to the PC.
+            - slaveaddress (int, optional): Address of the gripper (integer)\
+                usually 9.
         """
         #Gripper salve address
         self.slaveAddress=slaveAddress
@@ -77,10 +84,19 @@ class RobotiqGripper( mm.Instrument ):
             self.portname=portname
         
         #Create a pyserial object to connect to the gripper
-        ser=serial.Serial(self.portname,BAUDRATE,BYTESIZE,PARITY,STOPBITS,TIMEOUT)
+        ser=serial.Serial(self.portname,
+                          BAUDRATE,
+                          BYTESIZE,
+                          PARITY,
+                          STOPBITS,
+                          TIMEOUT)
 
         #Create the object using parent class contructor
-        super().__init__(ser, self.slaveAddress, mm.MODE_RTU, close_port_after_each_call=False, debug=False)
+        super().__init__(ser,
+                         self.slaveAddress,
+                         mm.MODE_RTU,
+                         close_port_after_each_call=False,
+                         debug=False)
         
         #Attribute to monitore if the gripper is processing an action
         self.processing=False
@@ -145,14 +161,12 @@ class RobotiqGripper( mm.Instrument ):
         # If no suitable port is found
         return portName
 
-
-
     def _buildRegisterDic(self):
         """Build a dictionnary with comment to explain each register variable.
-        The dictionnary is organize in 2 levels:
-        Dictionnary key are variable names. Dictionnary value are dictionnary
-        with comments about each statut of the variable 
-        (key=variable value, value=comment)
+
+        Dictionnary key are variable names. Dictionnary value are dictionnary\
+        with comments about each statut of the variable (key=variable value,\
+        value=comment)
         """
         ######################################################################
         #input register variable
@@ -162,15 +176,20 @@ class RobotiqGripper( mm.Instrument ):
         #gOBJ
         gOBJdic=self.registerDic["gOBJ"]
         
-        gOBJdic[0]="Fingers are in motion towards requested position. No object detected."
-        gOBJdic[1]="Fingers have stopped due to a contact while opening before requested position. Object detected opening."
-        gOBJdic[2]="Fingers have stopped due to a contact while closing before requested position. Object detected closing."
-        gOBJdic[3]="Fingers are at requested position. No object detected or object has been loss / dropped."
+        gOBJdic[0]="Fingers are in motion towards requested position. No\
+            object detected."
+        gOBJdic[1]="Fingers have stopped due to a contact while opening before\
+            requested position. Object detected opening."
+        gOBJdic[2]="Fingers have stopped due to a contact while closing before\
+            requested position. Object detected closing."
+        gOBJdic[3]="Fingers are at requested position. No object detected or\
+            object has been loss / dropped."
         
         #gSTA
         gSTAdic=self.registerDic["gSTA"]
         
-        gSTAdic[0]="Gripper is in reset ( or automatic release ) state. See Fault Status if Gripper is activated."
+        gSTAdic[0]="Gripper is in reset ( or automatic release ) state. See\
+            Fault Status if Gripper is activated."
         gSTAdic[1]="Activation in progress."
         gSTAdic[3]="Activation is completed."
         
@@ -204,30 +223,47 @@ class RobotiqGripper( mm.Instrument ):
             gFLTdic[i]=i
             i+=1
         gFLTdic[0]="No fault (LED is blue)"
-        gFLTdic[5]="Priority faults (LED is blue). Action delayed, activation (reactivation) must be completed prior to perfmoring the action."
-        gFLTdic[7]="Priority faults (LED is blue). The activation bit must be set prior to action."
-        gFLTdic[8]="Minor faults (LED continuous red). Maximum operating temperature exceeded, wait for cool-down."
-        gFLTdic[9]="Minor faults (LED continuous red). No communication during at least 1 second."
-        gFLTdic[10]="Major faults (LED blinking red/blue) - Reset is required (rising edge on activation bit rACT needed). Under minimum operating voltage."
-        gFLTdic[11]="Major faults (LED blinking red/blue) - Reset is required (rising edge on activation bit rACT needed). Automatic release in progress."
-        gFLTdic[12]="Major faults (LED blinking red/blue) - Reset is required (rising edge on activation bit rACT needed). Internal fault; contact support@robotiq.com."
-        gFLTdic[13]="Major faults (LED blinking red/blue) - Reset is required (rising edge on activation bit rACT needed). Activation fault, verify that no interference or other error occurred."
-        gFLTdic[14]="Major faults (LED blinking red/blue) - Reset is required (rising edge on activation bit rACT needed). Overcurrent triggered."
-        gFLTdic[15]="Major faults (LED blinking red/blue) - Reset is required (rising edge on activation bit rACT needed). Automatic release completed."
+        gFLTdic[5]="Priority faults (LED is blue). Action delayed, activation\
+            (reactivation) must be completed prior to perfmoring the action."
+        gFLTdic[7]="Priority faults (LED is blue). The activation bit must be\
+            set prior to action."
+        gFLTdic[8]="Minor faults (LED continuous red). Maximum operating\
+            temperature exceeded, wait for cool-down."
+        gFLTdic[9]="Minor faults (LED continuous red). No communication during\
+            at least 1 second."
+        gFLTdic[10]="Major faults (LED blinking red/blue) - Reset is required\
+            (rising edge on activation bit rACT needed). Under minimum\
+            operating voltage."
+        gFLTdic[11]="Major faults (LED blinking red/blue) - Reset is required\
+            (rising edge on activation bit rACT needed). Automatic release in\
+            progress."
+        gFLTdic[12]="Major faults (LED blinking red/blue) - Reset is required\
+            (rising edge on activation bit rACT needed). Internal fault;\
+            contact support@robotiq.com."
+        gFLTdic[13]="Major faults (LED blinking red/blue) - Reset is required\
+            (rising edge on activation bit rACT needed). Activation fault,\
+            verify that no interference or other error occurred."
+        gFLTdic[14]="Major faults (LED blinking red/blue) - Reset is required\
+            (rising edge on activation bit rACT needed). Overcurrent triggered."
+        gFLTdic[15]="Major faults (LED blinking red/blue) - Reset is required\
+            (rising edge on activation bit rACT needed). Automatic release\
+            completed."
         
         #gPR
         gPRdic=self.registerDic["gPR"]
         
         i=0
         while i<256:
-            gPRdic[i]="Echo of the requested position for the Gripper: {}/255".format(i)
+            gPRdic[i]="Echo of the requested position for the Gripper:\
+                {}/255".format(i)
             i+=1
         
         #gPO
         gPOdic=self.registerDic["gPO"]
         i=0
         while i<256:
-            gPOdic[i]="Actual position of the Gripper obtained via the encoders: {}/255".format(i)
+            gPOdic[i]="Actual position of the Gripper obtained via the encoders:\
+                {}/255".format(i)
             i+=1
         
         #gCU
@@ -235,14 +271,20 @@ class RobotiqGripper( mm.Instrument ):
         i=0
         while i<256:
             current=i*10
-            gCUdic[i]="The current is read instantaneously from the motor drive, approximate current: {} mA".format(current)
+            gCUdic[i]="The current is read instantaneously from the motor\
+                drive, approximate current: {} mA".format(current)
             i+=1
     
     
         ######################################################################
         #output register variable
-        self.registerDic.update({"rARD":{},"rATR":{},"rGTO":{},"rACT":{},"rPR":{},
-                                "rFR":{},"rSP":{}})
+        self.registerDic.update({"rARD":{},
+                                 "rATR":{},
+                                 "rGTO":{},
+                                 "rACT":{},
+                                 "rPR":{},
+                                "rFR":{},
+                                "rSP":{}})
         
         ######################################################################
      
@@ -342,7 +384,12 @@ class RobotiqGripper( mm.Instrument ):
         self.write_registers(1000,[0,0,0])
     
     def activate(self):
-        """If not already activated. Activate the gripper
+        """If not already activated, activate the gripper.
+
+        .. warning::
+            When you execute this function the gripper is going to fully open\
+            and close. During this operation the gripper must be able to freely\
+            move. Do not place object inside the gripper.
         """
         #Turn the variable which indicate that the gripper is processing
         #an action to True
@@ -358,7 +405,7 @@ class RobotiqGripper( mm.Instrument ):
         activationCompleted=False
         activationTime=0
         
-        while (not activationCompleted) and activationTime<self.timeOut:
+        while (not activationCompleted) and activationTime < self.timeOut:
             activationTime = time.time() - activationStartTime
             
             self.readAll()
@@ -366,14 +413,15 @@ class RobotiqGripper( mm.Instrument ):
 
             if gSTA==3:
                 activationCompleted=True
-                print("Activation completed. Activation time : ", activationTime)
+                print("Activation completed. Activation time : "
+                      , activationTime)
         if activationTime > self.timeOut:
             raise Exception("Activation did not complete without timeout.")
 
         self.processing=False
     
     def resetActivate(self):
-        """Reset the gripper (clear previous activation if any) and activate
+        """Reset the gripper (clear previous activation if any) and activat\
         the gripper. During this operation the gripper will open and close.
         """
         #Reset the gripper
@@ -401,7 +449,8 @@ class RobotiqGripper( mm.Instrument ):
         
         #Check if the grippre is activated
         if self.isActivated == False:
-            raise Exception ("Gripper must be activated before requesting an action.")
+            raise Exception ("Gripper must be activated before requesting\
+                             an action.")
 
         #Check input value
         if position>255:
@@ -413,7 +462,8 @@ class RobotiqGripper( mm.Instrument ):
         
 
         #rARD(5) rATR(4) rGTO(3) rACT(0)
-        self.write_registers(1000,[0b0000100100000000,#gACT=1 (Gripper activation.) and gGTO=1 (Go to Position Request.)
+        #gACT=1 (Gripper activation.) and gGTO=1 (Go to Position Request.)
+        self.write_registers(1000,[0b0000100100000000,
                                     position,
                                     speed * 0b100000000 + force])
         
@@ -423,25 +473,34 @@ class RobotiqGripper( mm.Instrument ):
         motionTime=0
         objectDetected=False
 
-        while (not objectDetected) and (not motionCompleted) and (motionTime<self.timeOut):
+        while (not objectDetected) and (not motionCompleted)\
+            and (motionTime<self.timeOut):
+
             motionTime= time.time()- motionStartTime
             self.readAll()
-            gOBJ=self.paramDic["gOBJ"]#Object detection status, is a built-in feature that provides information on possible object pick-up. Ignore if gGTO == 0.
+            #Object detection status, is a built-in feature that provides
+            #information on possible object pick-up. Ignore if gGTO == 0.
+            gOBJ=self.paramDic["gOBJ"]
 
-            if gOBJ==1 or gOBJ==2: #Fingers have stopped due to a contact
+            
+            if gOBJ==1 or gOBJ==2: 
+                #Fingers have stopped due to a contact
                 objectDetected=True
-            elif gOBJ==3:#Fingers are at requested position.
+            
+            elif gOBJ==3:
+                #Fingers are at requested position.
                 objectDetected=False
                 motionCompleted=True
         
         if motionTime>self.timeOut:
-            raise Exception("Gripper never reach its requested position and no object have been detected")
+            raise Exception("Gripper never reach its requested position and\
+                            no object have been detected")
         
         position=self.paramDic["gPO"]
 
         return position, objectDetected
         
-    def closeGripper(self,speed=255,force=255):
+    def close(self,speed=255,force=255):
         """Close the gripper.
 
         Args:
@@ -452,31 +511,30 @@ class RobotiqGripper( mm.Instrument ):
         """
         self.goTo(255,speed,force)
     
-    def openGripper(self,speed=255,force=255):
+    def open(self,speed=255,force=255):
         """Open the gripper
         
-        :param speed: int, optional
-            Gripper speed between 0 and 255. Default is 255.
-        :param force: int, optional
-            Gripper force between 0 and 255. Default is 255.
+        Args:
+            - speed (int, optional): Gripper speed between 0 and 255.\
+            Default is 255.
+            - force (int, optional): Gripper force between 0 and 255.\
+            Default is 255.
         """
         self.goTo(0,force,speed)
     
     def goTomm(self,positionmm,speed=255,force=255):
         """Go to the requested opening expressed in mm
+
+        Args:
+            - positionmm (float): Gripper opening in mm.
+            - speed (int, optional): Gripper speed between 0 and 255.\
+            Default is 255.
+            - force (int, optional): Gripper force between 0 and 255.\
+            Default is 255.
         
-        Parameters
-        ----------
-        positionmm:
-            Gripper opening in mm.
-        speed:
-            Gripper speed between 0 and 255
-        force:
-            Gripper force between 0 and 255
-        
-        Return
-        ------
-        Return 0 if succeed, 1 if failed.
+        .. note::
+            Calibration is needed to use this function.\n
+            Execute the function calibrate at least 1 time before using this function.
         """
         if self.isCalibrated == False:
             raise Exception("The gripper must be calibrated before been requested to go to a position in mm")
@@ -488,10 +546,10 @@ class RobotiqGripper( mm.Instrument ):
         self.goTo(position,speed,force)
         
     def getPosition(self):
-        """Return the position of the gripper.
+        """Return the position of the gripper in bits
 
-        :return position: Position of the gripper in bits.
-        :rtype position: int
+        Returns:
+            - int: Position of the gripper in bits.
         """
         self.readAll()
 
@@ -501,7 +559,10 @@ class RobotiqGripper( mm.Instrument ):
     
     def _mmToBit(self,mm):
         """Convert a mm gripper opening in bit opening.
-        Calibration is needed to use this function.
+
+        .. note::
+            Calibration is needed to use this function.\n
+            Execute the function calibrate at least 1 time before using this function.
         """
         bit=(mm-self._bCoef)/self._aCoef
         
@@ -509,7 +570,13 @@ class RobotiqGripper( mm.Instrument ):
         
     def _bitTomm(self,bit):
         """Convert a bit gripper opening in mm opening.
-        Calibration is needed to use this function.
+
+        Returns:
+            float: Gripper position converted in mm
+        
+        .. note::
+            Calibration is needed to use this function.\n
+            Execute the function calibrate at least 1 time before using this function.
         """
         mm=self._aCoef*bit+self._bCoef
         
@@ -517,7 +584,13 @@ class RobotiqGripper( mm.Instrument ):
     
     def getPositionmm(self):
         """Return the position of the gripper in mm.
-        Calibration is need to use this function.
+
+        Returns:
+            float: Current gripper position in mm
+        
+        .. note::
+            Calibration is needed to use this function.\n
+            Execute the function calibrate at least 1 time before using this function.
         """
         position=self.getPosition()
         
@@ -525,7 +598,16 @@ class RobotiqGripper( mm.Instrument ):
         return positionmm
     
     def calibrate(self,closemm,openmm):
-        """Calibrate the gripper for mm positionning
+        """Calibrate the gripper for mm positionning.
+        
+        Once the calibration is done it is possible to control the gripper in\
+        mm.
+
+        Args:
+            - closemm (float): Distance between the fingers when the gripper is\
+            fully closed.
+            - openmm (float): Distance between the fingers when the gripper is\
+            fully open.
         """
         self.closemm=closemm
         self.openmm=openmm
@@ -544,7 +626,7 @@ class RobotiqGripper( mm.Instrument ):
         self._bCoef=(openmm*cbit-obit*closemm)/(cbit-obit)
     
     def printInfo(self):
-        """Print gripper register info in the python treminal
+        """Print gripper register info in the python terminal
         """
         self.readAll()
         for key,value in self.paramDic.items():
@@ -554,10 +636,8 @@ class RobotiqGripper( mm.Instrument ):
     def isActivated(self):
         """Tells if the gripper is activated
         
-        Return
-        ------
-        activated - bool:
-            True is the gripper is activated. False otherwise.
+        Returns:
+            bool: True if the gripper is activated. False otherwise.
         """
         
         self.readAll()
@@ -567,6 +647,9 @@ class RobotiqGripper( mm.Instrument ):
     
     def isCalibrated(self):
         """Return if the gripper is qualibrated
+
+        Returns:
+            bool: True if the gripper is calibrated. False otherwise.
         """
         is_calibrated = False
         if (self.openmm is None) or (self.closemm is None):
