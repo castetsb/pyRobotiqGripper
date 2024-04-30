@@ -45,3 +45,9 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
+
+"""
+Tells the project to use sphinx pygments for color coding code examples.
+"""
+
+pygments_style = 'sphinx'

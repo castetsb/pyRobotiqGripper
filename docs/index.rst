@@ -10,10 +10,7 @@
    :caption: Contents:
 
    Home <self>
-   usage
    api
-
-
 
 Indices and tables
 ==================
