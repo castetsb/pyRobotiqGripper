@@ -8,9 +8,7 @@
 Welcome to pyRobotiqGripper's documentation!
 ============================================
 
-.. note::
-
-   This project is under active development.
+.. include:: ../README.md
 
 .. toctree::
    :maxdepth: 2
