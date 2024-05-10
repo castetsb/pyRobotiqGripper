@@ -20,7 +20,7 @@ Note: This library is not maintained by Robotiq.
 How to Install
 --------------
 
-(To come soon) Install the pyRobotiqGripper python package using PIP.
+Install the pyRobotiqGripper python package using PIP.
 
 ```bash
 
