@@ -1,6 +1,6 @@
 
 [tool.poetry]
-name = "pyRobotiqGripper"
+name = "pyrobotiqgripper"
 version = "1.0.0"
 authors = ["Benoit CASTETS <opensourceeng@gmail.com>"]
 description = "Python Driver for Robotiq Grippers via Modbus RTU"
@@ -10,10 +10,10 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+packages = [{include = "pyrobotiqgripper"}]
 
 
-
-[project.urls]
+[tool.poetry.urls]
 Homepage = "https://github.com/castetsb/pyRobotiqGripper"
 Issues = "https://github.com/castetsb/pyRobotiqGripper/issues"
 
