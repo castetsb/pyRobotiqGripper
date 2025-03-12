@@ -20,7 +20,7 @@ project_root = os.path.dirname(cwd)
 # version is used.
 sys.path.insert(0, project_root)
 
-project = 'pyRobotiqGripper'
+project = 'pyrobotiqgripper'
 copyright = '2024, Benoit CASTETS'
 author = 'Benoit CASTETS'
 release = '1.0'
