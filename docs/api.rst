@@ -3,7 +3,7 @@
 API
 ===
 
-.. automodule:: pyRobotiqGripper
+.. automodule:: pyrobotiqgripper
    :members:
    :undoc-members:
    :show-inheritance:

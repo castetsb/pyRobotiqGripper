@@ -610,12 +610,12 @@ class RobotiqGripper( mm.Instrument ):
         self.closemm=closemm
         self.openmm=openmm
         
-        self.openGripper()
+        self.open()
         #get open bit
         self.openbit=self.getPosition()
         obit=self.openbit
         
-        self.closeGripper()
+        self.close()
         #get close bit
         self.closebit=self.getPosition()
         cbit=self.closebit

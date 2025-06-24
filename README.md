@@ -32,12 +32,12 @@ Typical Usage
 Import the pyRobotiqGripper module.
 
 ```python
-    import pyRobotiqGripper
+    from pyrobotiqgripper import RobotiqGripper
 ```
 Create a Robotiq gripper object.
 
 ```python
-    gripper = pyRobotiqGripper()
+    gripper = RobotiqGripper()
 ```
 By default, the serial port on which the gripper is connected is automatically detected. However, you can manually specify the serial port name if you want to. Refer to the API documentation for more information.
 You can now activate the gripper and eventually calibrate the gripper if you want to control the opening in mm instead of bit.
