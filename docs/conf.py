@@ -33,16 +33,10 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
-    'sphinx.ext.duration',
-    'myst_parse']
+    'sphinx.ext.duration']
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
-
-source_suffix = {
-    '.rst': 'restructuredtext',
-    '.md': 'markdown',
-}
 
 
 
