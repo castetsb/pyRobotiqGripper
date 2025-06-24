@@ -23,6 +23,7 @@ How to Install
 Install the pyRobotiqGripper python package using PIP.
 
 .. code-block:: bash
+
     python -m pip install minimalmodbus
     python -m pip install pyRobotiqGripper
 
@@ -32,12 +33,14 @@ Typical Usage
 Import the pyRobotiqGripper module.
 
 .. code-block:: python
+
     from pyrobotiqgripper import RobotiqGripper
 
 Create a Robotiq gripper object.
 
 
 .. code-block:: python
+
     gripper = pyRobotiqGripper.RobotiqGripper()
 
 By default, the serial port on which the gripper is connected is automatically detected. However, you can manually specify the serial port name if you want to. Refer to the API documentation for more information.
@@ -49,6 +52,7 @@ Note: The gripper finger position varies from 0 to 255. It is coded on 8 bits.
 
 
 .. code-block:: python
+
     gripper.activate()
     gripper.calibrate(0, 40)
 
@@ -56,6 +60,7 @@ Note: The gripper finger position varies from 0 to 255. It is coded on 8 bits.
 You can now do whatever you want with the gripper: open, close, get position feedback, etc.
 
 .. code-block:: python
+
     gripper.open()
     gripper.close()
     gripper.goTo(100)
@@ -68,4 +73,5 @@ You can now do whatever you want with the gripper: open, close, get position fee
 You can print the current status of gripper registers using printInfo.
 
 .. code-block:: python
+
     gripper.printInfo()
