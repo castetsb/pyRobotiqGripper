@@ -1,10 +1,10 @@
 
 [tool.poetry]
 name = "pyrobotiqgripper"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Benoit CASTETS <opensourceeng@gmail.com>"]
 description = "Python Driver for Robotiq Grippers via Modbus RTU"
-readme = "README.md"
+readme = "README.rst"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",

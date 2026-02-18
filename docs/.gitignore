@@ -1,5 +1,6 @@
 _build/
 _themes/
 .static
+.pypirc
 pyRobotiqGripper.egg-info/
 dist/
