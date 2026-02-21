@@ -15,10 +15,10 @@ __author__  = "Benoit CASTETS"
 __email__   = "opensourceeng@robotiq.com"
 __license__ = "Apache License, Version 2.0"
 __url__ = "https://github.com/castetsb/pyRobotiqGripper"
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 #Iport libraries
-import minimalmodbus as mm
+from pymodbus.client import ModbusSerialClient
 import time
 import serial
 import serial.tools.list_ports
@@ -31,7 +31,87 @@ STOPBITS=1
 TIMEOUT=0.2
 AUTO_DETECTION="auto"
 
-class RobotiqGripper( mm.Instrument ):
+GRIPPER_2F_VMAX = 332  # max speed of the 2F gripper in steps per second
+GRIPPER_2F_VMIN = 68   # min speed of the 2F gripper in steps per second
+
+NO_OBJECT_DETECTED = 0
+OBJECT_DETECTED_WHILE_OPENING = 1
+OBJECT_DETECTED_WHILE_CLOSING = 2
+
+GRIP_NOT_REQUESTED = 0
+GRIP_REQUESTED = 1
+GRIP_VALIDATED = 2
+
+GRIPPER_VMAX = 332  # max speed in steps per second
+GRIPPER_VMIN = 68   # min speed in steps per second
+
+NO_COMMAND =0
+WRITE_READ_COMMAND = 1
+READ_COMMAND = 2
+
+COM_TIME = 0.016 #Approximative time needed to make one communication with the gripper
+
+def sign(value):
+    """Return the sign of a value
+    
+    Args:
+        - value : Value for which the sign have to be evaluated.
+    
+    Returns:
+        - valueSign : Sign of the value. 1 if positif. -1 if negative.
+    """
+    valueSign = (value > 0) - (value < 0)
+
+    return valueSign
+
+def listIdValueUnderThreshold(lst,threshold):
+    """Return the list id of the first value under a given threshold.
+
+    Args:
+        - lst (list): list of values
+        - threshold: Threshold under which should be the serached value
+    
+    Returns:
+        - lstIf (int): List id of the first value under a given threshold
+    """
+    i=0
+    lstId=0
+    found=False
+    while i<len(lst) and not found:
+        if lst[i]<threshold:
+            lstId=i
+            found=True
+        i+=1
+    if not found:
+        raise Exception("Could not find value under {} in {}".format(threshold,lst))
+    return lstId
+
+def listSubstract(lst,value):
+    for i in range(len(lst)):
+        lst[i] -= value
+
+def areValueIdentical(lst):
+    value = lst[0]
+    res=True
+    i=0
+    while i<len(lst):
+        if lst[i]!=value:
+            res=False
+        i+=1
+    return res
+
+def updateList(lst,value):
+    """Shift all values of the given list of 1 to the right and set the given value as the
+    first value of the list
+
+    Args:
+        - lst (list): list to be updated
+        - value: value to set a the beginning of the list
+    """
+    lst[1:]=lst[:-1]
+    lst[0]=value
+
+class RobotiqGripper( ModbusSerialClient ):
     """Object control Robotiq grippers (2F85, 2F140 or hande).
 
     Suppose that the gripper is connected via the USB/RS485 adapter to the PC\
@@ -52,11 +132,11 @@ class RobotiqGripper( mm.Instrument ):
     https://robotiq.com/support/2f-85-2f-140
 
     .. note::
-        This object cannot be use to control epick, 3F or powerpick.
+        This class cannot be use to control epick, 3F or powerpick.
     """    
     
-    def __init__(self, portname=AUTO_DETECTION,slaveAddress=9):
-        """Create a RobotiqGripper object whic can be use to control Robotiq\
+    def __init__(self, port=AUTO_DETECTION,slaveAddress=9,debug=False):
+        """Create a RobotiqGripper object which can be use to control Robotiq\
         grippers using modbus RTU protocol USB/RS485 connection.
         
         Args:
@@ -73,28 +153,23 @@ class RobotiqGripper( mm.Instrument ):
         #Gripper salve address
         self.slaveAddress=slaveAddress
 
+        self.port=None
+
         #Port on which is connected the gripper
-        if portname == "auto":
-            self.portname=self._autoConnect()
-            if self.portname is None:
+        if port == AUTO_DETECTION:
+            self.port=self._autoConnect()
+            if self.port is None:
                 raise Exception("No gripper detected")
         else:
-            self.portname=portname
-        
-        #Create a pyserial object to connect to the gripper
-        ser=serial.Serial(self.portname,
-                          BAUDRATE,
-                          BYTESIZE,
-                          PARITY,
-                          STOPBITS,
-                          TIMEOUT)
+            self.port=port
 
         #Create the object using parent class contructor
-        super().__init__(ser,
-                         self.slaveAddress,
-                         mm.MODE_RTU,
-                         close_port_after_each_call=False,
-                         debug=False)
+        super().__init__(port=self.port,   # or COM3 on Windows
+                         baudrate=115200,
+                         parity='N',
+                         stopbits=1,
+                         bytesize=8,
+                         timeout=1)
         
         #Attribute to monitore if the gripper is processing an action
         self.processing=False
@@ -106,7 +181,6 @@ class RobotiqGripper( mm.Instrument ):
         self.registerDic={}
         self._buildRegisterDic()
         
-
         #Dictionnary where are stored register values retrived from the gripper
         self.paramDic={}
         self.readAll()
@@ -123,8 +197,26 @@ class RobotiqGripper( mm.Instrument ):
         #Position in bit when gripper is open
         self.openbit=None
         
+        #Linear coefficient to link bit and distance between fingers
+        #mm=self._aCoef*bit+self._bCoef
         self._aCoef=None
         self._bCoef=None
+
+        self.gripper_vmax=GRIPPER_2F_VMAX
+        self.gripper_vmin=GRIPPER_2F_VMIN
+
+        self.commandHistory={}
+        self.commandHistory["time"]=[time.monotonic()]*30
+        time.sleep(1)
+        updateList(self.commandHistory["time"],time.monotonic())
+        
+        self.commandHistory["positionCommand"]=[0]*30
+        self.commandHistory["position"]=[0]*30
+        self.commandHistory["positionRequest"]=[0]*30
+        self.commandHistory["speedCommand"]=[0]*30
+        self.commandHistory["forceCommand"]=[0]*30
+        self.commandHistory["detection"]=[0]*30
+        self.commandHistory["gripCommand"]=[GRIP_NOT_REQUESTED]*30
     
     def _autoConnect(self):
         """Return the name of the port on which is connected the gripper
@@ -133,29 +225,43 @@ class RobotiqGripper( mm.Instrument ):
         portName=None
 
         for port in ports:
+            
+            # Try opening the port
+            print("Testing:", port.device)
             try:
-                # Try opening the port
-                ser = serial.Serial(port.device,BAUDRATE,BYTESIZE,PARITY,STOPBITS,TIMEOUT)
-
-                device=mm.Instrument(ser,self.slaveAddress,mm.MODE_RTU,close_port_after_each_call=False,debug=False)
+                device=ModbusSerialClient(port.device,
+                                    baudrate=115200,
+                                    parity='N',
+                                    stopbits=1,
+                                    bytesize=8,
+                                    timeout=0.3)
+                if not device.connect():
+                    print("Cannot open port")
+                    continue
 
                 #Try to write the position 100
-                device.write_registers(1000,[0,100,0])
+                device.write_registers(1000,[0,100,0],device_id=self.slaveAddress)
 
                 #Try to read the position request eco
-                registers=device.read_registers(2000,3,4)
-                posRequestEchoReg3=registers[1] & 0b0000000011111111
+                result=device.read_input_registers(2000,count=3,device_id=self.slaveAddress)
+                if result:
+                    if not result.isError():
+                        posRequestEchoReg3 = result.registers[1] & 0xFF
 
-                #Check if position request eco reflect the requested position
-                if posRequestEchoReg3 != 100:
-                    raise Exception("Not a gripper")
-                portName=port.device
-                del device
+                        if posRequestEchoReg3 == 100:
+                            print("Gripper found on:", port.device)
+                            portName = port.device
+                            device.close()
+                            break
 
-                ser.close()  # Close the port
-            except:
-                pass  # Skip if port cannot be opened
-    
+                device.close()
+
+            except Exception as e:
+                print("Failed:", e)
+        
+        if portName is None:
+            print("No gripper detected. Please check the connection and try again.")
+
         # If no suitable port is found
         return portName
 
@@ -286,10 +392,8 @@ class RobotiqGripper( mm.Instrument ):
         
         ######################################################################
      
-    def readAll(self):
-        """Retrieve gripper output register information and save it in the\
-            parameter dictionary.
-
+    def _saveStatus(self,registers):
+        """
         The dictionary keys are as follows:
 
         - gOBJ: Object detection status. This built-in feature provides\
@@ -312,12 +416,6 @@ class RobotiqGripper( mm.Instrument ):
             between 0x00 and 0xFF. Approximate current equivalent is 10 times\
             the value read in mA.
         """
-        #Clear parameter dictionnary data
-        self.paramDic={}
-        
-        #Read 3 16bits registers starting from register 2000
-        registers=self.read_registers(2000,3)
-        
         #########################################
         #Register 2000
         #First Byte: gripperStatus
@@ -374,12 +472,24 @@ class RobotiqGripper( mm.Instrument ):
         #########################################
         #Current
         self.paramDic["gCU"]=currentReg5
+
+    def readAll(self):
+        """Retrieve gripper output register information and save it in the\
+        parameter dictionary.
+        """
+        #Clear parameter dictionnary data
+        self.paramDic={}
+        
+        #Read 3 16bits registers starting from register 2000
+        registers=self.read_input_registers(2000,count=3,device_id=self.slaveAddress).registers
+
+        self._saveStatus(registers)  
     
     def reset(self):
         """Reset the gripper (clear previous activation if any)
         """
         #Reset the gripper
-        self.write_registers(1000,[0,0,0])
+        self.write_registers(1000,[0,0,0],device_id=self.slaveAddress)
     
     def activate(self):
         """If not already activated, activate the gripper.
@@ -396,7 +506,7 @@ class RobotiqGripper( mm.Instrument ):
         #Activate the gripper
         #rACT=1 Activate Gripper (must stay on after activation routine is
         #completed).
-        self.write_registers(1000,[0b0000000100000000,0,0])
+        self.write_registers(1000,[0b0000000100000000,0,0],device_id=self.slaveAddress)
 
         #Waiting for activation to complete
         activationStartTime=time.time()
@@ -463,7 +573,8 @@ class RobotiqGripper( mm.Instrument ):
         #gACT=1 (Gripper activation.) and gGTO=1 (Go to Position Request.)
         self.write_registers(1000,[0b0000100100000000,
                                     position,
-                                    speed * 0b100000000 + force])
+                                    speed * 0b100000000 + force],
+                                    device_id=self.slaveAddress)
         
         #Waiting for activation to complete
         motionStartTime=time.time()
@@ -535,7 +646,8 @@ class RobotiqGripper( mm.Instrument ):
             Execute the function calibrate at least 1 time before using this function.
         """
         if self.isCalibrated == False:
-            raise Exception("The gripper must be calibrated before been requested to go to a position in mm")
+            raise Exception("The gripper must be calibrated before been requested to go\
+                            to a position in mm")
 
         if  positionmm>self.openmm:
             raise Exception("The maximum opening is {}".format(self.openmm))
@@ -656,26 +768,359 @@ class RobotiqGripper( mm.Instrument ):
             is_calibrated=True
         
         return is_calibrated
+    
+    def _positionEstimation(self,startPosition,requestedPosition,speed,elapsedTime):
+        """
+        Estimate what will be the gripper position after an "elapsedTime" knowing the\
+        start position of the motion, the requested position and the speed
+        
+        Args:
+            - startPosition (int): Position in bits from which start the motion.
+            - requestedPosition (int): Position in bits where the gripper is requested\
+            to move
+            - speed (int): Speed of the gripper in bits.
+            - elapsedTime (s): elapsedTime in second from the start position to the\
+            estimated position
+
+        Returns:
+            estimatedPosition: True if the gripper is calibrated. False otherwise.
+        """
+
+        #Calculate predicted position
+        positionDelta = requestedPosition - startPosition
+        
+        direction = sign(positionDelta)
+
+        motion = int(direction * float(self.gripper_vmin + (self.gripper_vmax - self.gripper_vmin) * speed / 255) * elapsedTime)
+        
+        estimatedPosition = 0
+        
+        if abs(positionDelta) < abs(motion):
+            #Last position request was reachable within the elapsed time
+            estimatedPosition = requestedPosition
+        else:
+            #Last position was not reachable within elapsed time
+            estimatedPosition = startPosition + motion
+
+        return estimatedPosition
+    
+    def _bitPerSecond(self,speed):
+        """Return the corresponding position bits/s speed for a speed value in bit.
+        
+        Args:
+            - speed (int): gripper speed in bits
+        
+        Returns:
+            - bitPerSecond: position variation in bits/s
+        """
+        bitPerSecond=GRIPPER_2F_VMIN + (float(self.gripper_vmax-self.gripper_vmin)/255)*speed
+        return bitPerSecond
+    
+    def _travelTime(self,startPosition,endPosition,speed):
+        """Return the time need to travel from a position to another at a given speed.
+        
+        Args:
+            - startPosition (int): start position in bits
+            - endPosition (int): end position in bits
+        
+        Returns:
+            - travelTime
+        """
+        posBitPerSecond = self._bitPerSecond(speed)
+        travelTime = abs(float(endPosition-startPosition))/posBitPerSecond
+        return travelTime
+    
+    def estimatedObjectDetection(self):
+        objectDetection=NO_OBJECT_DETECTED
+
+        #If position is identical for more than 20x0.016s (time to move of 20 bits at\
+        # slow speed)
+        timeThresholdId=listIdValueUnderThreshold(self.commandHistory["time"],
+                                                  self.commandHistory["time"][0]-COM_TIME*25)
+        if timeThresholdId<2:
+            timeThresholdId=2
+        
+        isImobile = areValueIdentical(self.commandHistory["position"][:timeThresholdId])
+        if isImobile:
+
+            if (min(self.commandHistory["positionCommand"][:timeThresholdId]) - self.commandHistory["position"][0]) > 0:
+                objectDetection=OBJECT_DETECTED_WHILE_CLOSING
+            elif (max(self.commandHistory["positionCommand"][:timeThresholdId]) - self.commandHistory["position"][0] )<0:
+                objectDetection=OBJECT_DETECTED_WHILE_OPENING
+            else:
+                objectDetection=NO_OBJECT_DETECTED
+        
+        return objectDetection
+    
+
+    def _commandFilter(self,
+                       t0_RequestTime,
+                       t0_RequestPosition,
+                       commandHistory,
+                       statusUpdate,
+                       minSpeedPosDelta=5,
+                       maxSpeedPosDelta=55,
+                       continuousGrip=True,
+                       autoLock=True,
+                       minimalMotion=1):
+
+        #Object detection
+        t1_CommandDetection =NO_OBJECT_DETECTED
+        
+        if (statusUpdate is None) :
+            t1_CommandDetection = objectDetected(commandHistory)
+        elif (statusUpdate["time"]<commandHistory["time"][0]):
+            t1_CommandDetection = objectDetected(commandHistory)
+        else:        
+            #print("Detection from status")
+            t1_CommandDetection = statusUpdate["gOBJ"]
+
+        elapsedTime = t0_RequestTime-commandHistory["time"][0]
+        forceMin = continuousGrip*1
+        command = {}
+
+        command["execution"]=NO_COMMAND
+        command["position"]=0
+        command["speed"]=0
+        command["force"]=forceMin
+        command["grip"]=GRIP_NOT_REQUESTED
+        command["wait"]=0
+        
+        t0_CalculatedPosition = self._positionEstimation(commandHistory["position"][0],commandHistory["positionCommand"][0],commandHistory["speedCommand"][0], elapsedTime)
+
+        if (t1_CommandDetection == OBJECT_DETECTED_DURING_OPENING) and autoLock:
+
+            #An object have been detected during opening
+            if commandHistory["gripCommand"][0]==GRIP_NOT_REQUESTED:
+                #The gripper has not been request to grip
+                if (t0_RequestPosition <= commandHistory["position"][0]):
+                    #Secure the grip
+                    command["execution"]=WRITE_READ_COMMAND
+                    command["position"]=0
+                    command["speed"]=255
+                    command["force"]=255
+                    command["grip"]=GRIP_REQUESTED
+                    command["wait"]=self._travelTime(0,10,GRIPPER_VMAX)
+                else:
+                    #Release
+                    command["execution"]=WRITE_READ_COMMAND
+                    command["position"]=t0_RequestPosition
+                    command["speed"]=255
+                    command["force"]=255
+                    command["grip"]=GRIP_NOT_REQUESTED
+                    command["wait"]=self._travelTime(t0_CalculatedPosition,t0_RequestPosition,255)
+            elif commandHistory["gripCommand"][0]==GRIP_REQUESTED:
+                #The gripper has been requested to grip. Final grip position is unknown.
+                if t0_RequestPosition <= commandHistory["position"][0]:
+                    #The position is inside the grip
+                    #Validate the grip
+                    command["execution"]=READ_COMMAND
+                    command["position"]=None
+                    command["speed"]=None
+                    command["force"]=None
+                    command["grip"]=None
+                    command["wait"]=None
+                else:
+                    #The position is ouside the grip
+                    #Release
+                    command["execution"]=WRITE_READ_COMMAND
+                    command["position"]=t0_RequestPosition
+                    command["speed"]=255
+                    command["force"]=255
+                    command["grip"]=GRIP_NOT_REQUESTED
+                    command["wait"]=self._travelTime(t0_CalculatedPosition,t0_RequestPosition,255)
+            else:
+                #GRIP_VALIDATED
+
+                if t0_RequestPosition <= commandHistory["position"][0]:
+                    #The position is inside the grip
+                    #Validate the grip
+                    command["execution"]=READ_COMMAND
+                    command["position"]=0
+                    command["speed"]=0
+                    command["force"]=0
+                    command["grip"]=0
+                    command["wait"]=0
+                else:
+                    #The position is ouside the grip
+                    #Release
+                    command["execution"]=WRITE_READ_COMMAND
+                    command["position"]=t0_RequestPosition
+                    command["speed"]=255
+                    command["force"]=255
+                    command["grip"]=0
+                    command["wait"]=self._travelTime(commandHistory["position"][0],t0_RequestPosition,t0_Speed)
+
+        elif t1_CommandDetection == OBJECT_DETECTED_WHILE_OPENING and autoLock:
+            #print("Object detected while closing")
+            #An object have been detected during closing
+            if commandHistory["gripCommand"][0]==GRIP_NOT_REQUESTED:
+                #The gripper has not been request to grip
+                if t0_RequestPosition >= commandHistory["position"][0]:
+                    #Secure the grip
+                    command["execution"]=WRITE_READ_COMMAND
+                    command["position"]=255
+                    command["speed"]=255
+                    command["force"]=255
+                    command["grip"]=GRIP_REQUESTED
+                    command["wait"]=self._travelTime(0,10,GRIPPER_VMAX)
+                else:
+                    #Release
+                    command["execution"]=WRITE_READ_COMMAND
+                    command["position"]=t0_RequestPosition
+                    command["speed"]=255
+                    command["force"]=255
+                    command["grip"]=GRIP_NOT_REQUESTED
+                    command["wait"]=self._travelTime(t0_CalculatedPosition,t0_RequestPosition,255)
+            elif commandHistory["gripCommand"][0]==GRIP_REQUESTED:
+                #The gripper has been requested to grip. Final grip position is unknown.
+                if t0_RequestPosition >= commandHistory["position"][0]:
+                    #The position is inside the grip
+                    #Validate the grip
+                    command["execution"]=READ_COMMAND
+                    command["position"]=None
+                    command["speed"]=None
+                    command["force"]=None
+                    command["grip"]=None
+                    command["wait"]=None
+                else:
+                    #The position is ouside the grip
+                    #Release
+                    command["execution"]=WRITE_READ_COMMAND
+                    command["position"]=t0_RequestPosition
+                    command["speed"]=255
+                    command["force"]=255
+                    command["grip"]=0
+                    command["wait"]=self._travelTime(t0_CalculatedPosition,t0_RequestPosition,255)
+            else:
+                #GRIP_VALIDATED
+
+                if t0_RequestPosition >= commandHistory["position"][0]:
+                    #The position is inside the grip
+                    #Validate the grip
+                    command["execution"]=READ_COMMAND
+                    command["position"]=0
+                    command["speed"]=0
+                    command["force"]=0
+                    command["grip"]=0
+                    command["wait"]=0
+                else:
+                    #The position is ouside the grip
+                    #Release
+                    command["execution"]=WRITE_READ_COMMAND
+                    command["position"]=t0_RequestPosition
+                    command["speed"]=255
+                    command["force"]=255
+                    command["grip"]=0
+                    command["wait"]=self._travelTime(t0_CalculatedPosition,t0_RequestPosition,255)
+
+        else:
+            if abs(commandHistory["positionCommand"][0]-t0_RequestPosition)>minimalMotion:
+                if t0_RequestPosition==0 or t0_RequestPosition==255:
+                    command["execution"]=WRITE_READ_COMMAND
+                    command["position"]=t0_RequestPosition
+                    command["speed"]=255
+                    command["force"]=255
+                    command["grip"]=GRIP_NOT_REQUESTED
+                    command["wait"]=self._travelTime(t0_CalculatedPosition,t0_RequestPosition,255)
+                else:
+                    #Move only if request is distant of 2 bits to avoid having the gripper checking between 2 positions.
+
+                    #t0_ speed calculation
+                    t0_Speed = 0
+                    posDelta = abs(t0_RequestPosition - t0_CalculatedPosition)
+                    if posDelta <= minSpeedPosDelta:
+                        #Requested position is close from current position. The speed is slow.
+                        t0_Speed = 0
+                    elif posDelta > maxSpeedPosDelta:
+                        #Requested position is fare from the current position. The speed is fast.
+                        t0_Speed = 255
+                    else:
+                        #Request is a bit distant. The speed increase with the distance between current position and requested position.
+                        t0_Speed = int((float(posDelta - minSpeedPosDelta) /(maxSpeedPosDelta - minSpeedPosDelta)) * 255)
+                    if (commandHistory["positionCommand"][0] == t0_RequestPosition) and (commandHistory["speedCommand"][0] == t0_Speed) and (commandHistory["forceCommand"][0] == t0_Force):
+                        #t1_ command was identical as t0_ command. We do nothing.
+                        command["execution"]=READ_COMMAND
+                        command["position"]=None
+                        command["speed"]=None
+                        command["force"]=None
+                        command["grip"]=None
+                        command["wait"]=None
+                    else:
+                        command["execution"]=WRITE_READ_COMMAND
+                        command["position"]=t0_RequestPosition
+                        command["speed"]=t0_Speed
+                        command["force"]=forceMin
+                        command["grip"]=GRIP_NOT_REQUESTED
+                        command["wait"]=0#travelTime(0,2,t0_Speed)
+            else:
+                command["execution"]=READ_COMMAND
+                command["position"]=None
+                command["speed"]=None
+                command["force"]=None
+                command["grip"]=None
+                command["wait"]=None
+        
+        return command
+
+    def writePSFreadStatus(self,position, speed, force):
+        result=self.readwrite_registers(read_address=2000,
+                                        read_count=3,
+                                        write_address=1001,
+                                        values=[position, speed * 0b100000000 + force],
+                                        device_id=self.slaveAddress)
+        registers=result.registers
+
+        self._saveStatus(registers)
+    
+    def writeP(self,position):
+        res=self.write_registers(address=1001,
+                                 values=[position],
+                                 device_id=self.slaveAddress)
+
+        # Check result
+        if res.isError():
+            print("Write failed")
+    
+    def writeSF(self,speed, force):
+        res=self.write_registers(address=1002,
+                                 values=[speed * 0b100000000 + force],
+                                  device_id=self.slaveAddress)
+
+        # Check result
+        if res.isError():
+            print("Write failed")
+    
+    def waitComplete(self, timeout=5.0):
+        gOBJ=0b00
+        startTime = time.time()
+        while gOBJ == 0b00 and (time.time() - startTime) < self.timeOut:
+            result=self.read_holding_registers(address=2000,
+                                               count=1,
+                                               device_id=self.slaveAddress)
+            registers=result.registers
+            gripperStatusReg0=(registers[0] >> 8) & 0b11111111
+            gOBJ=(gripperStatusReg0 >> 6) & 0b11
             
 #Test
-if False:
+if True:
     grip=RobotiqGripper()
     grip.resetActivate()
-    #grip.reset()
-    #grip.goTo(0)
-    #grip.goTo(255)
-    #grip.printInfo()
-    #grip.goTo(255)
-    #time.sleep(5)
-    #grip.printInfo()
-    #grip.activate()
-    #grip.printInfo()
+    grip.reset()
+    grip.goTo(0)
+    grip.goTo(255)
+    grip.printInfo()
+    grip.goTo(255)
+    time.sleep(5)
+    grip.printInfo()
+    grip.activate()
+    grip.printInfo()
     
-    #grip.goTo(20)
-    #grip.goTo(230)
-    #grip.goTo(40)
-    #grip.goTo(80)
+    grip.goTo(20)
+    grip.goTo(230)
+    grip.goTo(40)
+    grip.goTo(80)
     
-    #grip.calibrate(0,36)
-    #grip.goTomm(10,255,255)
-    #grip.goTomm(40,1,255)
+    grip.calibrate(0,36)
+    grip.goTomm(10,255,255)
+    grip.goTomm(40,1,255)
