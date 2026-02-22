@@ -79,6 +79,14 @@ You can print the current status of gripper registers using printStatus(.
 
     gripper.printStatus(()
 
+For realtime control use the realTimeMove method.
+
+.. code-block:: python
+
+    gripper.realTimeMove(requestedPosition=100)
+
+The realTimeMove method is designed to be called in a loop with a high frequency. It will move the gripper to the requested position with a speed that depends on the distance to the target position. This allows for a smooth and responsive control of the gripper.
+
 4-Examples:
 -----------
 Examples of usage are availabe in the examples folder of the repository.
