@@ -44,7 +44,7 @@ class RobotiqGripper( ModbusSerialClient ):
                  gripper_type="2F",
                  use_tcp: bool = False,
                  tcp_host: str = "192.168.1.100",
-                 tcp_port: int = 502,
+                 tcp_port: int = 54321,
                  **kwargs):
         """Create a RobotiqGripper object which can be use to control Robotiq\
         grippers using modbus RTU protocol USB/RS485 connection.
@@ -627,7 +627,7 @@ class RobotiqGripper( ModbusSerialClient ):
         """
         self.move(0,force,speed)
     
-    def goTomm(self,positionmm,speed=255,force=255):
+    def move_mm(self,positionmm,speed=255,force=255):
         """Go to the requested opening expressed in mm
 
         Args:
