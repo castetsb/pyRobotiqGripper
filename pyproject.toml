@@ -1,9 +1,9 @@
 
 [tool.poetry]
 name = "pyrobotiqgripper"
-version = "1.0.1"
+version = "2.0.0"
 authors = ["Benoit CASTETS <opensourceeng@gmail.com>"]
-description = "Python Driver for Robotiq Grippers via Modbus RTU"
+description = "Python Driver for Robotiq Grippers"
 readme = "README.rst"
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -20,7 +20,8 @@ Issues = "https://github.com/castetsb/pyRobotiqGripper/issues"
 
 [tool.poetry.dependencies]
 python = ">=3.8.1,<4.0"
-minimalmodbus = "^2.1.1"
+pymodbus = "3.12.1"
+pyserial = "3.5"
 
 [build-system]
 requires = ["poetry-core>=1.0.8"]

@@ -1,9 +1,9 @@
 pyRobotiqGripper
 ================
 
-Python Driver for Robotiq Grippers via Modbus RTU
+Python Driver for Robotiq Grippers.
 
-pyRobotiqGripper is a Python library designed to facilitate control of Robotiq grippers using Modbus RTU communication via serial port.
+pyRobotiqGripper is a Python library designed to facilitate control of Robotiq grippers using Modbus RTU communication via serial port or over ethernet.
 It is compatible with 2F85, 2F140, and Hande.
 
 Documentation: `pyRobotiqGripper Documentation <https://pyrobotiqgripper.readthedocs.io/en/latest/>`_
@@ -24,38 +24,34 @@ Install the pyRobotiqGripper python package using PIP.
 
 .. code-block:: bash
 
-    python -m pip install minimalmodbus
-    python -m pip install pyRobotiqGripper
+    python3 -m pip install pyRobotiqGripper
 
 Typical Usage
 -------------
 
-Import the pyRobotiqGripper module.
+Gripper connected at PC USB port via a USB to RS485 converter.
 
 .. code-block:: python
 
     from pyrobotiqgripper import RobotiqGripper
 
-Create a Robotiq gripper object.
-
-
-.. code-block:: python
-
+    #Create a Robotiq gripper object.
     gripper = pyRobotiqGripper.RobotiqGripper()
+    gripper.activate()
+    gripper.move(position = 100, speed = 255, force = 255)
 
 By default, the serial port on which the gripper is connected is automatically detected. However, you can manually specify the serial port name if you want to. Refer to the API documentation for more information.
-You can now activate the gripper and eventually calibrate the gripper if you want to control the opening in mm instead of bit.
+
 
 Note: During activation, the gripper is going to fully open and close. Do not disturb this process. Do not place an object inside the gripper.
 
-Note: The gripper finger position varies from 0 to 255. It is coded on 8 bits.
+Note: Position, Speed and Force varie from 0 to 255. It is coded on 8 bits.
 
+You can eventually calibrate the gripper if you want to control the opening in mm instead of bit.
 
 .. code-block:: python
 
-    gripper.activate()
-    gripper.calibrate(0, 40)
-
+    gripper.calibrate(closemm=0, openmm=40)
 
 You can now do whatever you want with the gripper: open, close, get position feedback, etc.
 
@@ -63,15 +59,15 @@ You can now do whatever you want with the gripper: open, close, get position fee
 
     gripper.open()
     gripper.close()
-    gripper.goTo(100)
+    gripper.move(100)
     position_in_bit = gripper.getPosition()
     print(position_in_bit)
-    gripper.goTomm(25)
+    gripper.move_mm(25)
     position_in_mm = gripper.getPositionmm()
     print(position_in_mm)
 
-You can print the current status of gripper registers using printInfo.
+You can print the current status of gripper registers using printStatus(.
 
 .. code-block:: python
 
-    gripper.printInfo()
+    gripper.printStatus(()
