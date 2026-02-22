@@ -37,7 +37,7 @@ Install the pyRobotiqGripper python package using PIP.
     from pyrobotiqgripper import RobotiqGripper
 
     #Create a Robotiq gripper object.
-    gripper = pyRobotiqGripper.RobotiqGripper()
+    gripper = RobotiqGripper()
 
 By default, the serial port on which the gripper is connected is automatically detected. However, you can manually specify the serial port name if you want to. Refer to the API documentation for more information.
 
@@ -51,7 +51,7 @@ Replace <UR_ROBOT_IP> with the actual IP address of your UR robot.
     from pyrobotiqgripper import RobotiqGripper
 
     #Create a Robotiq gripper object.
-    gripper = pyRobotiqGripper.RobotiqGripper(use_tcp=True, tcp_host=<UR_ROBOT_IP>)
+    gripper = RobotiqGripper(use_tcp=True, tcp_host=<UR_ROBOT_IP>)
 
 3-3-Gripper control
 ~~~~~~~~~~~~~~~~~~~
@@ -78,3 +78,7 @@ You can print the current status of gripper registers using printStatus(.
 .. code-block:: python
 
     gripper.printStatus(()
+
+4-Examples:
+-----------
+Examples of usage are availabe in the examples folder of the repository.
