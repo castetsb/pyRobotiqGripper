@@ -19,7 +19,7 @@ Issues = "https://github.com/castetsb/pyRobotiqGripper/issues"
 
 
 [tool.poetry.dependencies]
-python = "">=3.8""
+python = ">=3.8"
 pymodbus = "^3.12.1"
 pyserial = "^3.5"
 
