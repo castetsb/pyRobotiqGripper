@@ -9,7 +9,7 @@ It is compatible with 2F85, 2F140, and Hande.
 Documentation: `pyRobotiqGripper Documentation <https://pyrobotiqgripper.readthedocs.io/en/latest/>`_
 
 1-Disclaimer
-----------
+------------
 
 This library can be seen as a starting point for a Robotiq integration project.
 You are responsible for what you do with this library.
@@ -18,7 +18,7 @@ The author takes no responsibility for any malfunction.
 Note: This library is not maintained by Robotiq.
 
 2-How to Install
---------------
+----------------
 
 Install the pyRobotiqGripper python package using PIP.
 
@@ -27,10 +27,10 @@ Install the pyRobotiqGripper python package using PIP.
     python3 -m pip install pyRobotiqGripper
 
 3-Typical Usage:
--------------
+----------------
 
 3-1-Robotiq gripper connected at PC USB port via a USB to RS485 converter
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
@@ -58,6 +58,7 @@ Replace <UR_ROBOT_IP> with the actual IP address of your UR robot.
 Activate the gripper and do whatever you want with the gripper: open, close, get position feedback, etc.
 
 .. code-block:: python
+
     gripper.activate()
     gripper.calibrate(closemm=0, openmm=40)
     gripper.open()
@@ -73,7 +74,7 @@ Note: During activation, the gripper is going to fully open and close. Do not di
 
 Note: Position, Speed and Force varie from 0 to 255. It is coded on 8 bits.
 
-You can print the current status of gripper registers using printStatus(.
+You can print the current status of gripper registers using `printStatus()`.
 
 .. code-block:: python
 

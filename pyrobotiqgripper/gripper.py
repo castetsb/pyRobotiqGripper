@@ -152,7 +152,7 @@ class RobotiqGripper( ModbusSerialClient ):
             if port == AUTO_DETECTION:
                 port = self._autoConnect()
                 if port is None:
-                    raise GripperConnectionError("No gripper detected")
+                    raise Exception("Gripper not detected")
             
             return ModbusSerialClient(
                 port=port,
