@@ -1,14 +1,23 @@
-
+"""Core Robotiq Gripper class for controlling via Modbus RTU/TCP."""
 
 #Iport libraries
 from pymodbus.client import ModbusSerialClient, ModbusTcpClient
 from pymodbus.framer import FramerType
-rtuFramer=FramerType.RTU
 import time
 import serial
 import serial.tools.list_ports
 from .utils import *
 from .constants import *
+from .exceptions import (
+    GripperConnectionError,
+    GripperNotActivatedError,
+    GripperNotCalibratedError,
+    GripperTimeoutError,
+    GripperPositionError,
+    UnsupportedGripperTypeError,
+)
+
+rtuFramer = FramerType.RTU
 
 class RobotiqGripper( ):
     """Class use to control Robotiq grippers (2F85, 2F140 or hande).
@@ -107,7 +116,7 @@ class RobotiqGripper( ):
             self.gripper_vmax=GRIPPER_2F_VMAX
             self.gripper_vmin=GRIPPER_2F_VMIN
         else:
-            raise Exception("Gripper type {} not supported".format(gripper_type))
+            raise UnsupportedGripperTypeError(gripper_type)
 
         self._commandHistory={}
         self._commandHistory["time"]=[time.monotonic()]*30
@@ -138,7 +147,7 @@ class RobotiqGripper( ):
             if port == AUTO_DETECTION:
                 port = self._autoConnect()
                 if port is None:
-                    raise Exception("Gripper not detected")
+                    raise GripperConnectionError("No gripper detected on any available port")
             
             return ModbusSerialClient(
                 port=port,
@@ -509,7 +518,7 @@ class RobotiqGripper( ):
                 print("Activation completed. Activation time : "
                       , activationTime)
         if activationTime > self.timeOut:
-            raise Exception("Activation did not complete without timeout.")
+            raise GripperTimeoutError("Activation", self.timeOut)
 
         self.processing=False
     
@@ -540,14 +549,11 @@ class RobotiqGripper( ):
         
         #Check if the grippre is activated
         if self.isActivated == False:
-            raise Exception ("Gripper must be activated before requesting\
-                             an action.")
+            raise GripperNotActivatedError()
 
         #Check input value
-        if position>255:
-            raise Exception("Position value cannot exceed 255")
-        elif position<0:
-            raise Exception("Position value cannot be under 0")
+        if position>255 or position<0:
+            raise GripperPositionError(position)
         
         self.processing=True
         
@@ -586,8 +592,7 @@ class RobotiqGripper( ):
                     motionCompleted=True
         
         if motionTime>self.timeOut:
-            raise Exception("Gripper never reach its requested position and\
-                            no object have been detected")
+            raise GripperTimeoutError("Motion", self.timeOut)
         
         position=self.status["gPO"]
         
@@ -628,8 +633,7 @@ class RobotiqGripper( ):
             Execute the function calibrate at least 1 time before using this function.
         """
         if self.isCalibrated == False:
-            raise Exception("The gripper must be calibrated before been requested to go\
-                            to a position in mm")
+            raise GripperNotCalibratedError()
 
         if  positionmm>self.openmm:
             raise Exception("The maximum opening is {}".format(self.openmm))
