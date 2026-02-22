@@ -10,7 +10,7 @@ import serial.tools.list_ports
 from .utils import *
 from .constants import *
 
-class RobotiqGripper( ModbusSerialClient ):
+class RobotiqGripper( ):
     """Class use to control Robotiq grippers (2F85, 2F140 or hande).
 
     The physical connection with the gripper can done in 2 ways:
@@ -60,30 +60,16 @@ class RobotiqGripper( ModbusSerialClient ):
             - slaveaddress (int, optional): Address of the gripper (integer)\
                 usually 9.
         """
+        self.device_id=device_id
         #Gripper device_id
         self.use_tcp = use_tcp
         self.client=self._create_modbus_client(port=port,
                                                tcp_host=tcp_host,
                                                tcp_port=tcp_port)
-        self.device_id=device_id
+        
 
         self.port=None
 
-        #Port on which is connected the gripper
-        if port == AUTO_DETECTION:
-            self.port=self._autoConnect()
-            if self.port is None:
-                raise Exception("No gripper detected")
-        else:
-            self.port=port
-
-        #Create the object using parent class contructor
-        super().__init__(port=self.port,   # or COM3 on Windows
-                         baudrate=115200,
-                         parity='N',
-                         stopbits=1,
-                         bytesize=8,
-                         timeout=1)
         
         #Attribute to monitore if the gripper is processing an action
         self.processing=False

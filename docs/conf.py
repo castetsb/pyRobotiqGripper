@@ -33,7 +33,20 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
-    'sphinx.ext.duration']
+    'sphinx.ext.duration',
+    'sphinx.ext.napoleon',  # Support Google/NumPy docstring styles
+]
+
+# Autodoc configuration
+autodoc_default_options = {
+    'members': True,
+    'member-order': 'bysource',
+    'special-members': '__init__',
+    'undoc-members': True,
+    'show-inheritance': True,
+}
+autodoc_typehints = 'description'
+autodoc_typehints_format = 'short'
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
