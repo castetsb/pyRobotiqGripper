@@ -1,3 +1,9 @@
+"""Utility functions for pyRobotiqGripper package.
+
+This module provides helper functions for common operations used by the gripper control system,
+including list manipulation and mathematical utilities.
+"""
+
 def sign(value):
     """Return the sign of a value
     

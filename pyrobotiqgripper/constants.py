@@ -1,3 +1,9 @@
+"""Constants for pyRobotiqGripper package.
+
+This module contains all configuration constants used throughout the package,
+including communication parameters, gripper limits, and status codes.
+"""
+
 #Constants
 BAUDRATE=115200
 BYTESIZE=8

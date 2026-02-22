@@ -13,17 +13,21 @@ import sys
 cwd = os.getcwd()
 project_root = os.path.dirname(cwd)
 
-
-
 # Insert the project root dir as the first element in the PYTHONPATH.
 # This lets us ensure that the source package is imported, and that its
 # version is used.
 sys.path.insert(0, project_root)
 
+# Import version from package
+try:
+    from pyrobotiqgripper import __version__
+    release = __version__
+except ImportError:
+    release = '2.0.3'
+
 project = 'pyrobotiqgripper'
 copyright = '2024, Benoit CASTETS'
 author = 'Benoit CASTETS'
-release = '1.0'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
