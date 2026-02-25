@@ -51,7 +51,7 @@ Replace <UR_ROBOT_IP> with the actual IP address of your UR robot.
     from pyrobotiqgripper import RobotiqGripper
 
     #Create a Robotiq gripper object.
-    gripper = RobotiqGripper(use_tcp=True, tcp_host=<UR_ROBOT_IP>)
+    gripper = RobotiqGripper(connection_type="RTU_VIA_TCP", tcp_host=<UR_ROBOT_IP>)
 
 3-3-Gripper control
 ~~~~~~~~~~~~~~~~~~~
