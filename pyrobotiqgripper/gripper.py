@@ -16,8 +16,9 @@ from .exceptions import (
     GripperPositionError,
     UnsupportedGripperTypeError,
 )
+import logging
+import multiprocessing
 
-rtuFramer = FramerType.RTU
 
 class RobotiqGripper( ):
     """Class use to control Robotiq grippers (2F85, 2F140 or hande).
@@ -46,14 +47,48 @@ class RobotiqGripper( ):
     .. note::
         This class cannot be use to control epick, 3F or powerpick.
     """    
-    
+    def _probe_port_process(self, port, device_id, return_dict):
+        try:
+            client = ModbusSerialClient(
+                port=port,
+                baudrate=115200,
+                parity='N',
+                stopbits=1,
+                bytesize=8,
+                timeout=0.2
+            )
+
+            if not client.connect():
+                return_dict["success"] = False
+                return
+
+            result = client.read_input_registers(
+                address=2000,
+                count=1,
+                device_id=device_id
+            )
+
+            if result and not result.isError():
+                return_dict["success"] = True
+            else:
+                return_dict["success"] = False
+
+        except Exception:
+            return_dict["success"] = False
+
+        finally:
+            try:
+                client.close()
+            except:
+                pass
     def __init__(self,
-                 port=AUTO_DETECTION,
-                 device_id=9,
+                 com_port=AUTO_DETECTION,
+                 device_id: int=9,
                  gripper_type="2F",
-                 use_tcp: bool = False,
-                 tcp_host: str = "192.168.1.100",
+                 connection_type: str = GRIPPER_MODE_RTU,
+                 tcp_host: str = "127.0.0.1",
                  tcp_port: int = 54321,
+                 debug=False,
                  **kwargs):
         """Create a RobotiqGripper object which can be use to control Robotiq\
         grippers using modbus RTU protocol USB/RS485 connection.
@@ -69,15 +104,12 @@ class RobotiqGripper( ):
             - slaveaddress (int, optional): Address of the gripper (integer)\
                 usually 9.
         """
+        self.connection_type=connection_type
         self.device_id=device_id
-        #Gripper device_id
-        self.use_tcp = use_tcp
-        self.client=self._create_modbus_client(port=port,
-                                               tcp_host=tcp_host,
-                                               tcp_port=tcp_port)
-        
-
-        self.port=None
+        self.tcp_host=tcp_host
+        self.tcp_port=tcp_port
+        self.com_port=com_port
+        self.client=self._create_modbus_client()
 
         
         #Attribute to monitore if the gripper is processing an action
@@ -130,27 +162,48 @@ class RobotiqGripper( ):
         self._commandHistory["forceCommand"]=[0]*30
         self._commandHistory["detection"]=[0]*30
         self._commandHistory["gripCommand"]=[GRIP_NOT_REQUESTED]*30
+
+        self.debug = debug
+        self._configure_logging()
+
+    def _configure_logging(self):
+        logger = logging.getLogger("pymodbus")
+
+        if self.debug:
+            logging.basicConfig(
+                level=logging.DEBUG,
+                format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            )
+            logger.setLevel(logging.DEBUG)
+        else:
+            logger.setLevel(logging.CRITICAL)  # Effectively disables it
     
-    def _create_modbus_client(self, 
-                              port: str = None,
-                              tcp_host: str = "192.168.1.100",
-                              tcp_port: int = 502):
+    def connect(self):
+        """Connect to the gripper. If the connection is already established, do nothing.
+        """
+        if not self.client.connect():
+            raise GripperConnectionError("Failed to connect to the gripper. Please check the connection and try again.")
+    def disconnect(self):
+        """Disconnect from the gripper. If the connection is already closed, do nothing.
+        """
+        self.client.close()
+
+    def _create_modbus_client(self):
         """Factory method to create appropriate Modbus client."""
         
-        if self.use_tcp:
+        if self.connection_type == GRIPPER_MODE_RTU_VIA_TCP:
             return ModbusTcpClient(
-                host=tcp_host,
-                port=tcp_port,
+                host=self.tcp_host,
+                port=self.tcp_port,
                 timeout=1,
-                framer=rtuFramer)
-        else:
-            if port == AUTO_DETECTION:
-                port = self._autoConnect()
-                if port is None:
-                    raise GripperConnectionError("No gripper detected on any available port")
+                framer=FramerType.RTU)
+        elif self.connection_type == GRIPPER_MODE_RTU:
+            if self.com_port == AUTO_DETECTION:
+                self.com_port = self._autoConnect()
+                
             
             return ModbusSerialClient(
-                port=port,
+                port=self.com_port,
                 baudrate=BAUDRATE,
                 parity='N',
                 stopbits=1,
@@ -213,51 +266,34 @@ class RobotiqGripper( ):
             print("No execution command")
 
     def _autoConnect(self):
-        """Return the name of the port on which is connected the gripper
-        """
-        ports=serial.tools.list_ports.comports()
-        portName=None
+
+        ports = serial.tools.list_ports.comports()
 
         for port in ports:
-            
-            # Try opening the port
-            print("Testing:", port.device)
-            try:
-                device=ModbusSerialClient(port.device,
-                                    baudrate=115200,
-                                    parity='N',
-                                    stopbits=1,
-                                    bytesize=8,
-                                    timeout=0.3)
-                if not device.connect():
-                    print("Cannot open port")
-                    continue
+            print(f"Testing: {port.device}")
 
-                #Try to write the position 100
-                device.write_registers(1000,[0,100,0],device_id=self.device_id)
+            manager = multiprocessing.Manager()
+            return_dict = manager.dict()
 
-                #Try to read the position request eco
-                result=device.read_input_registers(2000,count=3,device_id=self.device_id)
-                if result:
-                    if not result.isError():
-                        posRequestEchoReg3 = result.registers[1] & 0xFF
+            p = multiprocessing.Process(
+                target=self._probe_port_process,
+                args=(port.device, self.device_id, return_dict)
+            )
 
-                        if posRequestEchoReg3 == 100:
-                            print("Gripper found on:", port.device)
-                            portName = port.device
-                            device.close()
-                            break
+            p.start()
+            p.join(1.0)  # HARD TIMEOUT (1 second)
 
-                device.close()
+            if p.is_alive():
+                print("Hard timeout — killing process")
+                p.terminate()
+                p.join()
+                continue
 
-            except Exception as e:
-                print("Failed:", e)
-        
-        if portName is None:
-            print("No gripper detected. Please check the connection and try again.")
+            if return_dict.get("success", False):
+                print(f"Gripper detected on {port.device}")
+                return port.device
 
-        # If no suitable port is found
-        return portName
+        raise GripperConnectionError("No gripper detected on any available port")
 
     def _buildRegisterDic(self):
         """Build a dictionnary with comment to explain each register variable.
@@ -274,20 +310,15 @@ class RobotiqGripper( ):
         #gOBJ
         gOBJdic=self.registerDic["gOBJ"]
         
-        gOBJdic[0]="Fingers are in motion towards requested position. No\
-            object detected."
-        gOBJdic[1]="Fingers have stopped due to a contact while opening before\
-            requested position. Object detected opening."
-        gOBJdic[2]="Fingers have stopped due to a contact while closing before\
-            requested position. Object detected closing."
-        gOBJdic[3]="Fingers are at requested position. No object detected or\
-            object has been loss / dropped."
+        gOBJdic[0]="Fingers are in motion towards requested position. No object detected."
+        gOBJdic[1]="Fingers have stopped due to a contact while opening before requested position. Object detected opening."
+        gOBJdic[2]="Fingers have stopped due to a contact while closing before requested position. Object detected closing."
+        gOBJdic[3]="Fingers are at requested position. No object detected or object has been loss / dropped."
         
         #gSTA
         gSTAdic=self.registerDic["gSTA"]
         
-        gSTAdic[0]="Gripper is in reset ( or automatic release ) state. See\
-            Fault Status if Gripper is activated."
+        gSTAdic[0]="Gripper is in reset ( or automatic release ) state. See Fault Status if Gripper is activated."
         gSTAdic[1]="Activation in progress."
         gSTAdic[3]="Activation is completed."
         
@@ -321,47 +352,30 @@ class RobotiqGripper( ):
             gFLTdic[i]=i
             i+=1
         gFLTdic[0]="No fault (LED is blue)"
-        gFLTdic[5]="Priority faults (LED is blue). Action delayed, activation\
-            (reactivation) must be completed prior to perfmoring the action."
-        gFLTdic[7]="Priority faults (LED is blue). The activation bit must be\
-            set prior to action."
-        gFLTdic[8]="Minor faults (LED continuous red). Maximum operating\
-            temperature exceeded, wait for cool-down."
-        gFLTdic[9]="Minor faults (LED continuous red). No communication during\
-            at least 1 second."
-        gFLTdic[10]="Major faults (LED blinking red/blue) - Reset is required\
-            (rising edge on activation bit rACT needed). Under minimum\
-            operating voltage."
-        gFLTdic[11]="Major faults (LED blinking red/blue) - Reset is required\
-            (rising edge on activation bit rACT needed). Automatic release in\
-            progress."
-        gFLTdic[12]="Major faults (LED blinking red/blue) - Reset is required\
-            (rising edge on activation bit rACT needed). Internal fault;\
-            contact support@robotiq.com."
-        gFLTdic[13]="Major faults (LED blinking red/blue) - Reset is required\
-            (rising edge on activation bit rACT needed). Activation fault,\
-            verify that no interference or other error occurred."
-        gFLTdic[14]="Major faults (LED blinking red/blue) - Reset is required\
-            (rising edge on activation bit rACT needed). Overcurrent triggered."
-        gFLTdic[15]="Major faults (LED blinking red/blue) - Reset is required\
-            (rising edge on activation bit rACT needed). Automatic release\
-            completed."
+        gFLTdic[5]="Priority faults (LED is blue). Action delayed, activation (reactivation) must be completed prior to perfmoring the action."
+        gFLTdic[7]="Priority faults (LED is blue). The activation bit must be set prior to action."
+        gFLTdic[8]="Minor faults (LED continuous red). Maximum operating temperature exceeded, wait for cool-down."
+        gFLTdic[9]="Minor faults (LED continuous red). No communication during at least 1 second."
+        gFLTdic[10]="Major faults (LED blinking red/blue) - Reset is required (rising edge on activation bit rACT needed). Under minimum operating voltage."
+        gFLTdic[11]="Major faults (LED blinking red/blue) - Reset is required (rising edge on activation bit rACT needed). Automatic release in progress."
+        gFLTdic[12]="Major faults (LED blinking red/blue) - Reset is required (rising edge on activation bit rACT needed). Internal fault; contact support@robotiq.com."
+        gFLTdic[13]="Major faults (LED blinking red/blue) - Reset is required (rising edge on activation bit rACT needed). Activation fault, verify that no interference or other error occurred."
+        gFLTdic[14]="Major faults (LED blinking red/blue) - Reset is required (rising edge on activation bit rACT needed). Overcurrent triggered."
+        gFLTdic[15]="Major faults (LED blinking red/blue) - Reset is required (rising edge on activation bit rACT needed). Automatic release completed."
         
         #gPR
         gPRdic=self.registerDic["gPR"]
         
         i=0
         while i<256:
-            gPRdic[i]="Echo of the requested position for the Gripper:\
-                {}/255".format(i)
+            gPRdic[i]="Echo of the requested position for the Gripper:{}/255".format(i)
             i+=1
         
         #gPO
         gPOdic=self.registerDic["gPO"]
         i=0
         while i<256:
-            gPOdic[i]="Actual position of the Gripper obtained via the encoders:\
-                {}/255".format(i)
+            gPOdic[i]="Actual position of the Gripper obtained via the encoders:{}/255".format(i)
             i+=1
         
         #gCU
@@ -369,8 +383,7 @@ class RobotiqGripper( ):
         i=0
         while i<256:
             current=i*10
-            gCUdic[i]="The current is read instantaneously from the motor\
-                drive, approximate current: {} mA".format(current)
+            gCUdic[i]="The current is read instantaneously from the motor drive, approximate current: {} mA".format(current)
             i+=1
     
         ######################################################################
@@ -725,9 +738,25 @@ class RobotiqGripper( ):
         """Print gripper status info in the python terminal
         """
         self.readStatus()
-        for key,value in self.status.items():
-            print("{} : {}".format(key,value))
-            print(self.registerDic[key][value])
+        
+        # Print header
+        print("\n" + "=" * 70)
+        print(" " * 20 + "GRIPPER STATUS")
+        print("=" * 70)
+        
+        # Find the longest key for alignment
+        max_key_length = max(len(key) for key in self.status.keys() if key != "time")
+        
+        # Print each status item with description
+        for key, value in self.status.items():
+            if key != "time":
+                # Print key and value with alignment
+                print(f"\n{key:<{max_key_length}} : {value}")
+                # Print description with indentation
+                description = self.registerDic[key][value]
+                print(f"  └─ {description}")
+        
+        print("\n" + "=" * 70 + "\n")
 
     def isActivated(self):
         """Tells if the gripper is activated

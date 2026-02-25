@@ -31,3 +31,6 @@ WRITE_READ_COMMAND = 1
 READ_COMMAND = 2
 
 COM_TIME = 0.016 #Approximative time needed to make one communication with the gripper
+
+GRIPPER_MODE_RTU_VIA_TCP = "RTU_VIA_TCP"
+GRIPPER_MODE_RTU = "RTU"

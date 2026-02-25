@@ -4,6 +4,54 @@ This module provides helper functions for common operations used by the gripper 
 including list manipulation and mathematical utilities.
 """
 
+import threading
+
+def modbus_probe_with_timeout(port, device_id, timeout=1.0):
+    result_container = {"success": False}
+
+    def worker():
+        from pymodbus.client import ModbusSerialClient
+
+        client = ModbusSerialClient(
+            port=port,
+            baudrate=115200,
+            parity='N',
+            stopbits=1,
+            bytesize=8,
+            timeout=0.2
+        )
+
+        try:
+            if not client.connect():
+                return
+
+            result = client.read_input_registers(
+                address=2000,
+                count=1,
+                device_id=device_id
+            )
+
+            if result and not result.isError():
+                result_container["success"] = True
+
+        except Exception:
+            pass
+        finally:
+            try:
+                client.close()
+            except:
+                pass
+
+    thread = threading.Thread(target=worker)
+    thread.daemon = True
+    thread.start()
+    thread.join(timeout)
+
+    if thread.is_alive():
+        print("  ⚠ Hard timeout reached")
+        return False
+
+    return result_container["success"]
 def sign(value):
     """Return the sign of a value
     
