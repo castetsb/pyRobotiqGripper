@@ -859,38 +859,40 @@ class RobotiqGripper( ):
             >>> grip.move(100)
             >>> grip.printStatus()
 
-            ======================================================================
-                                GRIPPER STATUS
-            ======================================================================
+            Output::
 
-            gOBJ : 3
-            └─ Fingers are at requested position. No object detected or object has been loss / dropped.
+                ======================================================================
+                                    GRIPPER STATUS
+                ======================================================================
 
-            gSTA : 3
-            └─ Activation is completed.
+                gOBJ : 3
+                └─ Fingers are at requested position. No object detected or object has been loss / dropped.
 
-            gGTO : 1
-            └─ Go to Position Request.
+                gSTA : 3
+                └─ Activation is completed.
 
-            gACT : 1
-            └─ Gripper activation.
+                gGTO : 1
+                └─ Go to Position Request.
 
-            kFLT : 0
-            └─ 0
+                gACT : 1
+                └─ Gripper activation.
 
-            gFLT : 9
-            └─ Minor faults (LED continuous red). No communication during at least 1 second.
+                kFLT : 0
+                └─ 0
 
-            gPR  : 100
-            └─ Echo of the requested position for the Gripper:100/255
+                gFLT : 9
+                └─ Minor faults (LED continuous red). No communication during at least 1 second.
 
-            gPO  : 100
-            └─ Actual position of the Gripper obtained via the encoders:100/255
+                gPR  : 100
+                └─ Echo of the requested position for the Gripper:100/255
 
-            gCU  : 0
-            └─ The current is read instantaneously from the motor drive, approximate current: 0 mA
+                gPO  : 100
+                └─ Actual position of the Gripper obtained via the encoders:100/255
 
-            ======================================================================
+                gCU  : 0
+                └─ The current is read instantaneously from the motor drive, approximate current: 0 mA
+
+                ======================================================================
 
         """
         self.readStatus()
