@@ -143,6 +143,7 @@ class RobotiqGripper( ):
         grippers using modbus RTU protocol USB/RS485 connection.
         
         Args:
+        -----
         com_port : str
             COM port to which the gripper is connected.\
             If AUTO_DETECTION, the library will try to find the COM port to which\
