@@ -142,8 +142,8 @@ class RobotiqGripper( ):
         """Create a RobotiqGripper object which can be use to control Robotiq\
         grippers using modbus RTU protocol USB/RS485 connection.
         
-        Args:
-        -----
+        Parameters:
+        -----------
         com_port : str
             COM port to which the gripper is connected.\
             If AUTO_DETECTION, the library will try to find the COM port to which\
@@ -252,6 +252,7 @@ class RobotiqGripper( ):
         self._configure_logging()
 
     def _configure_logging(self):
+        """Configure logging for Modbus communication based on the debug flag."""
         logger = logging.getLogger("pymodbus")
 
         if self.debug:
@@ -298,19 +299,26 @@ class RobotiqGripper( ):
     def realTimeMove(self,requestedPosition,minSpeedPosDelta=5,maxSpeedPosDelta=100,continuousGrip=True,autoLock=True,minimalMotion=2):
         """Move the gripper in real time to the requested position.
         
-        Args:
-            - requestedPosition (int): Requested position for the gripper in bits.\
+        Parameters:
+        -----------
+        requestedPosition : int
+            Requested position for the gripper in bits.\
             Integer between 0 and 255. 0 being the open position and 255 being the\
             close position.
-            - minSpeedPosDelta (int, optional): Minimum position delta to apply the\
+        minSpeedPosDelta : int
+            Minimum position delta to apply the\
             minimum speed. Default is 5.
-            - maxSpeedPosDelta (int, optional): Position delta over which the maximum\
+        maxSpeedPosDelta : int
+            Position delta over which the maximum\
             speed is applied. Default is 100.
-            - continuousGrip (bool, optional): If True, the gripper continuously try to\
+        continuousGrip : bool
+            If True, the gripper continuously try to\
             close on object even after object detection (force>0). Default is True.
-            - autoLock (bool, optional): If True, the gripper automatically perform a\
+        autoLock : bool
+            If True, the gripper automatically perform a\
             full speed, full force grip after object detection. Default is True.
-            - minimalMotion (int, optional): Minimum motion in bit to perform when a\
+        minimalMotion : int
+            Minimum motion in bit to perform when a\
             motion is requested. If the position delta between the current position and\
             the requested position is under this value, no motion is performed. Default\
             is 2.
@@ -333,7 +341,7 @@ class RobotiqGripper( ):
                                 autoLock=autoLock,
                                 minimalMotion=minimalMotion)
         if command["execution"]==WRITE_READ_COMMAND:
-            self.writePSFreadStatus(command["position"],command["speed"],command["force"])
+            self._writePSFreadStatus(command["position"],command["speed"],command["force"])
             if command["wait"]>0:
                 time.sleep(command["wait"])
             updateList(self._commandHistory["time"],now)
@@ -351,7 +359,7 @@ class RobotiqGripper( ):
             print("No execution command")
 
     def _autoConnect(self):
-
+        """Automatically detect the COM port to which the gripper is connected."""
         ports = serial.tools.list_ports.comports()
 
         for port in ports:
@@ -486,26 +494,34 @@ class RobotiqGripper( ):
     def _saveStatus(self,registers):
         """Save the gripper status register values in the gripper status dictionary.
 
-
-        The dictionary keys are as follows:
-
-        - gOBJ: Object detection status. This built-in feature provides\
+        The dictionary keys
+        -------------------
+        gOBJ:
+            Object detection status. This built-in feature provides\
             information on possible object pick-up. Ignore if gGTO == 0.
-        - gSTA: Gripper status. Returns the current status and motion of the\
+        gSTA:
+            Gripper status. Returns the current status and motion of the\
             gripper fingers.
-        - gGTO: Action status. Echo of the rGTO bit (go-to bit).
-        - gACT: Activation status. Echo of the rACT bit (activation bit).
-        - kFLT: See your optional controller manual for input registers and\
+        gGTO:
+            Action status. Echo of the rGTO bit (go-to bit).
+        gACT:
+            Activation status. Echo of the rACT bit (activation bit).
+        kFLT:
+            See your optional controller manual for input registers and\
             status.
-        - gFLT: Fault status. Returns general error messages useful for\
+        gFLT:
+            Fault status. Returns general error messages useful for\
             troubleshooting. A fault LED (red) is present on the gripper\
             chassis. The LED can be blue, red, or both, and can be solid\
             or blinking.
-        - gPR: Echo of the requested position for the gripper. Value between\
+        gPR:
+            Echo of the requested position for the gripper. Value between\
             0x00 and 0xFF.
-        - gPO: Actual position of the gripper obtained via the encoders.\
+        gPO:
+            Actual position of the gripper obtained via the encoders.\
             Value between 0x00 and 0xFF.
-        - gCU: The current is read instantaneously from the motor drive. Value\
+        gCU:
+            The current is read instantaneously from the motor drive. Value\
             between 0x00 and 0xFF. Approximate current equivalent is 10 times\
             the value read in mA.
         """
@@ -630,14 +646,19 @@ class RobotiqGripper( ):
         self.activate()
     
     def move(self,position,speed=255,force=255,wait=False):
-        """Go to the position with determined speed and force.
+        """Move gripper fingers to the requested position with determined speed and force.
         
-        Args:
-            - position (int): Position of the gripper. Integer between 0 and 255.\
+        Parameters:
+        -----------
+        position : int
+            Position of the gripper. Integer between 0 and 255.\
             0 being the open position and 255 being the close position.
-            - speed (int): Gripper speed between 0 and 255
-            - force (int): Gripper force between 0 and 255
-            - wait (bool, optional): If True, the function wait until the gripper\
+        speed : int
+            Gripper speed between 0 and 255. Default is 255.
+        force : int
+            Gripper force between 0 and 255. Default is 255.
+        wait : bool
+            If True, the function wait until the gripper\
             reach the requested position or detect an object. Default is False.
         """
         position=int(position)
@@ -697,34 +718,38 @@ class RobotiqGripper( ):
     def close(self,speed=255,force=255):
         """Close the gripper.
 
-        Args:
-            - speed (int, optional): Gripper speed between 0 and 255.\
-            Default is 255.
-            - force (int, optional): Gripper force between 0 and 255.\
-            Default is 255.
+        Parameters:
+        -----------
+        speed : int
+            Gripper speed between 0 and 255. Default is 255.
+        force : int
+            Gripper force between 0 and 255. Default is 255.
         """
         self.move(255,speed,force)
     
     def open(self,speed=255,force=255):
         """Open the gripper
         
-        Args:
-            - speed (int, optional): Gripper speed between 0 and 255.\
-            Default is 255.
-            - force (int, optional): Gripper force between 0 and 255.\
-            Default is 255.
+        Parameters:
+        -----------
+        speed : int
+            Gripper speed between 0 and 255. Default is 255.
+        force : int
+            Gripper force between 0 and 255. Default is 255.
         """
         self.move(0,force,speed)
     
     def move_mm(self,positionmm,speed=255,force=255):
         """Go to the requested opening expressed in mm
 
-        Args:
-            - positionmm (float): Gripper opening in mm.
-            - speed (int, optional): Gripper speed between 0 and 255.\
-            Default is 255.
-            - force (int, optional): Gripper force between 0 and 255.\
-            Default is 255.
+        Parameters:
+        -----------
+        positionmm : float
+            Gripper opening in mm.
+        speed : int
+            Gripper speed between 0 and 255. Default is 255.
+        force : int
+            Gripper force between 0 and 255. Default is 255.
         
         .. note::
             Calibration is needed to use this function.\n
@@ -743,7 +768,9 @@ class RobotiqGripper( ):
         """Return the position of the gripper in bits
 
         Returns:
-            - int: Position of the gripper in bits.
+        --------
+        position : int
+            Position of the gripper in bits.
         """
         self.readStatus()
 
@@ -766,7 +793,9 @@ class RobotiqGripper( ):
         """Convert a bit gripper opening in mm opening.
 
         Returns:
-            float: Gripper position converted in mm
+        --------
+        mm : float
+            Gripper position converted in mm
         
         .. note::
             Calibration is needed to use this function.\n
@@ -780,7 +809,9 @@ class RobotiqGripper( ):
         """Return the position of the gripper in mm.
 
         Returns:
-            float: Current gripper position in mm
+        --------
+        positionmm : float
+            Current gripper position in mm
         
         .. note::
             Calibration is needed to use this function.\n
@@ -797,11 +828,12 @@ class RobotiqGripper( ):
         Once the calibration is done it is possible to control the gripper in\
         mm.
 
-        Args:
-            - closemm (float): Distance between the fingers when the gripper is\
-            fully closed.
-            - openmm (float): Distance between the fingers when the gripper is\
-            fully open.
+        Parameters:
+        -----------
+        closemm : float
+            Distance between the fingers when the gripper is fully closed.
+        openmm : float
+            Distance between the fingers when the gripper is fully open.
         """
         self._closemm=closemm
         self._openmm=openmm
@@ -821,6 +853,45 @@ class RobotiqGripper( ):
     
     def printStatus(self):
         """Print gripper status info in the python terminal
+
+        Examples
+        --------
+            >>> grip.move(100)
+            >>> grip.printStatus()
+
+            ======================================================================
+                                GRIPPER STATUS
+            ======================================================================
+
+            gOBJ : 3
+            └─ Fingers are at requested position. No object detected or object has been loss / dropped.
+
+            gSTA : 3
+            └─ Activation is completed.
+
+            gGTO : 1
+            └─ Go to Position Request.
+
+            gACT : 1
+            └─ Gripper activation.
+
+            kFLT : 0
+            └─ 0
+
+            gFLT : 9
+            └─ Minor faults (LED continuous red). No communication during at least 1 second.
+
+            gPR  : 100
+            └─ Echo of the requested position for the Gripper:100/255
+
+            gPO  : 100
+            └─ Actual position of the Gripper obtained via the encoders:100/255
+
+            gCU  : 0
+            └─ The current is read instantaneously from the motor drive, approximate current: 0 mA
+
+            ======================================================================
+
         """
         self.readStatus()
         
@@ -847,7 +918,9 @@ class RobotiqGripper( ):
         """Tells if the gripper is activated
         
         Returns:
-            bool: True if the gripper is activated. False otherwise.
+        --------
+        is_activated : bool
+            True if the gripper is activated. False otherwise.
         """
         
         self.readStatus()
@@ -859,7 +932,9 @@ class RobotiqGripper( ):
         """Return if the gripper is qualibrated
 
         Returns:
-            bool: True if the gripper is calibrated. False otherwise.
+        --------
+        is_calibrated : bool
+            True if the gripper is calibrated. False otherwise.
         """
         is_calibrated = False
         if (self._openmm is None) or (self._closemm is None):
@@ -874,16 +949,21 @@ class RobotiqGripper( ):
         Estimate what will be the gripper position after an "elapsedTime" knowing the\
         start position of the motion, the requested position and the speed
         
-        Args:
-            - startPosition (int): Position in bits from which start the motion.
-            - requestedPosition (int): Position in bits where the gripper is requested\
-            to move
-            - speed (int): Speed of the gripper in bits.
-            - elapsedTime (s): elapsedTime in second from the start position to the\
-            estimated position
+        Parameters:
+        -----------
+        startPosition : int
+            Position in bits from which start the motion.
+        requestedPosition : int
+            Position in bits where the gripper is requested to move.
+        speed : int
+            Speed of the gripper in bits.
+        elapsedTime : float
+            Elapsed time in seconds from the start position to the estimated position
 
         Returns:
-            estimatedPosition: True if the gripper is calibrated. False otherwise.
+        --------
+        estimatedPosition : int
+            Estimated position of the gripper.
         """
 
         #Calculate predicted position
@@ -907,11 +987,15 @@ class RobotiqGripper( ):
     def _bitPerSecond(self,speed):
         """Return the corresponding position bits/s speed for a speed value in bit.
         
-        Args:
-            - speed (int): gripper speed in bits
+        Parameters:
+        -----------
+        speed : int
+            Gripper speed in bits
         
         Returns:
-            - bitPerSecond: position variation in bits/s
+        --------
+        bitPerSecond : float
+            Position variation in bits/s
         """
         bitPerSecond=GRIPPER_2F_VMIN + (float(self.gripper_vmax-self.gripper_vmin)/255)*speed
         return bitPerSecond
@@ -919,18 +1003,34 @@ class RobotiqGripper( ):
     def _travelTime(self,startPosition,endPosition,speed):
         """Return the time need to travel from a position to another at a given speed.
         
-        Args:
-            - startPosition (int): start position in bits
-            - endPosition (int): end position in bits
-        
+        Parameters:
+        -----------
+        startPosition : int
+            Start position in bits.
+        endPosition : int
+            End position in bits.
+        speed : int
+            Gripper speed in bits.
+
         Returns:
-            - travelTime
+        --------
+        travelTime : float
+            Time needed to travel from start to end position.
         """
         posBitPerSecond = self._bitPerSecond(speed)
         travelTime = abs(float(endPosition-startPosition))/posBitPerSecond
         return travelTime
     
     def _estimatedObjectDetection(self):
+        """Estimate if an object is detected based on the gripper command history.
+        
+        Returns:
+        --------
+        objectDetection : int
+            0: No object detected
+            1: Object detected while opening
+            2: Object detected while closing
+        """
         objectDetection=NO_OBJECT_DETECTED
 
         #If position is identical for more than 20x0.016s (time to move of 20 bits at\
@@ -963,6 +1063,35 @@ class RobotiqGripper( ):
                        continuousGrip=True,
                        autoLock=True,
                        minimalMotion=1):
+        """"Filter the gripper command to perform a smooth and safe motion of the gripper.\
+        The command filter is based on the gripper command history and the gripper status.
+        
+        Parameters:
+        -----------
+        t0_RequestTime : float
+            Request time.
+        t0_RequestPosition : int
+            Requested position.
+        commandHistory : dict
+            Command history.
+        status : dict
+            Gripper status.
+        minSpeedPosDelta : int
+            Minimum speed position delta.
+        maxSpeedPosDelta : int
+            Maximum speed position delta.
+        continuousGrip : bool
+            Whether to continuously grip.
+        autoLock : bool
+            Whether to automatically lock.
+        minimalMotion : int
+            Minimal motion.
+
+        Returns:
+        --------
+        command : dict
+            Filtered command.
+        """
 
         #Object detection
         t1_CommandDetection =NO_OBJECT_DETECTED
@@ -1163,7 +1292,19 @@ class RobotiqGripper( ):
         
         return command
 
-    def writePSFreadStatus(self,position, speed, force):
+    def _writePSFreadStatus(self,position, speed, force):
+        """Write position, speed and force in the command register and read the gripper\
+        status in a single Modbus transaction.
+        
+        Parameters:
+        -----------
+        position: int
+            The position to move the gripper to in bits. Integer between 0 and 255.
+        speed: int
+            The speed of the gripper movement. Integer between 0 and 255.
+        force: int
+            The force of the gripper movement. Integer between 0 and 255.
+        """
         result=self._client.readwrite_registers(read_address=2000,
                                         read_count=3,
                                         write_address=1001,
@@ -1173,8 +1314,15 @@ class RobotiqGripper( ):
 
         self._saveStatus(registers)
     
-    def writeP(self,position):
-        res=self.write_registers(address=1001,
+    def _writeP(self,position):
+        """Write position in the command register.
+
+        Parameters:
+        -----------
+        position: int
+            The position to move the gripper to in bits. Integer between 0 and 255.
+        """
+        res=self._client.write_registers(address=1001,
                                  values=[position],
                                  device_id=self.device_id)
 
@@ -1182,8 +1330,17 @@ class RobotiqGripper( ):
         if res.isError():
             print("Write failed")
     
-    def writeSF(self,speed, force):
-        res=self.write_registers(address=1002,
+    def _writeSF(self,speed, force):
+        """Write speed and force in the command register.
+
+        Parameters:
+        -----------
+        speed: int
+            The speed of the gripper movement. Integer between 0 and 255.
+        force: int
+            The force of the gripper movement. Integer between 0 and 255.
+        """
+        res=self._client.write_registers(address=1002,
                                  values=[speed * 0b100000000 + force],
                                   device_id=self.device_id)
 
@@ -1192,6 +1349,7 @@ class RobotiqGripper( ):
             print("Write failed")
     
     def waitComplete(self, timeout=5.0):
+        """Wait until the gripper has completed its motion or detect an object."""
         gOBJ=0b00
         startTime = time.time()
         while gOBJ == 0b00 and (time.time() - startTime) < self.timeOut:
