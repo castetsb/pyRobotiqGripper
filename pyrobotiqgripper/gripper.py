@@ -23,13 +23,51 @@ import multiprocessing
 class RobotiqGripper( ):
     """Class use to control Robotiq grippers (2F85, 2F140 or hande).
 
+    This class provides methods to initialize, open, close, and monitor the gripper.
+
+    Attributes
+    ----------
+    - connection_type (str): Type of connection to the gripper. GRIPPER_MODE_RTU for\
+    direct Modbus RTU connection (e.g. via USB/RS485 adapter). GRIPPER_MODE_RTU_VIA_TCP\
+    for Modbus RTU connection via TCP (e.g. when using the UR RS485 URCAP).
+    - device_id (int): Address of the gripper (integer) usually 9.
+    - tcp_host (str): Host IP address for TCP connection. Default is "127.0.0.1".
+    - tcp_port (int): Port for TCP connection. Default is 54321.
+    - com_port (str): COM port to which the gripper is connected. If AUTO_DETECTION,\
+    the library will try to find the COM port to which the gripper is connected. On\
+    Windows, COM ports are named COM1, COM2, etc. On Linux, COM ports are named\
+    /dev/ttyUSB0, /dev/ttyUSB1, etc. Default is AUTO_DETECTION.
+
+    Examples
+    --------
+    Gripper connected at PC USB port:
+    >>> gripper = RobotiqGripper()
+    >>> gripper.connect()
+    >>> gripper.resetActivate()
+    >>> gripper.open()
+    >>> gripper.close()
+    >>> gripper.move(100) #Move at position 100 in bit
+    >>> print(gripper.position) #Print gripper position in bit
+    >>> gripper.calibrate(closemm=0,openmm=85) #Calibrate the gripper with 0mm when closed and 85mm when open
+    >>> gripper.move_mm(50) #Move at position 50mm
+    >>> gripper.printStatus() #Print gripper status information in the python terminal
+    >>> print(gripper.positionmm) #Print gripper position in mm
+
+    Gripper connected to UR robot via RS495 URCAP:
+    >>> gripper = RobotiqGripper(connection_type=GRIPPER_MODE_RTU_VIA_TCP,tcp_host="192.168.1.100")
+    >>> gripper.connect()
+    >>> gripper.resetActivate()
+    >>> gripper.open()
+
+    Physical connection
+    -------------------    
     The physical connection with the gripper can done in 2 ways:
     - Connected to the PC via the USB/RS485 adapter.
     - Connected to the UR robot: In this case the UR RS485 URCAP needs to be installed
     on the robot controller.
-    The gripper can connected via the USB/RS485 adapter to the PC\
-    executing this code.
 
+    Modbus RTU/TCP communication
+    ----------------------------
     Modbus RTU function code supported by robotiq gripper
 
     =======================================  ====================
@@ -94,22 +132,52 @@ class RobotiqGripper( ):
         grippers using modbus RTU protocol USB/RS485 connection.
         
         Args:
-            - portname (str, optional): The serial port name, for example\
-                /dev/ttyUSB0 (Linux), /dev/tty.usbserial (OS X) or COM4\
-                (Windows). It is necesary to allowpermission to access this\
-                connection using the bash comman sudo chmod 666 /dev/ttyUSB0.\
-                By default the portname is set to "auto". In this case the\
-                connection is done with the first gripper found as connected\
-                to the PC.
-            - slaveaddress (int, optional): Address of the gripper (integer)\
-                usually 9.
+            - com_port (str, optional): COM port to which the gripper is connected.\
+            If AUTO_DETECTION, the library will try to find the COM port to which\
+            the gripper is connected.\
+            On Windows, COM ports are named COM1, COM2, etc. On Linux, COM ports are\
+            named /dev/ttyUSB0, /dev/ttyUSB1, etc. Default is AUTO_DETECTION.
+            - device_id (int, optional): Address of the gripper (integer)\
+            usually 9.
+            - gripper_type (str, optional): Type of the gripper. Currently only\
+            "2F" is supported. Default is "2F".
+            - connection_type (str, optional): Type of connection to the gripper.\
+            GRIPPER_MODE_RTU for direct Modbus RTU connection (e.g. via USB/RS485\
+            adapter). GRIPPER_MODE_RTU_VIA_TCP for Modbus RTU connection via TCP\
+            (e.g. when using the UR RS485 URCAP). Default is GRIPPER_MODE_RTU.
+            - tcp_host (str, optional): Host IP address for TCP connection. Default is\
+            "127.0.0.1"
+            - tcp_port (int, optional): Port number for TCP connection. Default is 54321.
+            - debug (bool, optional): If True, enable debug logging for Modbus\
+            communication. Default is False.
+        
+        Examples
+        --------
+        Gripper connected at PC USB port:
+        >>> gripper = RobotiqGripper()
+        >>> gripper.connect()
+        >>> gripper.resetActivate()
+        >>> gripper.open()
+        >>> gripper.close()
+        >>> gripper.move(100) #Move at position 100 in bit
+        >>> print(gripper.position) #Print gripper position in bit
+        >>> gripper.calibrate(closemm=0,openmm=85) #Calibrate the gripper with 0mm when closed and 85mm when open
+        >>> gripper.move_mm(50) #Move at position 50mm
+        >>> gripper.printStatus() #Print gripper status information in the python terminal
+        >>> print(gripper.positionmm) #Print gripper position in mm
+
+        Gripper connected to UR robot via RS495 URCAP:
+        >>> gripper = RobotiqGripper(connection_type=GRIPPER_MODE_RTU_VIA_TCP,tcp_host="192.168.1.100")
+        >>> gripper.connect()
+        >>> gripper.resetActivate()
+        >>> gripper.open()
         """
         self.connection_type=connection_type
         self.device_id=device_id
         self.tcp_host=tcp_host
         self.tcp_port=tcp_port
         self.com_port=com_port
-        self.client=self._create_modbus_client()
+        self._client=self._create_modbus_client()
 
         
         #Attribute to monitore if the gripper is processing an action
@@ -129,14 +197,14 @@ class RobotiqGripper( ):
         #Attributes to store open and close distance state information
         
         #Distance between the fingers when gripper is closed
-        self.closemm=None
+        self._closemm=None
         #Position in bit when gripper is closed
-        self.closebit=None
+        self._closebit=None
         
         #Distance between the fingers when gripper is open
-        self.openmm=None
+        self._openmm=None
         #Position in bit when gripper is open
-        self.openbit=None
+        self._openbit=None
         
         #Linear coefficient to link bit and distance between fingers
         #mm=self._aCoef*bit+self._bCoef
@@ -181,12 +249,12 @@ class RobotiqGripper( ):
     def connect(self):
         """Connect to the gripper. If the connection is already established, do nothing.
         """
-        if not self.client.connect():
+        if not self._client.connect():
             raise GripperConnectionError("Failed to connect to the gripper. Please check the connection and try again.")
     def disconnect(self):
         """Disconnect from the gripper. If the connection is already closed, do nothing.
         """
-        self.client.close()
+        self._client.close()
 
     def _create_modbus_client(self):
         """Factory method to create appropriate Modbus client."""
@@ -488,7 +556,7 @@ class RobotiqGripper( ):
         parameter dictionary.
         """
         #Read 3 16bits registers starting from register 2000
-        registers=self.client.read_input_registers(2000,count=3,device_id=self.device_id).registers
+        registers=self._client.read_input_registers(2000,count=3,device_id=self.device_id).registers
 
         self._saveStatus(registers)
     
@@ -496,7 +564,7 @@ class RobotiqGripper( ):
         """Reset the gripper (clear previous activation if any)
         """
         #Reset the gripper
-        self.client.write_registers(1000,[0,0,0],device_id=self.device_id)
+        self._client.write_registers(1000,[0,0,0],device_id=self.device_id)
     
     def activate(self):
         """If not already activated, activate the gripper.
@@ -513,7 +581,7 @@ class RobotiqGripper( ):
         #Activate the gripper
         #rACT=1 Activate Gripper (must stay on after activation routine is
         #completed).
-        self.client.write_registers(1000,[0b0000100100000000,0,0],device_id=self.device_id)
+        self._client.write_registers(1000,[0b0000100100000000,0,0],device_id=self.device_id)
 
         #Waiting for activation to complete
         activationStartTime=time.time()
@@ -573,7 +641,7 @@ class RobotiqGripper( ):
 
         #rARD(5) rATR(4) rGTO(3) rACT(0)
         #gACT=1 (Gripper activation.) and gGTO=1 (Go to Position Request.)
-        self.client.write_registers(1000,[0b0000100100000000,
+        self._client.write_registers(1000,[0b0000100100000000,
                                     position,
                                     speed * 0b100000000 + force],
                                     device_id=self.device_id)
@@ -648,8 +716,8 @@ class RobotiqGripper( ):
         if self.isCalibrated == False:
             raise GripperNotCalibratedError()
 
-        if  positionmm>self.openmm:
-            raise Exception("The maximum opening is {}".format(self.openmm))
+        if  positionmm>self._openmm:
+            raise Exception("The maximum opening is {}".format(self._openmm))
         
         position=int(self._mmToBit(positionmm))
         self.move(position,speed,force)
@@ -718,18 +786,18 @@ class RobotiqGripper( ):
             - openmm (float): Distance between the fingers when the gripper is\
             fully open.
         """
-        self.closemm=closemm
-        self.openmm=openmm
+        self._closemm=closemm
+        self._openmm=openmm
         
         self.open()
         #get open bit
-        self.openbit=self.getPosition()
-        obit=self.openbit
+        self._openbit=self.getPosition()
+        obit=self._openbit
         
         self.close()
         #get close bit
-        self.closebit=self.getPosition()
-        cbit=self.closebit
+        self._closebit=self.getPosition()
+        cbit=self._closebit
         
         self._aCoef=(closemm-openmm)/(cbit-obit)
         self._bCoef=(openmm*cbit-obit*closemm)/(cbit-obit)
@@ -777,7 +845,7 @@ class RobotiqGripper( ):
             bool: True if the gripper is calibrated. False otherwise.
         """
         is_calibrated = False
-        if (self.openmm is None) or (self.closemm is None):
+        if (self._openmm is None) or (self._closemm is None):
             is_calibrated = False
         else:
             is_calibrated=True
@@ -1079,7 +1147,7 @@ class RobotiqGripper( ):
         return command
 
     def writePSFreadStatus(self,position, speed, force):
-        result=self.client.readwrite_registers(read_address=2000,
+        result=self._client.readwrite_registers(read_address=2000,
                                         read_count=3,
                                         write_address=1001,
                                         values=[position, speed * 0b100000000 + force],
