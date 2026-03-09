@@ -27,16 +27,27 @@ class RobotiqGripper( ):
 
     Attributes
     ----------
-    - connection_type (str): Type of connection to the gripper. GRIPPER_MODE_RTU for\
-    direct Modbus RTU connection (e.g. via USB/RS485 adapter). GRIPPER_MODE_RTU_VIA_TCP\
-    for Modbus RTU connection via TCP (e.g. when using the UR RS485 URCAP).
-    - device_id (int): Address of the gripper (integer) usually 9.
-    - tcp_host (str): Host IP address for TCP connection. Default is "127.0.0.1".
-    - tcp_port (int): Port for TCP connection. Default is 54321.
-    - com_port (str): COM port to which the gripper is connected. If AUTO_DETECTION,\
-    the library will try to find the COM port to which the gripper is connected. On\
-    Windows, COM ports are named COM1, COM2, etc. On Linux, COM ports are named\
-    /dev/ttyUSB0, /dev/ttyUSB1, etc. Default is AUTO_DETECTION.
+    com_port : str
+        COM port to which the gripper is connected. If AUTO_DETECTION,\
+        the library will try to find the COM port to which the gripper is connected. On\
+        Windows, COM ports are named COM1, COM2, etc. On Linux, COM ports are named\
+        /dev/ttyUSB0, /dev/ttyUSB1, etc. Default is AUTO_DETECTION.
+    device_id : int
+        Address of the gripper (integer) usually 9.
+    gripper_type : str
+        Type of the gripper. Currently only "2F" is supported. Default is "
+    connection_type : str
+        Type of connection to the gripper. GRIPPER_MODE_RTU for direct Modbus RTU\
+        connection (e.g. via USB/RS485 adapter). GRIPPER_MODE_RTU_VIA_TCP\
+        for Modbus RTU connection via TCP (e.g. when using the UR RS485 URCAP).\
+        Default is GRIPPER_MODE_RTU.
+    tcp_host : str
+        Host IP address for TCP connection. Default is "127.0.0.1".
+    tcp_port : int
+        Port for TCP connection. Default is 54321.
+    debug : bool
+        If True, enable debug logging for Modbus communication. Default is False.
+    
 
     Examples
     --------
