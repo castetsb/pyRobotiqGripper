@@ -120,13 +120,13 @@ class RobotiqGripper( ):
             except:
                 pass
     def __init__(self,
-                 com_port=AUTO_DETECTION,
+                 com_port: str = AUTO_DETECTION,
                  device_id: int=9,
-                 gripper_type="2F",
+                 gripper_type: str = "2F",
                  connection_type: str = GRIPPER_MODE_RTU,
                  tcp_host: str = "127.0.0.1",
                  tcp_port: int = 54321,
-                 debug=False,
+                 debug: bool = False,
                  **kwargs):
         """Create a RobotiqGripper object which can be use to control Robotiq\
         grippers using modbus RTU protocol USB/RS485 connection.
