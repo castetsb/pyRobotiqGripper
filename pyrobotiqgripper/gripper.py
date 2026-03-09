@@ -41,23 +41,23 @@ class RobotiqGripper( ):
     Examples
     --------
     Gripper connected at PC USB port:
-    >>> gripper = RobotiqGripper()
-    >>> gripper.connect()
-    >>> gripper.resetActivate()
-    >>> gripper.open()
-    >>> gripper.close()
-    >>> gripper.move(100) #Move at position 100 in bit
-    >>> print(gripper.position) #Print gripper position in bit
-    >>> gripper.calibrate(closemm=0,openmm=85) #Calibrate the gripper with 0mm when closed and 85mm when open
-    >>> gripper.move_mm(50) #Move at position 50mm
-    >>> gripper.printStatus() #Print gripper status information in the python terminal
-    >>> print(gripper.positionmm) #Print gripper position in mm
+        >>> gripper = RobotiqGripper()
+        >>> gripper.connect()
+        >>> gripper.resetActivate()
+        >>> gripper.open()
+        >>> gripper.close()
+        >>> gripper.move(100) #Move at position 100 in bit
+        >>> print(gripper.position) #Print gripper position in bit
+        >>> gripper.calibrate(closemm=0,openmm=85) #Calibrate the gripper with 0mm when closed and 85mm when open
+        >>> gripper.move_mm(50) #Move at position 50mm
+        >>> gripper.printStatus() #Print gripper status information in the python terminal
+        >>> print(gripper.positionmm) #Print gripper position in mm
 
     Gripper connected to UR robot via RS495 URCAP:
-    >>> gripper = RobotiqGripper(connection_type=GRIPPER_MODE_RTU_VIA_TCP,tcp_host="192.168.1.100")
-    >>> gripper.connect()
-    >>> gripper.resetActivate()
-    >>> gripper.open()
+        >>> gripper = RobotiqGripper(connection_type=GRIPPER_MODE_RTU_VIA_TCP,tcp_host="192.168.1.100")
+        >>> gripper.connect()
+        >>> gripper.resetActivate()
+        >>> gripper.open()
 
     Physical connection
     -------------------    
@@ -154,23 +154,23 @@ class RobotiqGripper( ):
         Examples
         --------
         Gripper connected at PC USB port:
-        >>> gripper = RobotiqGripper()
-        >>> gripper.connect()
-        >>> gripper.resetActivate()
-        >>> gripper.open()
-        >>> gripper.close()
-        >>> gripper.move(100) #Move at position 100 in bit
-        >>> print(gripper.position) #Print gripper position in bit
-        >>> gripper.calibrate(closemm=0,openmm=85) #Calibrate the gripper with 0mm when closed and 85mm when open
-        >>> gripper.move_mm(50) #Move at position 50mm
-        >>> gripper.printStatus() #Print gripper status information in the python terminal
-        >>> print(gripper.positionmm) #Print gripper position in mm
+            >>> gripper = RobotiqGripper()
+            >>> gripper.connect()
+            >>> gripper.resetActivate()
+            >>> gripper.open()
+            >>> gripper.close()
+            >>> gripper.move(100) #Move at position 100 in bit
+            >>> print(gripper.position) #Print gripper position in bit
+            >>> gripper.calibrate(closemm=0,openmm=85) #Calibrate the gripper with 0mm when closed and 85mm when open
+            >>> gripper.move_mm(50) #Move at position 50mm
+            >>> gripper.printStatus() #Print gripper status information in the python terminal
+            >>> print(gripper.positionmm) #Print gripper position in mm
 
         Gripper connected to UR robot via RS495 URCAP:
-        >>> gripper = RobotiqGripper(connection_type=GRIPPER_MODE_RTU_VIA_TCP,tcp_host="192.168.1.100")
-        >>> gripper.connect()
-        >>> gripper.resetActivate()
-        >>> gripper.open()
+            >>> gripper = RobotiqGripper(connection_type=GRIPPER_MODE_RTU_VIA_TCP,tcp_host="192.168.1.100")
+            >>> gripper.connect()
+            >>> gripper.resetActivate()
+            >>> gripper.open()
         """
         self.connection_type=connection_type
         self.device_id=device_id
