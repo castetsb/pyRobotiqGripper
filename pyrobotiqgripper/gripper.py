@@ -695,37 +695,11 @@ class RobotiqGripper( ):
                 self._writePSF(position,speed,force)
         
         self.processing=True
-        
-
-        #Waiting the move to complete
-        motionStartTime=time.monotonic()
-        motionCompleted=False
-        motionTime=0
-        objectDetected=False
-
         if wait:
-            while (not objectDetected) and (not motionCompleted)\
-                and (motionTime<self.timeOut):
-
-                motionTime= time.monotonic()- motionStartTime
-                self.readStatus()
-                #Object detection status, is a built-in feature that provides
-                #information on possible object pick-up. Ignore if gGTO == 0.
-                gOBJ=self.status["gOBJ"]
-
-                
-                if gOBJ==1 or gOBJ==2: 
-                    #Fingers have stopped due to a contact
-                    objectDetected=True
-                
-                elif gOBJ==3:
-                    #Fingers are at requested position.
-                    motionCompleted=True
+            self.waitComplete()
+        self.processing=False
         
-        if motionTime>self.timeOut:
-            raise GripperTimeoutError("Motion", self.timeOut)
-        
-    def close(self,speed=255,force=255):
+    def close(self,speed=255,force=255,wait=False,readStatus=True):
         """Close the gripper.
 
         Parameters:
@@ -735,9 +709,9 @@ class RobotiqGripper( ):
         force : int
             Gripper force between 0 and 255. Default is 255.
         """
-        self.move(255,speed,force)
+        self.move(255,speed,force,wait=wait,readStatus=readStatus)
     
-    def open(self,speed=255,force=255):
+    def open(self,speed=255,force=255,wait=False,readStatus=True):
         """Open the gripper
         
         Parameters:
@@ -747,7 +721,7 @@ class RobotiqGripper( ):
         force : int
             Gripper force between 0 and 255. Default is 255.
         """
-        self.move(0,force,speed)
+        self.move(0,speed,force,wait=wait,readStatus=readStatus)
     
     def move_mm(self,positionmm,speed=None,force=None,wait=False,readStatus=True):
         """Go to the requested opening expressed in mm
@@ -854,12 +828,12 @@ class RobotiqGripper( ):
         self._closemm=closemm
         self._openmm=openmm
         
-        self.open()
+        self.open(speed=255,force=0,wait=True)
         #get open bit
         self._openbit=self.getPosition()
         obit=self._openbit
         
-        self.close()
+        self.close(speed=255,force=0,wait=True)
         #get close bit
         self._closebit=self.getPosition()
         cbit=self._closebit
@@ -1384,52 +1358,15 @@ class RobotiqGripper( ):
         if res.isError():
             print("Write failed")
     
-    def waitComplete(self, timeout=5.0):
+    def waitComplete(self):
         """Wait until the gripper has completed its motion or detect an object."""
         gOBJ=0b00
         startTime = time.time()
         while gOBJ == 0b00 and (time.time() - startTime) < self.timeOut:
-            result=self.read_holding_registers(address=2000,
+            result=self._client.read_holding_registers(address=2000,
                                                count=1,
                                                device_id=self.device_id)
             registers=result.registers
             gripperStatusReg0=(registers[0] >> 8) & 0b11111111
             gOBJ=(gripperStatusReg0 >> 6) & 0b11
             
-#Test
-if False:
-    grip=RobotiqGripper("COM8")
-    grip.resetActivate()
-    grip.readwrite_registers(read_address=2000,
-                                        read_count=3,
-                                        write_address=1001,
-                                        values=[0, 255 * 0b100000000 + 255],
-                                        device_id=grip.device_id)
-    time.sleep(5)
-    grip.readwrite_registers(read_address=2000,
-                                        read_count=3,
-                                        write_address=1001,
-                                        values=[255, 255 * 0b100000000 + 255],
-                                        device_id=grip.device_id)
-    time.sleep(5)
-    """
-    grip.resetActivate()
-    grip.reset()
-    grip.goTo(0)
-    grip.goTo(255)
-    grip.printInfo()
-    grip.goTo(255)
-    time.sleep(5)
-    grip.printInfo()
-    grip.activate()
-    grip.printInfo()
-    
-    grip.goTo(20)
-    grip.goTo(230)
-    grip.goTo(40)
-    grip.goTo(80)
-    
-    grip.calibrate(0,36)
-    grip.goTomm(10,255,255)
-    grip.goTomm(40,1,255)
-    """
