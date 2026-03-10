@@ -229,7 +229,7 @@ class RobotiqGripper( ):
         self._aCoef=None
         self._bCoef=None
 
-        #Maximum and minimum speed of the gripper
+        #Maximum and minimum speed of the gripper in steps per second
         if gripper_type=="2F":
             self.gripper_vmax=GRIPPER_2F_VMAX
             self.gripper_vmin=GRIPPER_2F_VMIN
