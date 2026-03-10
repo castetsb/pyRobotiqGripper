@@ -18,6 +18,7 @@ from .exceptions import (
 )
 import logging
 import multiprocessing
+import warnings
 
 
 class RobotiqGripper( ):
@@ -600,7 +601,9 @@ class RobotiqGripper( ):
         self._client.write_registers(1000,[0,0,0],device_id=self.device_id)
     
     def activate(self):
-        """If not already activated, activate the gripper.
+        """If not already activated, activate the gripper. Goto bit is set to 1 which\
+        means that once activated the gripper will move the the finger position\
+        saved in its position register.
 
         .. warning::
             When you execute this function the gripper is going to fully open\
@@ -645,7 +648,7 @@ class RobotiqGripper( ):
         #Activate the gripper
         self.activate()
     
-    def move(self,position,speed=255,force=255,wait=False):
+    def move(self,position,speed=None,force=None,wait=False,readStatus=True):
         """Move gripper fingers to the requested position with determined speed and force.
         
         Parameters:
@@ -661,12 +664,7 @@ class RobotiqGripper( ):
             If True, the function wait until the gripper\
             reach the requested position or detect an object. Default is False.
         """
-        position=int(position)
-        speed=int(speed)
-        force=int(force)
-        
-        
-        #Check if the grippre is activated
+        #Check if the gripper is activated
         if self.isActivated == False:
             raise GripperNotActivatedError()
 
@@ -674,18 +672,33 @@ class RobotiqGripper( ):
         if position>255 or position<0:
             raise GripperPositionError(position)
         
+        position=int(position)
+        if ((speed is None) and (force is not None)) or ((speed is not None) and (force is None)):
+            warnings.warn("Both speed and force must be provided together or not"
+                        " at all. As only one of them is provided, force and speed"
+                        " are set to identical the their previous value.", UserWarning,stacklevel=2)
+            if self.readStatus:
+                self._writePreadStatus(position)
+            else:
+                self._writeP(position)
+        elif (speed is None) and (force is None):
+            if self.readStatus:
+                self._writePreadStatus(position)
+            else:
+                self._writeP(position)
+        else:
+            speed=int(speed)
+            force=int(force)
+            if self.readStatus:
+                self._writePSFreadStatus(position,speed,force)
+            else:
+                self._writePSF(position,speed,force)
+        
         self.processing=True
         
 
-        #rARD(5) rATR(4) rGTO(3) rACT(0)
-        #gACT=1 (Gripper activation.) and gGTO=1 (Go to Position Request.)
-        self._client.write_registers(1000,[0b0000100100000000,
-                                    position,
-                                    speed * 0b100000000 + force],
-                                    device_id=self.device_id)
-        
-        #Waiting for activation to complete
-        motionStartTime=time.time()
+        #Waiting the move to complete
+        motionStartTime=time.monotonic()
         motionCompleted=False
         motionTime=0
         objectDetected=False
@@ -694,7 +707,7 @@ class RobotiqGripper( ):
             while (not objectDetected) and (not motionCompleted)\
                 and (motionTime<self.timeOut):
 
-                motionTime= time.time()- motionStartTime
+                motionTime= time.monotonic()- motionStartTime
                 self.readStatus()
                 #Object detection status, is a built-in feature that provides
                 #information on possible object pick-up. Ignore if gGTO == 0.
@@ -707,13 +720,10 @@ class RobotiqGripper( ):
                 
                 elif gOBJ==3:
                     #Fingers are at requested position.
-                    objectDetected=False
                     motionCompleted=True
         
         if motionTime>self.timeOut:
             raise GripperTimeoutError("Motion", self.timeOut)
-        
-        position=self.status["gPO"]
         
     def close(self,speed=255,force=255):
         """Close the gripper.
@@ -739,7 +749,7 @@ class RobotiqGripper( ):
         """
         self.move(0,force,speed)
     
-    def move_mm(self,positionmm,speed=255,force=255):
+    def move_mm(self,positionmm,speed=None,force=None,wait=False,readStatus=True):
         """Go to the requested opening expressed in mm
 
         Parameters:
@@ -762,7 +772,7 @@ class RobotiqGripper( ):
             raise Exception("The maximum opening is {}".format(self._openmm))
         
         position=int(self._mmToBit(positionmm))
-        self.move(position,speed,force)
+        self.move(position,speed,force,wait,readStatus)
         
     def getPosition(self):
         """Return the position of the gripper in bits
@@ -834,6 +844,12 @@ class RobotiqGripper( ):
             Distance between the fingers when the gripper is fully closed.
         openmm : float
             Distance between the fingers when the gripper is fully open.
+        
+        .. warning::
+        When you execute this function the gripper is going to fully open\
+        and close. During this operation the gripper must be able to freely\
+        move. Do not place object inside the gripper.
+        
         """
         self._closemm=closemm
         self._openmm=openmm
@@ -1293,6 +1309,24 @@ class RobotiqGripper( ):
                 command["wait"]=None
         
         return command
+    
+    def _writePreadStatus(self,position, ):
+        """Write position in the command register and read the gripper\
+        status in a single Modbus transaction.
+        
+        Parameters:
+        -----------
+        position: int
+            The position to move the gripper to in bits. Integer between 0 and 255.
+        """
+        result=self._client.readwrite_registers(read_address=2000,
+                                        read_count=3,
+                                        write_address=1001,
+                                        values=[position],
+                                        device_id=self.device_id)
+        registers=result.registers
+
+        self._saveStatus(registers)
 
     def _writePSFreadStatus(self,position, speed, force):
         """Write position, speed and force in the command register and read the gripper\
