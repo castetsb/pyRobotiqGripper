@@ -23,7 +23,7 @@ try:
     from pyrobotiqgripper import __version__
     release = __version__
 except ImportError:
-    release = '2.0.3'
+    release = '2.0.6'
 
 project = 'pyrobotiqgripper'
 copyright = '2024, Benoit CASTETS'
