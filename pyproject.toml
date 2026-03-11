@@ -1,7 +1,7 @@
 
 [tool.poetry]
 name = "pyrobotiqgripper"
-version = "2.0.7"
+version = "2.0.8"
 authors = ["Benoit CASTETS <opensourceeng@gmail.com>"]
 description = "Python Driver for Robotiq Grippers"
 readme = "README.rst"
