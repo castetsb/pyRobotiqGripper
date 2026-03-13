@@ -20,14 +20,16 @@ sys.path.insert(0, project_root)
 
 # Import version from package
 try:
-    from pyrobotiqgripper import __version__
+    from pyrobotiqgripper import __version__, __author__, __email__, __license__, __url__, __project__
     release = __version__
-except ImportError:
-    release = '2.0.6'
+    version=__version__
+    project = __project__
+    copyright = __license__
+    copyright = '2024, Benoit CASTETS'
+    author = __author__
 
-project = 'pyrobotiqgripper'
-copyright = '2024, Benoit CASTETS'
-author = 'Benoit CASTETS'
+except ImportError:
+    raise ImportError("Could not import pyrobotiqgripper package. Make sure it is installed and that the PYTHONPATH is set correctly.")
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
