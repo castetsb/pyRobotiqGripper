@@ -88,6 +88,20 @@ For realtime control use the realTimeMove method.
 
 The realTimeMove method is designed to be called in a loop with a high frequency. It will move the gripper to the requested position with a speed that depends on the distance to the target position. This allows for a smooth and responsive control of the gripper.
 
-4-Examples:
------------
-Examples of usage are availabe in the examples folder of the repository.
+4-Joystick CLI Feature
+----------------------
+
+pyRobotiqGripper includes a command-line interface (CLI) tool for controlling the gripper using a joystick or gamepad. This feature allows for intuitive, real-time manual control of the gripper's position, speed, and force.
+
+To use the Joystick CLI, run:
+
+.. code-block:: bash
+
+    python -m pyrobotiqgripper.joystick_cli
+
+Make sure a supported joystick or gamepad is connected to your computer. The CLI will automatically detect the device and provide on-screen instructions for mapping joystick inputs to gripper actions.
+
+Refer to the documentation for details on supported devices and customization options.
+.. code-block:: bash
+
+    python -m pyrobotiqgripper.joystick_cli --help

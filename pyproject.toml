@@ -1,7 +1,7 @@
 
 [tool.poetry]
 name = "pyrobotiqgripper"
-version = "2.0.9"
+version = "2.0.10"
 authors = ["Benoit CASTETS <opensourceeng@gmail.com>"]
 description = "Python Driver for Robotiq Grippers"
 readme = "README.rst"
@@ -17,6 +17,8 @@ packages = [{include = "pyrobotiqgripper"}]
 Homepage = "https://github.com/castetsb/pyRobotiqGripper"
 Issues = "https://github.com/castetsb/pyRobotiqGripper/issues"
 
+[tool.poetry.scripts]
+pyrobotiqgripper-joystick = "pyrobotiqgripper.joystick_cli:main"
 
 [tool.poetry.dependencies]
 python = ">=3.8"
