@@ -91,17 +91,15 @@ The realTimeMove method is designed to be called in a loop with a high frequency
 4-Joystick CLI Feature
 ----------------------
 
-pyRobotiqGripper includes a command-line interface (CLI) tool for controlling the gripper using a joystick or gamepad. This feature allows for intuitive, real-time manual control of the gripper's position, speed, and force.
+pyRobotiqGripper includes a command-line interface (CLI) tool for controlling the gripper using a joystick or gamepad.
 
 To use the Joystick CLI, run:
 
 .. code-block:: bash
 
-    python -m pyrobotiqgripper.joystick_cli
+    pyrobotiqgripper-joystick
 
-Make sure a supported joystick or gamepad is connected to your computer. The CLI will automatically detect the device and provide on-screen instructions for mapping joystick inputs to gripper actions.
-
-Refer to the documentation for details on supported devices and customization options.
+You can also check the available options:
 .. code-block:: bash
 
-    python -m pyrobotiqgripper.joystick_cli --help
+    pyrobotiqgripper-joystick --help
