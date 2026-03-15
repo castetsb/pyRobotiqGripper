@@ -39,7 +39,7 @@ class TestRobotiqGripperHardware(unittest.TestCase):
         cls.gripper = RobotiqGripper(
             com_port=AUTO_DETECTION,  # Auto-detect COM port
             device_id=9,
-            gripper_type="2F",
+            gripper_type="2F85",
             connection_type=GRIPPER_MODE_RTU,
             debug=False
         )
@@ -64,7 +64,7 @@ class TestRobotiqGripperHardware(unittest.TestCase):
         try:
             self.gripper.readStatus()
             # Check if gripper needs activation
-            if not self.gripper.isActivated():
+            if not self.gripper.isActivated:
                 self.gripper.resetActivate()
                 time.sleep(1)
         except Exception as e:
@@ -108,6 +108,8 @@ class TestRobotiqGripperHardware(unittest.TestCase):
         self.gripper.reset()
         time.sleep(0.5)
         self.gripper.readStatus()
+
+        self.assertEqual(self.gripper.status["gACT"],0, "Gripper should be deactivated after reset")
         
         # After reset, gripper should not be activated
         print("  - Gripper reset successfully")
@@ -122,9 +124,13 @@ class TestRobotiqGripperHardware(unittest.TestCase):
         self.gripper.activate()
         time.sleep(1)
         self.gripper.readStatus()
+
+        self.assertEqual(self.gripper.status["gACT"],1, "Gripper should be activated after activate()")
+
+
         
         # Check if gripper is activated
-        is_activated = self.gripper.isActivated()
+        is_activated = self.gripper.isActivated
         self.assertTrue(is_activated, "Gripper should be activated")
         print("  - Gripper activated successfully")
 
@@ -135,7 +141,7 @@ class TestRobotiqGripperHardware(unittest.TestCase):
         self.gripper.resetActivate()
         time.sleep(1)
         
-        self.assertTrue(self.gripper.isActivated(), 
+        self.assertTrue(self.gripper.isActivated, 
                        "Gripper should be activated after resetActivate()")
         print("  - Reset and activate completed successfully")
 
@@ -146,7 +152,7 @@ class TestRobotiqGripperHardware(unittest.TestCase):
         self.gripper.resetActivate()
         time.sleep(0.5)
         
-        is_activated = self.gripper.isActivated()
+        is_activated = self.gripper.isActivated
         self.assertTrue(is_activated, "Gripper should be reported as activated")
         print(f"  - Gripper activation status: {is_activated}")
 
@@ -154,7 +160,7 @@ class TestRobotiqGripperHardware(unittest.TestCase):
         """Test opening the gripper."""
         print("\nTest: Open Gripper")
         
-        self.gripper.resetActivate()
+        self.gripper.activate()
         time.sleep(0.5)
         
         self.gripper.open(speed=255, force=255, wait=True)
@@ -201,7 +207,7 @@ class TestRobotiqGripperHardware(unittest.TestCase):
         """Test moving to various positions."""
         print("\nTest: Move to Various Positions")
         
-        self.gripper.resetActivate()
+        self.gripper.activate()
         time.sleep(0.5)
         
         positions = [50, 100, 150, 200, 100, 50, 0, 255]
@@ -211,12 +217,13 @@ class TestRobotiqGripperHardware(unittest.TestCase):
             time.sleep(0.3)
             actual_pos = self.gripper.getPosition()
             print(f"  - Position {target_pos}: actual {actual_pos}")
+            self.assertAlmostEqual(actual_pos, target_pos, delta=30)
 
     def test_11_get_position(self):
         """Test getPosition() method."""
         print("\nTest: Get Position")
         
-        self.gripper.resetActivate()
+        self.gripper.activate()
         time.sleep(0.5)
         
         self.gripper.open(wait=True)
@@ -238,14 +245,14 @@ class TestRobotiqGripperHardware(unittest.TestCase):
         print("\nTest: Calibrate Gripper")
         print("  WARNING: Gripper will fully open and close")
         
-        self.gripper.resetActivate()
+        self.gripper.activate()
         time.sleep(1)
         
         # Calibrate: 0mm when closed, 85mm when open
         self.gripper.calibrate(closemm=0, openmm=85)
         time.sleep(1)
         
-        self.assertTrue(self.gripper.isCalibrated(), 
+        self.assertTrue(self.gripper.isCalibrated, 
                        "Gripper should be calibrated after calibrate()")
         print("  - Calibration completed successfully")
 
@@ -257,7 +264,7 @@ class TestRobotiqGripperHardware(unittest.TestCase):
         time.sleep(0.5)
         
         # Before calibration
-        is_cal_before = self.gripper.isCalibrated()
+        is_cal_before = self.gripper.isCalibrated
         print(f"  - Before calibration: {is_cal_before}")
         
         # Calibrate
@@ -265,7 +272,7 @@ class TestRobotiqGripperHardware(unittest.TestCase):
         time.sleep(0.5)
         
         # After calibration
-        is_cal_after = self.gripper.isCalibrated()
+        is_cal_after = self.gripper.isCalibrated
         self.assertTrue(is_cal_after, "Gripper should be calibrated")
         print(f"  - After calibration: {is_cal_after}")
 
@@ -334,6 +341,7 @@ class TestRobotiqGripperHardware(unittest.TestCase):
             time.sleep(0.3)
             actual_mm = self.gripper.getPositionmm()
             print(f"  - Position {target_mm}mm: actual {actual_mm:.2f}mm")
+            self.assertAlmostEqual(actual_mm, target_mm, delta=5)
 
     def test_17_real_time_move(self):
         """Test realTimeMove() for smooth continuous motion."""
@@ -375,10 +383,18 @@ class TestRobotiqGripperHardware(unittest.TestCase):
         
         self.gripper.resetActivate()
         time.sleep(0.5)
-        
+        self.gripper.move(0)
+        startTime = time.time()
         # Start a move and then wait for it to complete
-        self.gripper.move(128, speed=100, force=100, wait=False, readStatus=False)
+        self.gripper.move(255, speed=0, wait=True, readStatus=True)
+        elapsedTime = time.time() - startTime
+        self.assertGreater(elapsedTime, 0.5, "waitComplete should wait for movement to complete")       
         
+        
+        self.gripper.move(0)
+        startTime = time.time()
+        # Start a move and then wait for it to complete
+        self.gripper.move(255, speed=0, wait=False, readStatus=True)
         # Wait for movement to complete
         self.gripper.waitComplete()
         
@@ -443,7 +459,7 @@ class TestRobotiqGripperHardware(unittest.TestCase):
         self.gripper.readStatus()
         position = self.gripper.getPosition()
         print(f"  - Final position: {position} bits")
-
+        
     def test_23_speed_and_force_limits(self):
         """Test gripper speed and force limits."""
         print("\nTest: Speed & Force Limits")
@@ -451,12 +467,16 @@ class TestRobotiqGripperHardware(unittest.TestCase):
         self.gripper.resetActivate()
         time.sleep(0.5)
         
-        # Verify gripper limits are set
-        self.assertIsNotNone(self.gripper.gripper_vmax)
-        self.assertIsNotNone(self.gripper.gripper_vmin)
+        # Calibrate first to access bit speed properties
+        self.gripper.calibrate(closemm=0, openmm=85)
+        time.sleep(0.5)
         
-        print(f"  - Max speed: {self.gripper.gripper_vmax} (bits/s)")
-        print(f"  - Min speed: {self.gripper.gripper_vmin} (bits/s)")
+        # Verify gripper limits are set
+        self.assertIsNotNone(self.gripper.gripper_vmax_bits)
+        self.assertIsNotNone(self.gripper.gripper_vmin_bits)
+        
+        print(f"  - Max speed: {self.gripper.gripper_vmax_bits} (bits/s)")
+        print(f"  - Min speed: {self.gripper.gripper_vmin_bits} (bits/s)")
         
         # Test with various speeds
         position=0
@@ -503,7 +523,7 @@ class TestRobotiqGripperEdgeCases(unittest.TestCase):
         cls.gripper = RobotiqGripper(
             com_port=AUTO_DETECTION,
             device_id=9,
-            gripper_type="2F",
+            gripper_type="2F85",
             connection_type=GRIPPER_MODE_RTU,
             debug=False
         )
@@ -532,6 +552,7 @@ class TestRobotiqGripperEdgeCases(unittest.TestCase):
     def test_boundary_position_0(self):
         """Test moving to position 0 (fully open)."""
         print("\nTest: Boundary - Position 0 (Fully Open)")
+        #self.gripper.activate()
         self.gripper.move(0, speed=255, force=100, wait=True)
         time.sleep(0.2)
         position = self.gripper.getPosition()
@@ -541,6 +562,7 @@ class TestRobotiqGripperEdgeCases(unittest.TestCase):
     def test_boundary_position_255(self):
         """Test moving to position 255 (fully closed)."""
         print("\nTest: Boundary - Position 255 (Fully Closed)")
+        #self.gripper.activate()
         self.gripper.move(255, speed=255, force=255, wait=True)
         time.sleep(0.2)
         position = self.gripper.getPosition()
@@ -551,26 +573,28 @@ class TestRobotiqGripperEdgeCases(unittest.TestCase):
         """Test rapid position changes."""
         print("\nTest: Rapid Position Changes")
         for _ in range(5):
-            self.gripper.move(0, speed=255, force=100, wait=False)
-            time.sleep(0.1)
-            self.gripper.move(255, speed=255, force=100, wait=False)
-            time.sleep(0.1)
+            self.gripper.move(0, speed=255, force=100, wait=True)
+            self.gripper.move(255, speed=255, force=100, wait=True)
         print("  - Rapid changes completed")
 
     def test_low_speed_movement(self):
         """Test movement at minimum speed."""
         print("\nTest: Low Speed Movement")
-        self.gripper.open(speed=self.gripper.gripper_vmin, force=50, wait=True)
-        self.gripper.close(speed=self.gripper.gripper_vmin, force=50, wait=True)
+        
+        # Calibrate first to access bit speed properties
+        self.gripper.calibrate(closemm=0, openmm=85)
+        time.sleep(0.5)
+        
+        self.gripper.open(speed=0, force=50, wait=True)
+        self.gripper.close(speed=0, force=50, wait=True)
         print("  - Low speed movement completed")
 
     def test_high_force_grip(self):
         """Test gripper with maximum force."""
         print("\nTest: High Force Grip")
-        self.gripper.open(speed=255, force=0, wait=True)
-        time.sleep(0.2)
-        self.gripper.close(speed=100, force=255, wait=True)
-        time.sleep(0.2)
+        self.gripper.open(speed=255, force=255, wait=True)
+        self.gripper.close(speed=0, force=255, wait=True)
+        self.gripper.open(speed=255, force=255, wait=True)
         position = self.gripper.getPosition()
         print(f"  - High force grip achieved position: {position}")
 

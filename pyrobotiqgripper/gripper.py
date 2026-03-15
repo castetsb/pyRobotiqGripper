@@ -89,7 +89,7 @@ class RobotiqGripper( ):
     def __init__(self,
                  com_port: str = AUTO_DETECTION,
                  device_id: int=9,
-                 gripper_type: str = "2F",
+                 gripper_type: str = "2F85",
                  connection_type: str = GRIPPER_MODE_RTU,
                  tcp_host: str = "127.0.0.1",
                  tcp_port: int = 54321,
@@ -156,9 +156,14 @@ class RobotiqGripper( ):
         self.com_port=com_port
         self._client=self._create_modbus_client()
 
+        self._isActivated=False
+
         
         #Attribute to monitore if the gripper is processing an action
         self.processing=False
+        
+        #Attribute to monitor if the gripper is calibrated
+        self.isCalibrated=False
         
         #Maximum allowed time to perform and action
         self.timeOut=10
@@ -188,12 +193,21 @@ class RobotiqGripper( ):
         self._aCoef=None
         self._bCoef=None
 
-        #Maximum and minimum speed of the gripper in steps per second
-        if gripper_type=="2F":
-            self.gripper_vmax=GRIPPER_2F_VMAX
-            self.gripper_vmin=GRIPPER_2F_VMIN
+        #Maximum and minimum speed of the gripper in mm per second
+        if gripper_type=="2F85":
+            self.gripper_vmax_mms=GRIPPER_2F85_VMAX
+            self.gripper_vmin_mms=GRIPPER_2F85_VMIN
+        elif gripper_type=="2F140":
+            self.gripper_vmax_mms=GRIPPER_2F140_VMAX
+            self.gripper_vmin_mms=GRIPPER_2F140_VMIN
+        elif gripper_type=="hande":
+            self.gripper_vmax_mms=GRIPPER_HANDE_VMAX
+            self.gripper_vmin_mms=GRIPPER_HANDE_VMIN
         else:
             raise UnsupportedGripperTypeError(gripper_type)
+        
+        self._gripper_vmax_bits=None #Speed in bit per second
+        self._gripper_vmin_bits=None #Speed in bit per second
 
         self._commandHistory={}
         self._commandHistory["time"]=[time.monotonic()]*30
@@ -210,6 +224,18 @@ class RobotiqGripper( ):
 
         self.debug = debug
         self._configure_logging()
+
+    @property
+    def isActivated(self):
+        """Tells if the gripper is activated
+
+        Returns:
+        --------
+        is_activated : bool
+            True if the gripper is activated. False otherwise.
+        """
+        
+        return self._isActivated
 
     def _configure_logging(self):
         """Configure logging for Modbus communication based on the debug flag."""
@@ -560,10 +586,12 @@ class RobotiqGripper( ):
         self._saveStatus(registers)
     
     def reset(self):
-        """Reset the gripper (clear previous activation if any)
+        """Reset the gripper (clear previous activation and calibration if any)
         """
         #Reset the gripper
         self._client.write_registers(1000,[0,0,0],device_id=self.device_id)
+        self._isActivated=False
+        self._isCalibrated=False
     
     def activate(self):
         """If not already activated, activate the gripper. Goto bit is set to 1 which\
@@ -603,6 +631,8 @@ class RobotiqGripper( ):
             raise GripperTimeoutError("Activation", self.timeOut)
 
         self.processing=False
+
+        self._isActivated=True
     
     def resetActivate(self):
         """Reset the gripper (clear previous activation if any) and activat\
@@ -612,6 +642,7 @@ class RobotiqGripper( ):
         self.reset()
         #Activate the gripper
         self.activate()
+
     
     def move(self,position,speed=None,force=None,wait=False,readStatus=True):
         """Move gripper fingers to the requested position with determined speed and force.
@@ -630,7 +661,7 @@ class RobotiqGripper( ):
             reach the requested position or detect an object. Default is False.
         """
         #Check if the gripper is activated
-        if self.isActivated == False:
+        if self._isActivated == False:
             raise GripperNotActivatedError()
 
         #Check input value
@@ -734,6 +765,9 @@ class RobotiqGripper( ):
             Calibration is needed to use this function.\n
             Execute the function calibrate at least 1 time before using this function.
         """
+        if self.isCalibrated == False:
+            raise GripperNotCalibratedError()
+
         bit=(mm-self._bCoef)/self._aCoef
         
         return bit
@@ -750,6 +784,8 @@ class RobotiqGripper( ):
             Calibration is needed to use this function.\n
             Execute the function calibrate at least 1 time before using this function.
         """
+        if self.isCalibrated == False:
+            raise GripperNotCalibratedError()
         mm=self._aCoef*bit+self._bCoef
         
         return mm
@@ -766,6 +802,9 @@ class RobotiqGripper( ):
             Calibration is needed to use this function.\n
             Execute the function calibrate at least 1 time before using this function.
         """
+        if self.isCalibrated == False:
+            raise GripperNotCalibratedError()
+        
         position=self.getPosition()
         
         positionmm=self._bitTomm(position)
@@ -805,6 +844,22 @@ class RobotiqGripper( ):
         
         self._aCoef=(closemm-openmm)/(cbit-obit)
         self._bCoef=(openmm*cbit-obit*closemm)/(cbit-obit)
+
+        self.isCalibrated=True
+        self._gripper_vmax_bits=self._mmToBit(self.gripper_vmax_mms)
+        self._gripper_vmin_bits=self._mmToBit(self.gripper_vmin_mms)
+    
+    @property
+    def gripper_vmax_bits(self):
+        if not self.isCalibrated:
+            raise GripperNotCalibratedError()
+        return self._gripper_vmax_bits
+    
+    @property
+    def gripper_vmin_bits(self):
+        if not self.isCalibrated:
+            raise GripperNotCalibratedError()
+        return self._gripper_vmin_bits
     
     def printStatus(self):
         """Print gripper status info in the python terminal
@@ -870,36 +925,6 @@ class RobotiqGripper( ):
                 print(f"  └─ {description}")
         
         print("\n" + "=" * 70 + "\n")
-
-    def isActivated(self):
-        """Tells if the gripper is activated
-        
-        Returns:
-        --------
-        is_activated : bool
-            True if the gripper is activated. False otherwise.
-        """
-        
-        self.readStatus()
-        is_activated = (self.status["gSTA"]==3)
-
-        return is_activated
-    
-    def isCalibrated(self):
-        """Return if the gripper is qualibrated
-
-        Returns:
-        --------
-        is_calibrated : bool
-            True if the gripper is calibrated. False otherwise.
-        """
-        is_calibrated = False
-        if (self._openmm is None) or (self._closemm is None):
-            is_calibrated = False
-        else:
-            is_calibrated=True
-        
-        return is_calibrated
     
     def _positionEstimation(self,startPosition,requestedPosition,speed,elapsedTime):
         """
@@ -928,7 +953,7 @@ class RobotiqGripper( ):
         
         direction = sign(positionDelta)
 
-        motion = int(direction * float(self.gripper_vmin + (self.gripper_vmax - self.gripper_vmin) * speed / 255) * elapsedTime)
+        motion = int(direction * float(self.gripper_vmin_bits + (self.gripper_vmax_bits - self.gripper_vmin_bits) * speed / 255) * elapsedTime)
         
         estimatedPosition = 0
         
@@ -954,7 +979,7 @@ class RobotiqGripper( ):
         bitPerSecond : float
             Position variation in bits/s
         """
-        bitPerSecond=GRIPPER_2F_VMIN + (float(self.gripper_vmax-self.gripper_vmin)/255)*speed
+        bitPerSecond=self.gripper_vmin_bits + (float(self.gripper_vmax_bits-self.gripper_vmin_bits)/255)*speed
         return bitPerSecond
     
     def _travelTime(self,startPosition,endPosition,speed):
@@ -1224,7 +1249,7 @@ class RobotiqGripper( ):
                     else:
                         #Request is a bit distant. The speed increase with the distance between current position and requested position.
                         t0_Speed = int((float(posDelta - minSpeedPosDelta) /(maxSpeedPosDelta - minSpeedPosDelta)) * 255)
-                    if (commandHistory["positionCommand"][0] == t0_RequestPosition) and (commandHistory["speedCommand"][0] == t0_Speed) and (commandHistory["forceCommand"][0] == t0_Force):
+                    if (commandHistory["positionCommand"][0] == t0_RequestPosition) and (commandHistory["speedCommand"][0] == t0_Speed) :#and (commandHistory["forceCommand"][0] == t0_Force)
                         #t1_ command was identical as t0_ command. We do nothing.
                         command["execution"]=READ_COMMAND
                         command["position"]=None

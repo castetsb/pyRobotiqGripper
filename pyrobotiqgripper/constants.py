@@ -12,8 +12,16 @@ STOPBITS=1
 TIMEOUT=0.2
 AUTO_DETECTION="auto"
 
-GRIPPER_2F_VMAX = 332  # max speed of the 2F gripper in steps per second
-GRIPPER_2F_VMIN = 68   # min speed of the 2F gripper in steps per second
+#Pending question: Does the unit of the speed register is bit/s or is it % of opening per second?
+
+GRIPPER_2F85_VMAX = 150  # mm/s.
+GRIPPER_2F85_VMIN = 20   # mm/s.
+
+GRIPPER_2F140_VMAX = 250  # mm/s.
+GRIPPER_2F140_VMIN = 30   # mm/s.
+
+GRIPPER_HANDE_VMAX = 150  # mm/s.
+GRIPPER_HANDE_VMIN = 20   # mm/s.
 
 NO_OBJECT_DETECTED = 0
 OBJECT_DETECTED_WHILE_OPENING = 1
@@ -22,9 +30,6 @@ OBJECT_DETECTED_WHILE_CLOSING = 2
 GRIP_NOT_REQUESTED = 0
 GRIP_REQUESTED = 1
 GRIP_VALIDATED = 2
-
-GRIPPER_VMAX = 332  # max speed in steps per second
-GRIPPER_VMIN = 68   # min speed in steps per second
 
 NO_COMMAND =0
 WRITE_READ_COMMAND = 1
