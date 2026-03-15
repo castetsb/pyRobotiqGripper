@@ -83,6 +83,48 @@ def main(argv: Optional[List[str]] = None) -> int:
         action="store_true",
         help="Enable debug logging.",
     )
+    parser.add_argument(
+        "--min-speed-pos-delta",
+        type=int,
+        default=5,
+        help="Minimum speed position delta for real-time move (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--max-speed-pos-delta",
+        type=int,
+        default=100,
+        help="Maximum speed position delta for real-time move (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--continuous-grip",
+        action="store_true",
+        default=True,
+        help="Enable continuous grip for real-time move (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--no-continuous-grip",
+        action="store_false",
+        dest="continuous_grip",
+        help="Disable continuous grip for real-time move",
+    )
+    parser.add_argument(
+        "--auto-lock",
+        action="store_true",
+        default=True,
+        help="Enable auto lock for real-time move (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--no-auto-lock",
+        action="store_false",
+        dest="auto_lock",
+        help="Disable auto lock for real-time move",
+    )
+    parser.add_argument(
+        "--minimal-motion",
+        type=int,
+        default=2,
+        help="Minimal motion for real-time move (default: %(default)s)",
+    )
 
     args = parser.parse_args(argv)
 
@@ -128,7 +170,14 @@ def main(argv: Optional[List[str]] = None) -> int:
             pygame.event.pump()
             joy_value = js.get_axis(args.axis)
             pos = map_0_255(joy_value)
-            gripper.realTimeMove(pos)
+            gripper.realTimeMove(
+                pos,
+                minSpeedPosDelta=args.min_speed_pos_delta,
+                maxSpeedPosDelta=args.max_speed_pos_delta,
+                continuousGrip=args.continuous_grip,
+                autoLock=args.auto_lock,
+                minimalMotion=args.minimal_motion
+            )
     except KeyboardInterrupt:
         logging.info("Stopping joystick control")
     finally:
