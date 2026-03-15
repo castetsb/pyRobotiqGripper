@@ -26,51 +26,6 @@ class RobotiqGripper( ):
 
     This class provides methods to initialize, open, close, and monitor the gripper.
 
-    Attributes
-    ----------
-    com_port : str
-        COM port to which the gripper is connected. If AUTO_DETECTION,\
-        the library will try to find the COM port to which the gripper is connected. On\
-        Windows, COM ports are named COM1, COM2, etc. On Linux, COM ports are named\
-        /dev/ttyUSB0, /dev/ttyUSB1, etc. Default is AUTO_DETECTION.
-    device_id : int
-        Address of the gripper (integer) usually 9.
-    gripper_type : str
-        Type of the gripper. Currently only "2F" is supported. Default is "
-    connection_type : str
-        Type of connection to the gripper. GRIPPER_MODE_RTU for direct Modbus RTU\
-        connection (e.g. via USB/RS485 adapter). GRIPPER_MODE_RTU_VIA_TCP\
-        for Modbus RTU connection via TCP (e.g. when using the UR RS485 URCAP).\
-        Default is GRIPPER_MODE_RTU.
-    tcp_host : str
-        Host IP address for TCP connection. Default is "127.0.0.1".
-    tcp_port : int
-        Port for TCP connection. Default is 54321.
-    debug : bool
-        If True, enable debug logging for Modbus communication. Default is False.
-    
-
-    Examples
-    --------
-    Gripper connected at PC USB port:
-        >>> gripper = RobotiqGripper()
-        >>> gripper.connect()
-        >>> gripper.resetActivate()
-        >>> gripper.open()
-        >>> gripper.close()
-        >>> gripper.move(100) #Move at position 100 in bit
-        >>> print(gripper.position) #Print gripper position in bit
-        >>> gripper.calibrate(closemm=0,openmm=85) #Calibrate the gripper with 0mm when closed and 85mm when open
-        >>> gripper.move_mm(50) #Move at position 50mm
-        >>> gripper.printStatus() #Print gripper status information in the python terminal
-        >>> print(gripper.positionmm) #Print gripper position in mm
-
-    Gripper connected to UR robot via RS495 URCAP:
-        >>> gripper = RobotiqGripper(connection_type=GRIPPER_MODE_RTU_VIA_TCP,tcp_host="192.168.1.100")
-        >>> gripper.connect()
-        >>> gripper.resetActivate()
-        >>> gripper.open()
-
     Physical connection
     -------------------    
     The physical connection with the gripper can done in 2 ways:
@@ -147,8 +102,8 @@ class RobotiqGripper( ):
         -----------
         com_port : str
             COM port to which the gripper is connected.\
-            If AUTO_DETECTION, the library will try to find the COM port to which\
-            the gripper is connected.\
+            If "auto" (or equal to the constant AUTO_DETECTION), the library will try \
+            to find the COM port to which the gripper is connected.\
             On Windows, COM ports are named COM1, COM2, etc. On Linux, COM ports are\
             named /dev/ttyUSB0, /dev/ttyUSB1, etc. Default is AUTO_DETECTION.
         device_id : int
@@ -158,9 +113,9 @@ class RobotiqGripper( ):
             Default is "2F".
         connection_type : str
             Type of connection to the gripper.\
-            GRIPPER_MODE_RTU for direct Modbus RTU connection (e.g. via USB/RS485\
-            adapter). GRIPPER_MODE_RTU_VIA_TCP for Modbus RTU connection via TCP\
-            (e.g. when using the UR RS485 URCAP). Default is GRIPPER_MODE_RTU.
+            "RTU" (or equal to the constant GRIPPER_MODE_RTU) for direct Modbus RTU connection (e.g. via USB/RS485\
+            adapter). "RTU_VIA_TCP" (or equal to the constant GRIPPER_MODE_RTU_VIA_TCP) for Modbus RTU connection via TCP\
+            (e.g. when using the UR RS485 URCAP). Default is "RTU".
         tcp_host : str
             Host IP address for TCP connection. Default is "127.0.0.1"
         tcp_port : int
@@ -172,7 +127,9 @@ class RobotiqGripper( ):
         Examples
         --------
         Gripper connected at PC USB port:
-            >>> gripper = RobotiqGripper()
+            >>> import pyrobotiqgripper as rq
+        
+            >>> gripper = rq.RobotiqGripper(connection_type=rq.GRIPPER_MODE_RTU)
             >>> gripper.connect()
             >>> gripper.resetActivate()
             >>> gripper.open()
@@ -184,8 +141,10 @@ class RobotiqGripper( ):
             >>> gripper.printStatus() #Print gripper status information in the python terminal
             >>> print(gripper.positionmm) #Print gripper position in mm
 
-        Gripper connected to UR robot via RS495 URCAP:
-            >>> gripper = RobotiqGripper(connection_type=GRIPPER_MODE_RTU_VIA_TCP,tcp_host="192.168.1.100")
+        Gripper connected to UR robot via RS495 URCAP (RTU over TCP):
+            >>> import pyrobotiqgripper as rq
+
+            >>> gripper = rq.RobotiqGripper(connection_type=rq.GRIPPER_MODE_RTU_VIA_TCP,tcp_host="192.168.1.100")
             >>> gripper.connect()
             >>> gripper.resetActivate()
             >>> gripper.open()
@@ -297,7 +256,13 @@ class RobotiqGripper( ):
                 bytesize=8,
                 timeout=1)
 
-    def realTimeMove(self,requestedPosition,minSpeedPosDelta=5,maxSpeedPosDelta=100,continuousGrip=True,autoLock=True,minimalMotion=2):
+    def realTimeMove(self,
+                     requestedPosition,
+                     minSpeedPosDelta=5,
+                     maxSpeedPosDelta=100,
+                     continuousGrip=True,
+                     autoLock=True,
+                     minimalMotion=2):
         """Move the gripper in real time to the requested position.
         
         Parameters:
