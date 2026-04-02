@@ -24,6 +24,7 @@ pyrobotiqgripper-joystick = "pyrobotiqgripper.joystick_cli:main"
 python = ">=3.8"
 pymodbus = "^3.12.1"
 pyserial = "^3.5"
+numpy = "^1.28.0"
 pandas = "^3.0.1"
 
 [build-system]

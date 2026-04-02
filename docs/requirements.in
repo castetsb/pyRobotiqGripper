@@ -2,5 +2,6 @@ sphinx
 sphinx_rtd_theme
 pymodbus>=3.12.1
 pyserial>=3.5
+numpy>=1.28.0
 # pandas is optional for docs; avoid requiring heavy data packages in RTD environment
 # pandas
