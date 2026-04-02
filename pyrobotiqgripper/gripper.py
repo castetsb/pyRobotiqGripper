@@ -1,6 +1,8 @@
 """Core Robotiq Gripper class for controlling via Modbus RTU/TCP."""
 
 #Iport libraries
+import pandas as pd
+import numpy as np
 from pymodbus.client import ModbusSerialClient, ModbusTcpClient
 from pymodbus.framer import FramerType
 import time
@@ -8,14 +10,7 @@ import serial
 import serial.tools.list_ports
 from .utils import *
 from .constants import *
-from .exceptions import (
-    GripperConnectionError,
-    GripperNotActivatedError,
-    GripperNotCalibratedError,
-    GripperTimeoutError,
-    GripperPositionError,
-    UnsupportedGripperTypeError,
-)
+from .exceptions import *
 import logging
 import multiprocessing
 import warnings
@@ -52,44 +47,9 @@ class RobotiqGripper( ):
     .. note::
         This class cannot be use to control epick, 3F or powerpick.
     """    
-    def _probe_port_process(self, port, device_id, return_dict):
-        try:
-            client = ModbusSerialClient(
-                port=port,
-                baudrate=115200,
-                parity='N',
-                stopbits=1,
-                bytesize=8,
-                timeout=0.2
-            )
-
-            if not client.connect():
-                return_dict["success"] = False
-                return
-
-            result = client.read_input_registers(
-                address=2000,
-                count=1,
-                device_id=device_id
-            )
-
-            if result and not result.isError():
-                return_dict["success"] = True
-            else:
-                return_dict["success"] = False
-
-        except Exception:
-            return_dict["success"] = False
-
-        finally:
-            try:
-                client.close()
-            except:
-                pass
     def __init__(self,
                  com_port: str = AUTO_DETECTION,
                  device_id: int=9,
-                 gripper_type: str = "2F85",
                  connection_type: str = GRIPPER_MODE_RTU,
                  tcp_host: str = "127.0.0.1",
                  tcp_port: int = 54321,
@@ -131,7 +91,8 @@ class RobotiqGripper( ):
         
             >>> gripper = rq.RobotiqGripper(connection_type=rq.GRIPPER_MODE_RTU)
             >>> gripper.connect()
-            >>> gripper.resetActivate()
+            >>> gripper.activate()
+            >>> gripper.start()
             >>> gripper.open()
             >>> gripper.close()
             >>> gripper.move(100) #Move at position 100 in bit
@@ -146,43 +107,67 @@ class RobotiqGripper( ):
 
             >>> gripper = rq.RobotiqGripper(connection_type=rq.GRIPPER_MODE_RTU_VIA_TCP,tcp_host="192.168.1.100")
             >>> gripper.connect()
-            >>> gripper.resetActivate()
+            >>> gripper.activate()
+            >>> gripper.start()
             >>> gripper.open()
         """
-        self.connection_type=connection_type
+        #Public properties
+        ##################
+        self.com_port=com_port
         self.device_id=device_id
+        self.connection_type=connection_type
         self.tcp_host=tcp_host
         self.tcp_port=tcp_port
-        self.com_port=com_port
+        self.debug = debug
+        #Maximum allowed time to perform and action
+        self.timeOut=5
+
+        #Private properties
+        ###################
+        #Client managing gripper commmunication
         self._client=self._create_modbus_client()
 
-        self._isActivated=False
 
+        #Status retrieval historical data
+        self._commandHistory=np.ones((MAX_HISTORY,len(COMMAND_HISTORY_COLUMNS_ID_2_NAME)))*-1
+
+        self._statusHistory=np.ones((MAX_HISTORY,len(STATUS_HISTORY_COLUMNS_ID_2_NAME)))*-1
+        '''
+        self._statusHistory=pd.DataFrame(columns=["time",#Time of the status
+                                                  "gOBJ",#Object detection
+                                                  "gSTA",#Gripper status
+                                                  "gGTO",#Action status. echo of rGTO (go to bit)
+                                                  "gACT",#Activation status
+                                                  "kFLT",#Universal controler
+                                                  "gFLT",#Fault
+                                                  "gPR",#Echo of request position
+                                                  "gPO",#Actual position of the gripper
+                                                  "gCU"])#Current
+        
+        #Command historical data
+        self._commandHistory=pd.DataFrame(columns=["time",#time of the command
+                                                   "rARD",#Auto-releasedirection (0: close, 1:open)
+                                                   "rATR",#Auto-release trigger
+                                                   "rGTO",#If 1 move the gripper ot requested position
+                                                   "rACT",#Activate the gripper
+                                                   "rPR",#Position request
+                                                   "rSP",#Speed request
+                                                   "rFR"])#Force request
+        '''
         
         #Attribute to monitore if the gripper is processing an action
-        self.processing=False
+        self._processing=False
         
-        #Attribute to monitor if the gripper is calibrated
-        self.isCalibrated=False
-        
-        #Maximum allowed time to perform and action
-        self.timeOut=10
-        
-        #Dictionnary where are stored description of each register state
-        self.registerDic={}
-        self._buildRegisterDic()
-        
-        #Dictionnary where are stored register values retrived from the gripper
-        self.status={}
-        self.readStatus()
-        
-        #Attributes to store open and close distance state information
+        self._is_bit_calibrated=False
+        #Say if the gripper is calibrated to be controlled in mm
+        self._is_mm_calibrated=False
+        #Say if the gripper is calibrated to be estimate position from speed
+        self._is_speed_calibrated=False
         
         #Distance between the fingers when gripper is closed
         self._closemm=None
         #Position in bit when gripper is closed
         self._closebit=None
-        
         #Distance between the fingers when gripper is open
         self._openmm=None
         #Position in bit when gripper is open
@@ -192,51 +177,95 @@ class RobotiqGripper( ):
         #mm=self._aCoef*bit+self._bCoef
         self._aCoef=None
         self._bCoef=None
-
-        #Maximum and minimum speed of the gripper in mm per second
-        if gripper_type=="2F85":
-            self.gripper_vmax_mms=GRIPPER_2F85_VMAX
-            self.gripper_vmin_mms=GRIPPER_2F85_VMIN
-        elif gripper_type=="2F140":
-            self.gripper_vmax_mms=GRIPPER_2F140_VMAX
-            self.gripper_vmin_mms=GRIPPER_2F140_VMIN
-        elif gripper_type=="hande":
-            self.gripper_vmax_mms=GRIPPER_HANDE_VMAX
-            self.gripper_vmin_mms=GRIPPER_HANDE_VMIN
-        else:
-            raise UnsupportedGripperTypeError(gripper_type)
         
         self._gripper_vmax_bits=None #Speed in bit per second
         self._gripper_vmin_bits=None #Speed in bit per second
 
-        self._commandHistory={}
-        self._commandHistory["time"]=[time.monotonic()]*30
-        time.sleep(1)
-        updateList(self._commandHistory["time"],time.monotonic())
-        
-        self._commandHistory["positionCommand"]=[0]*30 #Command send to the gripper
-        self._commandHistory["position"]=[0]*30 #Position read from the gripper
-        self._commandHistory["positionRequest"]=[0]*30 #Requested position before command filtering
-        self._commandHistory["speedCommand"]=[0]*30
-        self._commandHistory["forceCommand"]=[0]*30
-        self._commandHistory["detection"]=[0]*30
-        self._commandHistory["gripCommand"]=[GRIP_NOT_REQUESTED]*30
-
-        self.debug = debug
+        #Initialisation
+        ###############
         self._configure_logging()
+        self.readStatus()
 
-    @property
-    def isActivated(self):
-        """Tells if the gripper is activated
+    ####################################################
+    ### PRIVATE FUCNTIONS
+    ###################################################
+    
+    #SETUP FUNCTIONS
+    def _probe_port_process(self, port, device_id, return_dict, timeout=1):
+        """Probe a serial port to check if a gripper is connected.
 
-        Returns:
-        --------
-        is_activated : bool
-            True if the gripper is activated. False otherwise.
+        This method attempts to connect to a Modbus device on the specified port
+        and reads a register to verify if it's a gripper.
+
+        Parameters:
+        -----------
+        port : str
+            The serial port to probe (e.g., 'COM1', '/dev/ttyUSB0').
+        device_id : int
+            The Modbus device ID to use for communication.
+        return_dict : dict
+            A shared dictionary to store the result of the probe.
+        timeout : float, optional
+            Timeout for the connection attempt in seconds. Default is 1.
         """
-        
-        return self._isActivated
+        try:
+            client = ModbusSerialClient(
+                port=port,
+                baudrate=115200,
+                parity='N',
+                stopbits=1,
+                bytesize=8,
+                timeout=timeout
+            )
 
+            print(f"Trying to connect to {port}...")
+            if not client.connect():
+                err = f"Fail to connect to modbus RTU device on {port}."
+                print(err)
+                return_dict["success"] = False
+                return_dict["error"] = err
+                return
+
+            result = client.read_input_registers(
+                address=2000,
+                count=1,
+                device_id=device_id
+            )
+
+            if result is None:
+                err = f"No response from {port} (register read returned None)"
+                print(err)
+                return_dict["success"] = False
+                return_dict["error"] = err
+                return
+
+            if hasattr(result, 'isError') and result.isError():
+                error_code = getattr(result, 'exception_code', 'unknown')
+                err = f"Modbus error on {port}: {error_code}"
+                print(err)
+                return_dict["success"] = False
+                return_dict["error"] = err
+                return
+                
+            if hasattr(result, 'registers') and len(result.registers) > 0:
+                return_dict["success"] = True
+            else:
+                print(f"Invalid register response from {port}: {result}")
+                return_dict["success"] = False
+
+        except Exception as e:
+            error_msg = f"Connection failed on port {port}: {type(e).__name__}: {str(e)}"
+            print(error_msg)
+            logging.error(error_msg)  # Also log for debugging
+            return_dict["success"] = False
+
+
+        finally:
+            try:
+                client.close()
+            except:
+                pass
+    
     def _configure_logging(self):
         """Configure logging for Modbus communication based on the debug flag."""
         logger = logging.getLogger("pymodbus")
@@ -250,16 +279,6 @@ class RobotiqGripper( ):
         else:
             logger.setLevel(logging.CRITICAL)  # Effectively disables it
     
-    def connect(self):
-        """Connect to the gripper. If the connection is already established, do nothing.
-        """
-        if not self._client.connect():
-            raise GripperConnectionError("Failed to connect to the gripper. Please check the connection and try again.")
-    def disconnect(self):
-        """Disconnect from the gripper. If the connection is already closed, do nothing.
-        """
-        self._client.close()
-
     def _create_modbus_client(self):
         """Factory method to create appropriate Modbus client."""
         
@@ -281,6 +300,1011 @@ class RobotiqGripper( ):
                 stopbits=1,
                 bytesize=8,
                 timeout=1)
+    
+    def _autoConnect(self):
+        """Automatically detect the COM port to which the gripper is connected.
+
+        This method scans available serial ports and attempts to communicate with
+        a gripper on each one to find the correct port.
+
+        Returns:
+        --------
+        str
+            The COM port where the gripper was detected.
+
+        Raises:
+        ------
+        GripperConnectionError
+            If no gripper is detected on any available port.
+        """
+        ports = serial.tools.list_ports.comports()
+        manager = multiprocessing.Manager()  # Create ONCE
+
+        for port in ports:
+            print(f"Testing: {port.device}")
+
+            return_dict = manager.dict()
+
+            p = multiprocessing.Process(
+                target=self._probe_port_process,
+                args=(port.device, self.device_id, return_dict)
+            )
+
+            p.start()
+            p.join(3.0)  # HARD TIMEOUT (1 second)
+
+            if p.is_alive():
+                print(f"Hard timeout — killing process on {port.device}")
+                p.terminate()
+                p.join()
+                print(f"Probe timed out on {port.device}; no port response from probe worker. This means the port may not be a Modbus device or is very slow.")
+                continue
+
+            if p.exitcode is not None and p.exitcode != 0:
+                print(f"Probe process for {port.device} exited with code {p.exitcode}")
+
+            if return_dict.get("success", False):
+                print(f"Gripper detected on {port.device}")
+                return port.device
+
+            reason = return_dict.get("error", "none")
+            print(f"No gripper response on {port.device} (reason: {reason})")
+
+
+        raise GripperConnectionError(
+            f"No gripper detected on any of {len(list(serial.tools.list_ports.comports()))} "
+            f"available ports. Tested ports: "
+            f"{', '.join([p.device for p in serial.tools.list_ports.comports()])}. "
+            f"Please check: 1) Gripper is powered, 2) USB cable connected, "
+            f"3) Device ID matches (expected {self.device_id})"
+            )
+
+    #COMMUNICATION FUNCTIONS
+    def _writePreadStatus(self,position):
+        """Write position in the command register and read the gripper\
+        status in a single Modbus transaction.
+        
+        Parameters:
+        -----------
+        position: int
+            The position to move the gripper to in bits. Integer between 0 and 255.
+        """
+        result=self._client.readwrite_registers(read_address=2000,
+                                        read_count=3,
+                                        write_address=1001,
+                                        values=[position],
+                                        device_id=self.device_id)
+        registers=result.registers
+        t=floor_to_ms(time.monotonic())
+
+        self._saveStatus(t,registers,readWrite=True)
+        command={"time":t,"rPR":position}
+
+        self._completeAndSaveCommand(command)
+
+    def _writePSFreadStatus(self,position, speed, force):
+        """Write position, speed and force in the command register and read the gripper\
+        status in a single Modbus transaction.
+        
+        Parameters:
+        -----------
+        position: int
+            The position to move the gripper to in bits. Integer between 0 and 255.
+        speed: int
+            The speed of the gripper movement. Integer between 0 and 255.
+        force: int
+            The force of the gripper movement. Integer between 0 and 255.
+        """
+        result=self._client.readwrite_registers(read_address=2000,
+                                        read_count=3,
+                                        write_address=1001,
+                                        values=[position, speed * 0b100000000 + force],
+                                        device_id=self.device_id)
+        registers=result.registers
+        t=floor_to_ms(time.monotonic())
+        self._saveStatus(t,registers,readWrite=True)
+
+        
+        command={"time":t,"rPR":position, "rSP":speed,"rFR":force}
+
+        self._completeAndSaveCommand(command)
+    
+    def _writePSF(self,position, speed, force):
+        """Write position, speed and force in the command register.
+
+        Parameters:
+        -----------
+        position: int
+            The position to move the gripper to in bits. Integer between 0 and 255.
+        speed: int
+            The speed of the gripper movement. Integer between 0 and 255.
+        force: int
+            The force of the gripper movement. Integer between 0 and 255.
+        """
+        res=self._client.write_registers(address=1001,
+                                 values=[position, speed * 0b100000000 + force],
+                                  device_id=self.device_id)
+
+        # Check result
+        if res.isError():
+            raise GripperCommunicationError("Write failed")
+        t=floor_to_ms(time.monotonic())
+        command={"time":t,"rPR":position, "rSP":speed,"rFR":force}
+
+        self._completeAndSaveCommand(command)
+    
+    def _writeP(self,position):
+        """Write position in the command register.
+
+        Parameters:
+        -----------
+        position: int
+            The position to move the gripper to in bits. Integer between 0 and 255.
+        """
+        res=self._client.write_registers(address=1001,
+                                 values=[position],
+                                 device_id=self.device_id)
+
+        # Check result
+        if res.isError():
+            raise GripperCommunicationError("Write failed")
+        t=floor_to_ms(time.monotonic())
+        command={"rPR":position}
+
+        self._completeAndSaveCommand(command)
+    
+    def _writeSF(self,speed, force):
+        """Write speed and force in the command register.
+
+        Parameters:
+        -----------
+        speed: int
+            The speed of the gripper movement. Integer between 0 and 255.
+        force: int
+            The force of the gripper movement. Integer between 0 and 255.
+        """
+        res=self._client.write_registers(address=1002,
+                                 values=[speed * 0b100000000 + force],
+                                  device_id=self.device_id)
+
+        # Check result
+        if res.isError():
+            raise GripperCommunicationError("Write failed")
+        
+        t=floor_to_ms(time.monotonic())
+        command={"rSP":speed,"rFR":force}
+
+        self._completeAndSaveCommand(command)
+        
+    #DATA SAVING FUNCTIONS
+    def _saveStatus(self,t,statusRegisters,readWrite):
+        """Save the gripper status register values in status history.
+
+        Parameters:
+        -----------
+        t:
+            Time of the status
+        statusRegisters :
+            Status register
+        """
+        #########################################
+        #Register 2000
+        #First Byte: gripperStatus
+        #Second Byte: RESERVED
+        
+        #First Byte: gripperStatus
+        gripperStatusReg0=(statusRegisters[0] >> 8) & 0b11111111 #xxxxxxxx00000000
+        #########################################
+        #Object detection
+        if readWrite:
+            gOBJ=-1
+        else:
+            gOBJ=(gripperStatusReg0 >> 6) & 0b11 #xx000000
+        #Gripper status
+        gSTA=(gripperStatusReg0 >> 4) & 0b11 #00xx0000
+        #Action status. echo of rGTO (go to bit)
+        gGTO=(gripperStatusReg0 >> 3) & 0b1 #0000x000
+        #Activation status
+        gACT=gripperStatusReg0 & 0b00000001 #0000000x
+        
+        #########################################
+        #Register 2001
+        #First Byte: Fault status
+        #Second Byte: Pos request echo
+        
+        #First Byte: fault status
+        faultStatusReg2= (statusRegisters[1] >>8)  & 0b11111111 #xxxxxxxx00000000
+        #########################################
+        #Universal controler
+        kFLT=(faultStatusReg2 >> 4) & 0b1111 #xxxx0000
+        #Fault
+        gFLT=faultStatusReg2 & 0b00001111 #0000xxxx
+
+        if gFLT in [7,8,10,11,12,13,14,15]:
+            print(f"gFLT = {gFLT}")
+            print("Gripper status history:")
+            print(self.statusHistory())
+            raise GripperFaultError(REGISTER_DIC["gFLT"][gFLT])
+
+        
+        if gFLT in [5,9]:
+            warnings.warn(REGISTER_DIC["gFLT"][9],UserWarning, stacklevel=2)
+
+        
+        
+        #########################################
+        #Second Byte: Pos request echo
+        posRequestEchoReg3=statusRegisters[1] & 0b11111111 #00000000xxxxxxxx
+        #########################################
+        #Echo of request position
+        gPR=posRequestEchoReg3
+        
+        #########################################
+        #Register 2002
+        #First Byte: Position
+        #Second Byte: Current
+        
+        #First Byte: Position
+        positionReg4=(statusRegisters[2] >> 8) & 0b11111111 #xxxxxxxx00000000
+
+        #########################################
+        #Actual position of the gripper
+        gPO=positionReg4
+        
+        #########################################
+        #Second Byte: Current
+        currentReg5=statusRegisters[2] & 0b0000000011111111 #00000000xxxxxxxx
+        #########################################
+        #Current
+        gCU=currentReg5
+
+        self._statusHistory[:-1,:]=self._statusHistory[1:,:]
+        self._statusHistory[-1,:]=[t,gOBJ,gSTA,gGTO,gACT,kFLT,gFLT,gPR,gPO,gCU]
+  
+    def _completeAndSaveCommand(self,command):
+        """Complete a partial command dictionary and save it to history.
+
+        Parameters:
+        -----------
+        command : dict
+            A partial command dictionary to complete and save.
+        """
+        self._complete_command(command)
+
+        self._commandHistory[:-1,:]=self._commandHistory[1:,:]
+        self._commandHistory[-1,:]= [command["time"],
+                                    command["rARD"],
+                                    command["rATR"],
+                                    command["rGTO"],
+                                    command["rACT"],
+                                    command["rPR"],
+                                    command["rSP"],
+                                    command["rFR"]]
+
+    #DATA PROCESSING FUNCTIONS
+
+    def _mmToBit(self,mm):
+        """Convert a mm gripper opening in bit opening.
+
+        .. note::
+            Calibration is needed to use this function.\n
+            Execute the function calibrate at least 1 time before using this function.
+        """
+        if not self.is_mm_calibrated():
+            raise GripperNotCalibratedError()
+
+        bit=(mm-self._bCoef)/self._aCoef
+
+        if bit>255:
+            bit=255
+        elif bit<0:
+            bit=0
+        
+        return bit
+        
+    def _bitTomm(self,bit):
+        """Convert a bit gripper opening in mm opening.
+
+        Returns:
+        --------
+        mm : float
+            Gripper position converted in mm
+        
+        .. note::
+            Calibration is needed to use this function.\n
+            Execute the function calibrate at least 1 time before using this function.
+        """
+        if not self.is_mm_calibrated():
+            raise GripperNotCalibratedError()
+        mm=self._aCoef*bit+self._bCoef
+
+        if mm>self._openmm:
+            mm=self._openmm
+        elif mm<self._closemm:
+            mm=self._closemm
+        
+        return mm
+    
+    def _positionEstimation(self,startPosition,requestedPosition,speed,elapsedTime):
+        """
+        Estimate what will be the gripper position after an "elapsedTime" knowing the\
+        start position of the motion, the requested position and the speed
+        
+        Parameters:
+        -----------
+        startPosition : int
+            Position in bits from which start the motion.
+        requestedPosition : int
+            Position in bits where the gripper is requested to move.
+        speed : int
+            Speed of the gripper in bits.
+        elapsedTime : float
+            Elapsed time in seconds from the start position to the estimated position
+
+        Returns:
+        --------
+        estimatedPosition : int
+            Estimated position of the gripper.
+        """
+        if not self.is_speed_calibrated():
+            raise GripperCalibrationError("The speed calibration is required to estimate gripper position.")
+
+        #Calculate predicted position
+        positionDelta = requestedPosition - startPosition
+        
+        direction = np.sign(positionDelta)
+
+        motion = int(direction * float(self.gripper_vmin_bits() + (self.gripper_vmax_bits() - self.gripper_vmin_bits()) * speed / 255) * elapsedTime)
+        
+        estimatedPosition = 0
+        
+        if abs(positionDelta) < abs(motion):
+            #Last position request was reachable within the elapsed time
+            estimatedPosition = requestedPosition
+        else:
+            #Last position was not reachable within elapsed time
+            estimatedPosition = startPosition + motion
+
+        return estimatedPosition
+    
+    def _bitPerSecond(self,speed):
+        """Return the corresponding position bits/s speed for a speed value in bit.
+        
+        Parameters:
+        -----------
+        speed : int
+            Gripper speed in bits
+        
+        Returns:
+        --------
+        bitPerSecond : float
+            Position variation in bits/s
+        """
+        bitPerSecond=self.gripper_vmin_bits() + (float(self.gripper_vmax_bits()-self.gripper_vmin_bits())/255)*speed
+        if bitPerSecond<0:
+            raise GripperValidationError("Negative bit per second value {} for speed {}. Gripper_vmax_bits: {} and Gripper_vmin_bits: {}".format(bitPerSecond,speed,self.gripper_vmax_bits(),self.gripper_vmin_bits()))
+        return bitPerSecond
+    
+    def _mergeHistory(self):
+        """Merge command and status history arrays based on time.
+
+        Returns:
+        --------
+        numpy.ndarray
+            A merged array containing aligned command and status data.
+        """
+        #Merge using time property
+        history=array_merge_on_first_column(self._commandHistory,self._statusHistory)
+        #Filled forward missing command value
+        columns_to_fill=[RARD,RGTO,RACT,RPR,RSP,RFR]
+        array_forward_fill_columns(history,columns_to_fill,missing_value=-1)
+        return history
+    
+    def _fill_gPO(self,history):
+        """
+        Fill NaN values of gPO using speed, target, and elapsed time.
+        """
+        df=history
+        time_col="time"
+        pos_col="gPO"
+        target_col="rPR"
+        speed_col="rSP"
+
+        if not self.is_speed_calibrated():
+            raise GripperCalibrationError("The gripper need to be speed activated to be able to estimate gripper position.")
+
+
+        #Sort table with time ascending values
+        df = df.sort_values(by=time_col).reset_index(drop=True)
+        
+        for i in range(1, len(df)):
+            if np.isnan(df.loc[i, pos_col]):
+                
+                prev_gPO = df.loc[i-1, pos_col]
+                prev_rPR = df.loc[i-1, target_col]
+                speed = df.loc[i-1, speed_col]
+                
+                # If we still don't have enough info, skip
+                if np.isnan(prev_gPO) or np.isnan(prev_rPR) or np.isnan(speed):
+                    #print("prev_gPO : ",prev_gPO)
+                    #print("prev_rPR : ",prev_rPR)
+                    #print("speed : ",speed)
+                    #warnings.warn("Not enough information to estimate position")
+                    continue
+                
+                # Time difference
+                dt = df.loc[i, time_col] - df.loc[i-1, time_col]
+                
+                # Direction
+                direction = np.sign(prev_rPR - prev_gPO)
+                
+                # Movement
+                delta = direction * self._bitPerSecond(speed) * dt
+                new_pos = int(prev_gPO + delta)
+                
+                # Clamp to target (avoid overshoot)
+                if direction > 0:
+                    new_pos = min(new_pos, prev_rPR)
+                elif direction < 0:
+                    new_pos = max(new_pos, prev_rPR)
+                
+                if new_pos > self._closebit:
+                    new_pos = self._closebit
+                if new_pos < self._openbit:
+                    new_pos = self._openbit
+                
+                df.loc[i, pos_col] = new_pos
+        df=df.sort_values(by="time", ascending=False).reset_index(drop=True)
+        return df
+
+    def _travelTime(self,startPosition,endPosition,speed):
+        """Return the time need to travel from a position to another at a given speed.
+        
+        Parameters:
+        -----------
+        startPosition : int
+            Start position in bits.
+        endPosition : int
+            End position in bits.
+        speed : int
+            Gripper speed in bits.
+
+        Returns:
+        --------
+        travelTime : float
+            Time needed to travel from start to end position.
+        """
+        posBitPerSecond = self._bitPerSecond(speed)
+        travelTime = abs(float(endPosition-startPosition))/posBitPerSecond
+        return travelTime
+
+    def _commandFilter(self,
+                       current_time,
+                       current_rPR,
+                       minSpeedPosDelta=5,
+                       maxSpeedPosDelta=55,
+                       continuousGrip=True,
+                       autoLock=True,
+                       minimalMotion=1,
+                       verbose=0,
+                       refreshStatus=False
+                       ):
+        """"Filter the gripper command to perform a smooth and safe motion of the gripper.\
+        The command filter is based on the gripper command history and the gripper status.
+        
+        Parameters:
+        -----------
+        t0_RequestTime : float
+            Request time.
+        t0_RequestPosition : int
+            Requested position.
+        commandHistory : dict
+            Command history.
+        status : dict
+            Gripper status.
+        minSpeedPosDelta : int
+            Minimum speed position delta.
+        maxSpeedPosDelta : int
+            Maximum speed position delta.
+        continuousGrip : bool
+            Whether to continuously grip.
+        autoLock : bool
+            Whether to automatically lock.
+        minimalMotion : int
+            Minimal motion.
+        verbose : int
+            Verbose level to print. 1 print all executed command. 2 print all commands.
+
+        Returns:
+        --------
+        command : dict
+            Filtered command.
+        """
+        if refreshStatus:
+            self.readStatus()
+
+        #t1: previous command
+        #t0: next command to come
+
+        #Object detection
+
+        history = self._mergeHistory()
+        
+        prev_time=history[-1,TIME]
+        prev_cOBJ=self.objectDetection(history,duration=0.2,tolerance=3)
+        prev_gPO=history[-1,M_GPO]
+        prev_rPR=history[-1,RPR]
+        prev_rSP=history[-1,RSP]
+        prev_rFR=history[-1,RFR]
+
+        forceMin = continuousGrip * 1
+        command = {}
+
+        dt = current_time - prev_time
+
+        command["execution"] = NO_COMMAND
+        command["rPR"] = 0
+        command["rSP"] = 0
+        command["rFR"] = forceMin
+        command["wait"] = False
+        command["comment"] = ""
+        
+        cPO = self._positionEstimation(prev_gPO,
+                                       prev_rPR,
+                                       prev_rSP,
+                                       dt)
+        
+        # Check if object detected
+        if prev_cOBJ in [GOBJ_DETECTED_WHILE_OPENING, GOBJ_DETECTED_WHILE_CLOSING]:
+            # Object detected
+            full_grip_applied = (prev_rPR in [0, 255] and prev_rSP == 255 and prev_rFR == 255)
+            if not full_grip_applied:
+                # Apply full grip
+                if prev_cOBJ == GOBJ_DETECTED_WHILE_CLOSING:
+                    command["execution"] = WRITE_READ_COMMAND
+                    command["rPR"] = 255
+                    command["rSP"] = 255
+                    command["rFR"] = 255
+                    command["wait"] = True
+                    command["comment"] = "Object detected while closing, apply full grip"
+                else:  # GOBJ_DETECTED_WHILE_OPENING
+                    command["execution"] = WRITE_READ_COMMAND
+                    command["rPR"] = 0
+                    command["rSP"] = 255
+                    command["rFR"] = 255
+                    command["wait"] = True
+                    command["comment"] = "Object detected while opening, apply full release"
+            else:
+                # Full grip applied
+                # Check if further gripping requested
+                if ((prev_cOBJ == GOBJ_DETECTED_WHILE_CLOSING and current_rPR >= prev_gPO) or
+                    (prev_cOBJ == GOBJ_DETECTED_WHILE_OPENING and current_rPR <= prev_gPO)):
+                    # Further gripping
+                    command["execution"] = READ_COMMAND
+                    command["rPR"] = None
+                    command["rSP"] = None
+                    command["rFR"] = None
+                    command["wait"] = False
+                    command["comment"] = "Full grip applied, further gripping requested, do nothing"
+                else:
+                    # Away from grip or release
+                    command["execution"] = WRITE_READ_COMMAND
+                    command["rPR"] = current_rPR
+                    command["rSP"] = 255
+                    command["rFR"] = 255
+                    command["wait"] = True
+                    command["comment"] = "Object detected, going to release position"
+        else:
+            # No object detected
+            if abs(prev_gPO - current_rPR) <= minimalMotion:
+                command["execution"] = READ_COMMAND
+                command["rPR"] = None
+                command["rSP"] = None
+                command["rFR"] = None
+                command["wait"] = False
+                command["comment"] = "No motion needed"
+            else:
+                # Adjust speed based on distance
+                posDelta = abs(prev_gPO - current_rPR)
+                if posDelta <= minSpeedPosDelta:
+                    speed = 0
+                elif posDelta >= maxSpeedPosDelta:
+                    speed = 255
+                else:
+                    speed = int((posDelta - minSpeedPosDelta) / (maxSpeedPosDelta - minSpeedPosDelta) * 255)
+                # Check if requesting extreme position and previous was not full grip
+                if current_rPR in [0, 255] and not (prev_rPR in [0, 255] and prev_rSP == 255 and prev_rFR == 255):
+                    speed = 255
+                    forceMin = 255
+                    command["wait"] = True
+                    command["comment"] = f"No object detected, trigger full grip to {current_rPR}"
+                else:
+                    command["wait"] = False
+                    command["comment"] = f"No object detected, move with adjusted speed {speed}"
+                command["execution"] = WRITE_READ_COMMAND
+                command["rPR"] = current_rPR
+                command["rSP"] = speed
+                command["rFR"] = forceMin
+        if verbose ==1:
+            if command["execution"]==WRITE_READ_COMMAND:
+                print(f"Time: {current_time:.3f} | ReqPos: {current_rPR:3d} | cPO: {cPO}| ObjDet: {prev_cOBJ} | CmdExe: {command['execution']:1d} | CmdPos: {command['rPR'] or 0:3d} | CmdSpd: {command['rSP'] or 0:3d} | CmdFrc: {command['rFR'] or 0:3d} | CmdWait: {command['wait'] or 0:.3f} | Comment: {command['comment']}")
+        if verbose ==2:
+            print(f"Time: {current_time:.3f} | ReqPos: {current_rPR:3d} | cPO: {cPO} | ObjDet: {prev_cOBJ} | CmdExe: {command['execution']:1d} | CmdPos: {command['rPR'] or 0:3d} | CmdSpd: {command['rSP'] or 0:3d} | CmdFrc: {command['rFR'] or 0:3d} | CmdWait: {command['wait'] or 0:.3f} | Comment: {command['comment']}")
+
+
+        return command
+
+    def _complete_command(self,command: dict) -> dict:
+        """
+        Complete a partial record using the first row of the DataFrame.
+        
+        Parameters:
+            partial_record (dict): A dictionary with some values missing.
+            
+        Returns:
+            dict: A complete record with missing values filled from the first row of df.
+        """
+
+        if "time" not in command.keys():
+            raise GripperValidationError("Time is required to complete the command record.")
+
+        for key in ["rPR", "rSP", "rFR"]:
+            if key not in command.keys():
+                arrayID=COMMAND_HISTORY_COLUMNS_NAME_2_ID[key]
+                command[key] = self._commandHistory[-1, arrayID]
+        for key in COMMAND_HISTORY_COLUMNS_NAME_2_ID.keys():
+            if key not in command.keys():
+                command[key] = -1
+
+    ####################################################
+    ### PUBLIC FUCNTIONS
+    ###################################################
+    #SETUP
+    def connect(self):
+        """Connect to the gripper. If the connection is already established, do nothing.
+        """
+        if not self._client.connect():
+            raise GripperConnectionError("Failed to connect to the gripper. Please check the connection and try again.")
+    
+    def disconnect(self):
+        """Disconnect from the gripper. If the connection is already closed, do nothing.
+        """
+        self._client.close()
+    
+    def reset(self):
+        """Reset the gripper (clear previous activation and calibration if any)
+        """
+        #Reset the gripper
+        self._client.write_registers(1000,[0,0,0],device_id=self.device_id)
+
+        t=time.monotonic()
+        command={"time": t,
+                 "rARD": 0,
+                 "rATR": 0,
+                 "rGTO": 0,
+                 "rACT": 0,
+                 "rPR": 0,
+                 "rSP": 0,
+                 "rFR": 0}
+                 
+
+        self._completeAndSaveCommand(command)
+
+        self._is_bit_calibrated=False
+        self._is_speed_calibrated=False
+        self._is_mm_calibrated=False
+
+        self.readStatus()
+
+    def activate(self,reset= True, start=True,refreshStatus=True):
+        """If not already activated, activate the gripper.
+
+        .. warning::
+            When you execute this function the gripper is going to fully open\
+            and close. During this operation the gripper must be able to freely\
+            move. Do not place object inside the gripper.
+        """
+        
+        #Turn the variable which indicate that the gripper is processing
+        #an action to True
+        if reset:
+            self.reset()
+
+        self._processing=True
+
+
+        t=floor_to_ms(time.monotonic())
+        command={"time": t,
+                 "rACT": RACT_ACTIVATE}
+        if not self.isActivated(refreshStatus=refreshStatus):
+            #Activate the gripper
+            #rACT=1 Activate Gripper (must stay on after activation routine is
+            #completed).
+            
+            if start:
+                res=self._client.write_registers(1000,[0b0000100100000000],device_id=self.device_id)
+                command["rGTO"]=RGTO_GO_TO_REQUESTED_POSITION
+                if res.count !=1:
+                    raise GripperCommunicationError("Failed to write register")
+            else:
+                res=self._client.write_registers(1000,[0b0000000100000000],device_id=self.device_id)
+            
+            if res.isError():
+                raise GripperCommunicationError("Fail to write gripper register")
+
+            #Waiting for activation to complete
+            activationStartTime=floor_to_ms(time.monotonic())
+            activationTime=0
+
+            while not self.isActivated(refreshStatus=True) and (activationTime < self.timeOut):
+                activationTime = floor_to_ms(time.monotonic()) - activationStartTime
+            if activationTime > self.timeOut:
+                raise GripperTimeoutError("Activation", self.timeOut)
+            
+            self.readStatus()
+            self._completeAndSaveCommand(command)
+        else:
+            res = None
+            if start:
+                res=self._client.write_registers(1000,[0b0000100100000000],device_id=self.device_id)
+                command["rGTO"]=RGTO_GO_TO_REQUESTED_POSITION
+                self._completeAndSaveCommand(command)
+                self.readStatus()
+            if res is not None and res.isError():
+                raise GripperCommunicationError("Failed to write register")
+            
+        self._processing=False
+    
+    def start(self,refreshStatus=True):
+        """Gripper start moving. GTO bit is set to 1 but the position command is not\
+        changed. The gripper will move to the position command if it is not already there."""
+        t=floor_to_ms(time.monotonic())
+        command={"time":t,
+                 "rARD":0,
+                 "rATR":0,
+                 "rGTO":RGTO_GO_TO_REQUESTED_POSITION
+                 }
+        if not self.isStarted(refreshStatus=refreshStatus):
+            if self.isActivated(refreshStatus=refreshStatus):
+                res=self._client.write_registers(1000,[0b0000100100000000],device_id=self.device_id)
+                command["rACT"]=RACT_ACTIVATE
+                if res.isError():
+                    raise GripperCommunicationError("Communication to set rGTO bit failed")
+            else:
+                res=self._client.write_registers(1000,[0b0000100000000000],device_id=self.device_id)
+                command["rACT"]=RACT_DESACTIVATE
+                if res.isError():
+                    raise GripperCommunicationError("Communication to set rGTO bit failed")
+            self._completeAndSaveCommand(command)
+            self.readStatus()
+    
+    def stop(self):
+        """Gripper stop moving. GTO bit is set to 0 but the position command is not\
+        changed. The gripper will stop at its current position and hold it."""
+        if self.isActivated:
+            self._client.write_registers(1000,[0b0000000100000000,0,0],device_id=self.device_id)
+        else:
+            self._client.write_registers(1000,[0b0000000000000000,0,0],device_id=self.device_id)
+    
+    def calibrate_bit(self,
+                      openbit=None,
+                      closebit=None):
+        """Calibrate the maximum and minimum position bit value
+
+        openbit : int
+            Position value in bits when the gripper is open
+        closebit : int
+            Position value in bits when the gripper is closed
+
+        .. warning::
+        If no parametesr are provided, the gripper will make a full open followed by a\
+        full close to measure the maximum and minium position in bit.
+        """
+        if (openbit is None) or (closebit is None):
+             
+            #Search for open and close position values
+            #and search for min and max speed in bits/s
+
+            self.open(speed=255,force=0,wait=True)
+            self._openbit=self.position()
+
+            self.close(speed=255,force=0,wait=True)
+            self._closebit=self.position()
+
+        else:
+            self._openbit=openbit
+            self._closebit=closebit
+        
+        self._is_bit_calibrated =True
+
+    def calibrate_speed(self,minSpeedClosingTime=None,maxSpeedClosingTime=None):
+        """Calibrate gripper speed to be able to estimate gripper position over time
+
+        If no parameters are provided, the gripper will do a closing at full speed and\
+        a closing at slow speed to evaluate. the bit calibration will also be performed.
+
+        Parameters :
+        ------------
+        minSpeedClosingTime : float
+            Time (s) is takes for the gripper to move from a full open position to a full close position at the minimum speed.
+        maxSpeedClosingTime : float
+            Time (s) is takes for the gripper to move from a full open position to a full close position at the maximum speed.
+        
+        .. warning::
+        If no parameters are provided, the gripper will do a closing at full speed and a closing at slow speed to evaluate 
+        """
+        if (minSpeedClosingTime is None) or (maxSpeedClosingTime is None):
+            self.open(speed=255,force=0,wait=True)
+            self._openbit=self.position()
+
+            startTime=floor_to_ms(time.monotonic())
+            self.close(speed=255,force=0,wait=True)
+            elapsedTime=floor_to_ms(time.monotonic())-startTime
+            self._closebit=self.position()
+            self._gripper_vmax_bits= (self._closebit - self._openbit)/elapsedTime
+
+            self.open(speed=255,force=0,wait=True)
+
+            startTime=floor_to_ms(time.monotonic())
+            self.close(speed=0,force=0,wait=True)
+            elapsedTime=floor_to_ms(time.monotonic())-startTime
+            self._gripper_vmin_bits= (self._closebit - self._openbit)/elapsedTime
+
+            self._is_bit_calibrated=True
+        else:
+            if not self.is_bit_calibrated():
+                raise GripperCalibrationError("You have to execute calibrate_bit() before calibrating speed with input parameters")
+            self._gripper_vmin_bits=(self._closebit - self._openbit)/minSpeedClosingTime
+            self._gripper_vmax_bits=(self._closebit - self._openbit)/maxSpeedClosingTime
+        self._is_speed_calibrated = True
+    
+    def calibrate_mm(self,
+                     closemm,
+                     openmm):
+        """Calibrate the gripper for mm positionning.
+        
+        Once the calibration is done it is possible to control the gripper in\
+        mm.
+
+        Parameters:
+        -----------
+        closemm : float
+            Distance between the fingers when the gripper is fully closed.
+        openmm : float
+            Distance between the fingers when the gripper is fully open.       
+        """
+        if not self.is_bit_calibrated():
+            raise GripperCalibrationError("Execute the function calibrate_bit() before executing the function calibrate_mm()")
+
+        self._closemm=closemm
+        self._openmm=openmm
+        
+        self._aCoef=(closemm-openmm)/(self._closebit-self._openbit)
+        self._bCoef=(openmm*self._closebit-self._openbit*closemm)/(self._closebit-self._openbit)
+
+        self._is_mm_calibrated=True
+
+    #ACTIONS
+    def open(self,speed=255,force=255,wait=False,readStatus=True,refreshStatus=False):
+        """Open the gripper
+        
+        Parameters:
+        -----------
+        speed : int
+            Gripper speed between 0 and 255. Default is 255.
+        force : int
+            Gripper force between 0 and 255. Default is 255.
+        """
+        #Check if the gripper is activated
+        self.move(0,speed,force,wait=wait,readStatus=readStatus,refreshStatus=refreshStatus)
+    
+    def close(self,speed=None,force=None,wait=False,readStatus=True,refreshStatus=False):
+        """Close the gripper.
+
+        Parameters:
+        -----------
+        speed : int
+            Gripper speed between 0 and 255. Default is None.
+        force : int
+            Gripper force between 0 and 255. Default is None.
+        """
+        self.move(255,speed,force,wait=wait,readStatus=readStatus,refreshStatus=refreshStatus)
+    
+    def move(self,position,speed=None,force=None,wait=False,readStatus=True,refreshStatus=False):
+        """Move gripper fingers to the requested position with determined speed and force.
+        
+        Parameters:
+        -----------
+        position : int
+            Position of the gripper. Integer between 0 and 255.\
+            0 being the open position and 255 being the close position.
+        speed : int
+            Gripper speed between 0 and 255. Default is 255.
+        force : int
+            Gripper force between 0 and 255. Default is 255.
+        wait : bool
+            If True, the function wait until the gripper\
+            reach the requested position or detect an object. Default is False.
+        """
+        if refreshStatus:
+            self.readStatus()
+        
+        speed_value=0
+        if speed is None:
+            if self.speed() is not None:
+                speed_value = self.speed()
+            else:
+                speed_value = 0
+        else:
+            speed_value = speed
+        
+        force_value=0
+        if force is None:
+            if self.force() is not None:
+                force_value = self.force()
+            else:
+                force_value = 0
+        else:
+            force_value = force
+        
+        #Check if the gripper is activated
+        if not self.isActivated(refreshStatus=False):
+            print("Status history:")
+            print(self._statusHistory)
+            raise GripperNotActivatedError()
+        if not self.isStarted(refreshStatus=False):
+            raise GripperNotStartedError()
+        #Check input value
+        if position>255 or position<0:
+            raise GripperPositionError(position)
+        
+        position=int(position)
+
+        if (speed is None) and (force is None):
+            if readStatus:
+                self._writePreadStatus(position)
+            else:
+                self._writeP(position)
+        else:
+            speed_value=int(speed_value)
+            force_value=int(force_value)
+            if readStatus:
+                self._writePSFreadStatus(position,speed_value,force_value)
+            else:
+                self._writePSF(position,speed_value,force_value)
+        
+        self._processing=True
+        if wait:
+            self.waitComplete()
+        self._processing=False
+    
+    def move_mm(self,positionmm,speed=None,force=None,wait=False,readStatus=True,refreshStatus=False):
+        """Go to the requested opening expressed in mm
+
+        Parameters:
+        -----------
+        positionmm : float
+            Gripper opening in mm.
+        speed : int
+            Gripper speed between 0 and 255. Default is 255.
+        force : int
+            Gripper force between 0 and 255. Default is 255.
+        
+        .. note::
+            Calibration is needed to use this function.\n
+            Execute the function calibrate at least 1 time before using this function.
+        """
+
+        if not self.is_mm_calibrated():
+            raise GripperNotCalibratedError()
+
+        if  positionmm>self._openmm:
+            raise GripperValidationError("The maximum opening is {} mm but the given value is {} mm".format(self._openmm,positionmm))
+        if positionmm<self._closemm:
+            raise GripperValidationError("The minimum closing is {} mm but the given value is {} mm".format(self._openmm,positionmm))
+        
+        position=int(self._mmToBit(positionmm))
+        self.move(position,speed,force,wait,readStatus,refreshStatus)
 
     def realTimeMove(self,
                      requestedPosition,
@@ -288,7 +1312,8 @@ class RobotiqGripper( ):
                      maxSpeedPosDelta=100,
                      continuousGrip=True,
                      autoLock=True,
-                     minimalMotion=2):
+                     minimalMotion=2,
+                     verbose=False):
         """Move the gripper in real time to the requested position.
         
         Parameters:
@@ -314,483 +1339,175 @@ class RobotiqGripper( ):
             motion is requested. If the position delta between the current position and\
             the requested position is under this value, no motion is performed. Default\
             is 2.
+        verbose : bool
+            If True, print debug information about the\
+            command filtering and execution. Default is False.
         """
+        #Check if the gripper is activated
+        if not self.isActivated(refreshStatus=False):
+            raise GripperNotActivatedError()
+        if not self.isStarted(refreshStatus=False):
+            raise GripperNotStartedError()
+        if not self.is_speed_calibrated():
+            raise GripperCalibrationError("The gripper need to be speed calibrated before using realtime move.")
+        
         #2- Get time
-        now=time.monotonic()
-        elapsedTime = now - self._commandHistory["time"][0]
-        if elapsedTime<0:
-            raise Exception("Negative elapsed time {} previous time {} , current time {}".format(elapsedTime,self._commandHistory["time"][0],now))
+        now=floor_to_ms(time.monotonic())
         
         
         #2 Build gripper command
-        command=self._commandFilter(t0_RequestTime=now,
-                                t0_RequestPosition=requestedPosition,
-                                commandHistory=self._commandHistory,
-                                status=self.status,
-                                minSpeedPosDelta=minSpeedPosDelta,
-                                maxSpeedPosDelta=maxSpeedPosDelta,
-                                continuousGrip=continuousGrip,
-                                autoLock=autoLock,
-                                minimalMotion=minimalMotion)
+        command=self._commandFilter(current_time=now,
+                                    current_rPR=requestedPosition,
+                                    minSpeedPosDelta=minSpeedPosDelta,
+                                    maxSpeedPosDelta=maxSpeedPosDelta,
+                                    continuousGrip=continuousGrip,
+                                    autoLock=autoLock,
+                                    minimalMotion=minimalMotion,
+                                    verbose=verbose)
+        
         if command["execution"]==WRITE_READ_COMMAND:
-            self._writePSFreadStatus(command["position"],command["speed"],command["force"])
-            if command["wait"]>0:
-                time.sleep(command["wait"])
-            updateList(self._commandHistory["time"],now)
-            updateList(self._commandHistory["positionCommand"],command["position"])
-            updateList(self._commandHistory["position"],self.status["gPO"])
-            updateList(self._commandHistory["positionRequest"],requestedPosition)
-            updateList(self._commandHistory["speedCommand"],command["speed"])
-            updateList(self._commandHistory["forceCommand"],command["force"])
-            updateList(self._commandHistory["detection"],self.status["gOBJ"])
-            updateList(self._commandHistory["gripCommand"],command["grip"])
+            self.move(command["rPR"],command["rSP"],command["rFR"])
+            if command["wait"]:
+                self.move(command["rPR"],command["rSP"],command["rFR"],wait=True)
+            else:
+                self.move(command["rPR"],command["rSP"],command["rFR"])
 
         elif command["execution"]==READ_COMMAND:
             self.readStatus()
         else:
-            print("No execution command")
+            warnings.warn("No command executed",UserWarning, stacklevel=2)
 
-    def _autoConnect(self):
-        """Automatically detect the COM port to which the gripper is connected."""
-        ports = serial.tools.list_ports.comports()
+    def waitComplete(self):
+        """Wait until the gripper has completed its motion or detect an object.
 
-        for port in ports:
-            print(f"Testing: {port.device}")
-
-            manager = multiprocessing.Manager()
-            return_dict = manager.dict()
-
-            p = multiprocessing.Process(
-                target=self._probe_port_process,
-                args=(port.device, self.device_id, return_dict)
-            )
-
-            p.start()
-            p.join(1.0)  # HARD TIMEOUT (1 second)
-
-            if p.is_alive():
-                print("Hard timeout — killing process")
-                p.terminate()
-                p.join()
-                continue
-
-            if return_dict.get("success", False):
-                print(f"Gripper detected on {port.device}")
-                return port.device
-
-        raise GripperConnectionError("No gripper detected on any available port")
-
-    def _buildRegisterDic(self):
-        """Build a dictionnary with comment to explain each register variable.
-
-        Dictionnary key are variable names. Dictionnary value are dictionnary\
-        with comments about each statut of the variable (key=variable value,\
-        value=comment)
+        This method blocks until the gripper reaches the target position or detects an object.
         """
-        ######################################################################
-        #input register variable
-        self.registerDic.update({"gOBJ":{},"gSTA":{},"gGTO":{},"gACT":{},
-                                "kFLT":{},"gFLT":{},"gPR":{},"gPO":{},"gCU":{}})
-        
-        #gOBJ
-        gOBJdic=self.registerDic["gOBJ"]
-        
-        gOBJdic[0]="Fingers are in motion towards requested position. No object detected."
-        gOBJdic[1]="Fingers have stopped due to a contact while opening before requested position. Object detected opening."
-        gOBJdic[2]="Fingers have stopped due to a contact while closing before requested position. Object detected closing."
-        gOBJdic[3]="Fingers are at requested position. No object detected or object has been loss / dropped."
-        
-        #gSTA
-        gSTAdic=self.registerDic["gSTA"]
-        
-        gSTAdic[0]="Gripper is in reset ( or automatic release ) state. See Fault Status if Gripper is activated."
-        gSTAdic[1]="Activation in progress."
-        gSTAdic[3]="Activation is completed."
-        
-        #gGTO
-        gGTOdic=self.registerDic["gGTO"]
-        
-        gGTOdic[0]="Stopped (or performing activation / automatic release)."
-        gGTOdic[1]="Go to Position Request."
-        gGTOdic[2]="Unknown status"
-        gGTOdic[3]="Unknown status"
-        
-        #gACT
-        gACTdic=self.registerDic["gACT"]
-        
-        gACTdic[0]="Gripper reset."
-        gACTdic[1]="Gripper activation."
-        
-        #kFLT
-        kFLTdic=self.registerDic["kFLT"]
-        i=0
-        while i<256:
-            kFLTdic[i]=i
-            i+=1
-        
-        #See your optional Controller Manual (input registers & status).
-        
-        #gFLT
-        gFLTdic=self.registerDic["gFLT"]
-        i=0
-        while i<256:
-            gFLTdic[i]=i
-            i+=1
-        gFLTdic[0]="No fault (LED is blue)"
-        gFLTdic[5]="Priority faults (LED is blue). Action delayed, activation (reactivation) must be completed prior to perfmoring the action."
-        gFLTdic[7]="Priority faults (LED is blue). The activation bit must be set prior to action."
-        gFLTdic[8]="Minor faults (LED continuous red). Maximum operating temperature exceeded, wait for cool-down."
-        gFLTdic[9]="Minor faults (LED continuous red). No communication during at least 1 second."
-        gFLTdic[10]="Major faults (LED blinking red/blue) - Reset is required (rising edge on activation bit rACT needed). Under minimum operating voltage."
-        gFLTdic[11]="Major faults (LED blinking red/blue) - Reset is required (rising edge on activation bit rACT needed). Automatic release in progress."
-        gFLTdic[12]="Major faults (LED blinking red/blue) - Reset is required (rising edge on activation bit rACT needed). Internal fault; contact support@robotiq.com."
-        gFLTdic[13]="Major faults (LED blinking red/blue) - Reset is required (rising edge on activation bit rACT needed). Activation fault, verify that no interference or other error occurred."
-        gFLTdic[14]="Major faults (LED blinking red/blue) - Reset is required (rising edge on activation bit rACT needed). Overcurrent triggered."
-        gFLTdic[15]="Major faults (LED blinking red/blue) - Reset is required (rising edge on activation bit rACT needed). Automatic release completed."
-        
-        #gPR
-        gPRdic=self.registerDic["gPR"]
-        
-        i=0
-        while i<256:
-            gPRdic[i]="Echo of the requested position for the Gripper:{}/255".format(i)
-            i+=1
-        
-        #gPO
-        gPOdic=self.registerDic["gPO"]
-        i=0
-        while i<256:
-            gPOdic[i]="Actual position of the Gripper obtained via the encoders:{}/255".format(i)
-            i+=1
-        
-        #gCU
-        gCUdic=self.registerDic["gCU"]
-        i=0
-        while i<256:
-            current=i*10
-            gCUdic[i]="The current is read instantaneously from the motor drive, approximate current: {} mA".format(current)
-            i+=1
-    
-        ######################################################################
-        #output register variable
-        self.registerDic.update({"rARD":{},
-                                 "rATR":{},
-                                 "rGTO":{},
-                                 "rACT":{},
-                                 "rPR":{},
-                                 "rFR":{},
-                                 "rSP":{}})
-        
-        ######################################################################
-     
-    def _saveStatus(self,registers):
-        """Save the gripper status register values in the gripper status dictionary.
-
-        The dictionary keys
-        -------------------
-        gOBJ:
-            Object detection status. This built-in feature provides\
-            information on possible object pick-up. Ignore if gGTO == 0.
-        gSTA:
-            Gripper status. Returns the current status and motion of the\
-            gripper fingers.
-        gGTO:
-            Action status. Echo of the rGTO bit (go-to bit).
-        gACT:
-            Activation status. Echo of the rACT bit (activation bit).
-        kFLT:
-            See your optional controller manual for input registers and\
-            status.
-        gFLT:
-            Fault status. Returns general error messages useful for\
-            troubleshooting. A fault LED (red) is present on the gripper\
-            chassis. The LED can be blue, red, or both, and can be solid\
-            or blinking.
-        gPR:
-            Echo of the requested position for the gripper. Value between\
-            0x00 and 0xFF.
-        gPO:
-            Actual position of the gripper obtained via the encoders.\
-            Value between 0x00 and 0xFF.
-        gCU:
-            The current is read instantaneously from the motor drive. Value\
-            between 0x00 and 0xFF. Approximate current equivalent is 10 times\
-            the value read in mA.
-        """
-        now=time.monotonic()
-        self.status["time"]=now
-        #########################################
-        #Register 2000
-        #First Byte: gripperStatus
-        #Second Byte: RESERVED
-        
-        #First Byte: gripperStatus
-        gripperStatusReg0=(registers[0] >> 8) & 0b11111111 #xxxxxxxx00000000
-        #########################################
-        #Object detection
-        self.status["gOBJ"]=(gripperStatusReg0 >> 6) & 0b11 #xx000000
-        #Gripper status
-        self.status["gSTA"]=(gripperStatusReg0 >> 4) & 0b11 #00xx0000
-        #Action status. echo of rGTO (go to bit)
-        self.status["gGTO"]=(gripperStatusReg0 >> 3) & 0b1 #0000x000
-        #Activation status
-        self.status["gACT"]=gripperStatusReg0 & 0b00000001 #0000000x
-        
-        #########################################
-        #Register 2001
-        #First Byte: Fault status
-        #Second Byte: Pos request echo
-        
-        #First Byte: fault status
-        faultStatusReg2= (registers[1] >>8)  & 0b11111111 #xxxxxxxx00000000
-        #########################################
-        #Universal controler
-        self.status["kFLT"]=(faultStatusReg2 >> 4) & 0b1111 #xxxx0000
-        #Fault
-        self.status["gFLT"]=faultStatusReg2 & 0b00001111 #0000xxxx
-        
-        
-        #########################################
-        #Second Byte: Pos request echo
-        posRequestEchoReg3=registers[1] & 0b11111111 #00000000xxxxxxxx
-        #########################################
-        #Echo of request position
-        self.status["gPR"]=posRequestEchoReg3
-        
-        #########################################
-        #Register 2002
-        #First Byte: Position
-        #Second Byte: Current
-        
-        #First Byte: Position
-        positionReg4=(registers[2] >> 8) & 0b11111111 #xxxxxxxx00000000
-
-        #########################################
-        #Actual position of the gripper
-        self.status["gPO"]=positionReg4
-        
-        #########################################
-        #Second Byte: Current
-        currentReg5=registers[2] & 0b0000000011111111 #00000000xxxxxxxx
-        #########################################
-        #Current
-        self.status["gCU"]=currentReg5
-
-    def readStatus(self):
-        """Retrieve gripper output register information and save it in the\
-        parameter dictionary.
-        """
-        #Read 3 16bits registers starting from register 2000
-        registers=self._client.read_input_registers(2000,count=3,device_id=self.device_id).registers
-
-        self._saveStatus(registers)
-    
-    def reset(self):
-        """Reset the gripper (clear previous activation and calibration if any)
-        """
-        #Reset the gripper
-        self._client.write_registers(1000,[0,0,0],device_id=self.device_id)
-        self._isActivated=False
-        self._isCalibrated=False
-    
-    def activate(self):
-        """If not already activated, activate the gripper. Goto bit is set to 1 which\
-        means that once activated the gripper will move the the finger position\
-        saved in its position register.
-
-        .. warning::
-            When you execute this function the gripper is going to fully open\
-            and close. During this operation the gripper must be able to freely\
-            move. Do not place object inside the gripper.
-        """
-        #Turn the variable which indicate that the gripper is processing
-        #an action to True
-        self.processing=True
-
-        #Activate the gripper
-        #rACT=1 Activate Gripper (must stay on after activation routine is
-        #completed).
-        self._client.write_registers(1000,[0b0000100100000000,0,0],device_id=self.device_id)
-
-        #Waiting for activation to complete
-        activationStartTime=time.time()
-        activationCompleted=False
-        activationTime=0
-        
-        while (not activationCompleted) and activationTime < self.timeOut:
-            activationTime = time.time() - activationStartTime
-            
-            self.readStatus()
-            gSTA=self.status["gSTA"]
-
-            if gSTA==3:
-                activationCompleted=True
-                print("Activation completed. Activation time : "
-                      , activationTime)
-        if activationTime > self.timeOut:
-            raise GripperTimeoutError("Activation", self.timeOut)
-
-        self.processing=False
-
-        self._isActivated=True
-    
-    def resetActivate(self):
-        """Reset the gripper (clear previous activation if any) and activat\
-        the gripper. During this operation the gripper will open and close.
-        """
-        #Reset the gripper
-        self.reset()
-        #Activate the gripper
-        self.activate()
-
-    
-    def move(self,position,speed=None,force=None,wait=False,readStatus=True):
-        """Move gripper fingers to the requested position with determined speed and force.
-        
-        Parameters:
-        -----------
-        position : int
-            Position of the gripper. Integer between 0 and 255.\
-            0 being the open position and 255 being the close position.
-        speed : int
-            Gripper speed between 0 and 255. Default is 255.
-        force : int
-            Gripper force between 0 and 255. Default is 255.
-        wait : bool
-            If True, the function wait until the gripper\
-            reach the requested position or detect an object. Default is False.
-        """
-        #Check if the gripper is activated
-        if self._isActivated == False:
-            raise GripperNotActivatedError()
-
-        #Check input value
-        if position>255 or position<0:
-            raise GripperPositionError(position)
-        
-        position=int(position)
-        if ((speed is None) and (force is not None)) or ((speed is not None) and (force is None)):
-            warnings.warn("Both speed and force must be provided together or not"
-                        " at all. As only one of them is provided, force and speed"
-                        " are set to identical the their previous value.", UserWarning,stacklevel=2)
-            if self.readStatus:
-                self._writePreadStatus(position)
-            else:
-                self._writeP(position)
-        elif (speed is None) and (force is None):
-            if self.readStatus:
-                self._writePreadStatus(position)
-            else:
-                self._writeP(position)
-        else:
-            speed=int(speed)
-            force=int(force)
-            if self.readStatus:
-                self._writePSFreadStatus(position,speed,force)
-            else:
-                self._writePSF(position,speed,force)
-        
-        self.processing=True
-        if wait:
-            self.waitComplete()
-        self.processing=False
-        
-    def close(self,speed=255,force=255,wait=False,readStatus=True):
-        """Close the gripper.
-
-        Parameters:
-        -----------
-        speed : int
-            Gripper speed between 0 and 255. Default is 255.
-        force : int
-            Gripper force between 0 and 255. Default is 255.
-        """
-        self.move(255,speed,force,wait=wait,readStatus=readStatus)
-    
-    def open(self,speed=255,force=255,wait=False,readStatus=True):
-        """Open the gripper
-        
-        Parameters:
-        -----------
-        speed : int
-            Gripper speed between 0 and 255. Default is 255.
-        force : int
-            Gripper force between 0 and 255. Default is 255.
-        """
-        self.move(0,speed,force,wait=wait,readStatus=readStatus)
-    
-    def move_mm(self,positionmm,speed=None,force=None,wait=False,readStatus=True):
-        """Go to the requested opening expressed in mm
-
-        Parameters:
-        -----------
-        positionmm : float
-            Gripper opening in mm.
-        speed : int
-            Gripper speed between 0 and 255. Default is 255.
-        force : int
-            Gripper force between 0 and 255. Default is 255.
-        
-        .. note::
-            Calibration is needed to use this function.\n
-            Execute the function calibrate at least 1 time before using this function.
-        """
-        if self.isCalibrated == False:
-            raise GripperNotCalibratedError()
-
-        if  positionmm>self._openmm:
-            raise Exception("The maximum opening is {}".format(self._openmm))
-        
-        position=int(self._mmToBit(positionmm))
-        self.move(position,speed,force,wait,readStatus)
-        
-    def getPosition(self):
-        """Return the position of the gripper in bits
-
-        Returns:
-        --------
-        position : int
-            Position of the gripper in bits.
-        """
+        startTime = time.time()
         self.readStatus()
+        gOBJ=self._statusHistory[-1,GOBJ]
+        while gOBJ == GOBJ_IN_MOTION and (time.time() - startTime) < self.timeOut:
+            self.readStatus()
+            gOBJ=self._statusHistory[-1,GOBJ]
 
-        position=self.status["gPO"]
-
-        return position
-    
-    def _mmToBit(self,mm):
-        """Convert a mm gripper opening in bit opening.
-
-        .. note::
-            Calibration is needed to use this function.\n
-            Execute the function calibrate at least 1 time before using this function.
-        """
-        if self.isCalibrated == False:
-            raise GripperNotCalibratedError()
-
-        bit=(mm-self._bCoef)/self._aCoef
-        
-        return bit
-        
-    def _bitTomm(self,bit):
-        """Convert a bit gripper opening in mm opening.
+    #STATUS
+    def isActivated(self, refreshStatus=True):
+        """Tells if the gripper is activated
 
         Returns:
         --------
-        mm : float
-            Gripper position converted in mm
-        
-        .. note::
-            Calibration is needed to use this function.\n
-            Execute the function calibrate at least 1 time before using this function.
+        is_activated : bool
+            True if the gripper is activated. False otherwise.
         """
-        if self.isCalibrated == False:
-            raise GripperNotCalibratedError()
-        mm=self._aCoef*bit+self._bCoef
+        if refreshStatus:
+            self.readStatus()
+        gSTA = self._statusHistory[-1,GSTA]
+
+        if gSTA == -1:
+            warnings.warn("Status history is empty. Activation status unknown.",UserWarning, stacklevel=2)
+            res=None
+
+        res=False
+        if gSTA == GSTA_ACTIVATED:
+            res=True
+        else:
+            res=False
         
-        return mm
+        return res
+
+    def isStarted(self,refreshStatus=True):
+        """Tells if the gripper is started
+
+        Returns:
+        --------
+        is_started : bool
+            True if the gripper is started. False otherwise.
+        """
+        if refreshStatus:
+            self.readStatus()
+        gGTO=self._statusHistory[-1,GGTO]
+
+        if gGTO == -1:
+            warnings.warn("Status history is empty. Action status unknown.",UserWarning, stacklevel=2)
+            print(self.statusHistory())
+            return None
+        
+        res=False
+        if gGTO == GGTO_GO_TO_REQUESTED_POSITION:
+            res=True
+        
+        return res
     
-    def getPositionmm(self):
+    def is_bit_calibrated(self):
+        """Tells is the gripper is bit calibrated
+        """
+        return self._is_bit_calibrated
+
+    def is_mm_calibrated(self):
+        """Tells if the mm calibration is done.
+        
+        Returns:
+        --------
+        is_mm_calibrated : bool
+            True if the gripper mm is calibrated. False otherwise."""
+        return self._is_mm_calibrated
+
+    def is_speed_calibrated(self):
+        """TElls if the speed calibration is done.
+        
+        Returns:
+        --------
+        is_started : bool
+            True if the gripper speed is calibrated. False otherwise."""
+        return self._is_speed_calibrated
+
+    def gripper_vmax_bits(self):
+        """Return the maximum speed in bits per second
+
+        Returns:
+        vmax_bits : int
+            Maximum gripper speed in bits per second.
+        """
+        if not self.is_speed_calibrated():
+            raise GripperCalibrationError("The gripper is not speed calibrated")
+        return self._gripper_vmax_bits
+    
+    def gripper_vmin_bits(self):
+        """Return the minimum speed in bits per second
+
+        Returns:
+        --------
+        vmin_bits : int
+            Minimum gripper speed in bits per second.
+        """
+
+        if not self.is_speed_calibrated():
+            raise GripperCalibrationError("The gripper is not speed calibrated")
+        return self._gripper_vmin_bits
+    
+    def positionCommand(self):
+        """Return the last commanded position value.
+
+        Returns:
+        --------
+        int or None
+            The last position command value (0-255), or None if history is empty.
+        """
+        value = self._statusHistory[-1,GPO]
+        if value == -1:
+            warnings.warn("Command history is empty. Last set position is unknown.",UserWarning, stacklevel=2)
+            return None
+        return value
+    
+    def position(self,refreshStatus=True):
+        if refreshStatus:
+            self.readStatus()
+        res = self._statusHistory[-1,GPO]
+        if res ==-1:
+            warnings.warn("Status history is empty. Last position is unknown.",UserWarning, stacklevel=2)
+            return None
+        return int(res)
+
+    def positionmm(self,refreshStatus=True):
         """Return the position of the gripper in mm.
 
         Returns:
@@ -802,66 +1519,182 @@ class RobotiqGripper( ):
             Calibration is needed to use this function.\n
             Execute the function calibrate at least 1 time before using this function.
         """
-        if self.isCalibrated == False:
+        if not self.is_mm_calibrated():
             raise GripperNotCalibratedError()
         
-        position=self.getPosition()
-        
-        positionmm=self._bitTomm(position)
-        return positionmm
+        res=self._bitTomm(self.position(refreshStatus=refreshStatus))
+        return res
+
+    def speed(self):
+        """Return the last set speed value.
+
+        Returns:
+        --------
+        int or None
+            The last speed value set (0-255), or None if history is empty.
+        """
+        value=self._commandHistory[-1, RSP]
+        if value == -1:
+            warnings.warn("Command history is empty. Last set speed is unknown.",UserWarning, stacklevel=2)
+            return None
+        return value
     
-    def calibrate(self,closemm,openmm):
-        """Calibrate the gripper for mm positionning.
-        
-        Once the calibration is done it is possible to control the gripper in\
-        mm.
+    def force(self):
+        """Return the last set force value.
+
+        Returns:
+        --------
+        int or None
+            The last force value set (0-255), or None if history is empty.
+        """
+        value = self._commandHistory[-1, RFR]
+        if value == -1:
+            warnings.warn("Command history is empty. Last set force is unknown.",UserWarning, stacklevel=2)
+            return None
+        return value
+
+    def objectDetection(self,mergedHistory=None, duration=0.2, tolerance=3):
+        """Estimate object detection status from history data.
 
         Parameters:
         -----------
-        closemm : float
-            Distance between the fingers when the gripper is fully closed.
-        openmm : float
-            Distance between the fingers when the gripper is fully open.
-        
-        .. warning::
-        When you execute this function the gripper is going to fully open\
-        and close. During this operation the gripper must be able to freely\
-        move. Do not place object inside the gripper.
-        
-        """
-        self._closemm=closemm
-        self._openmm=openmm
-        
-        self.open(speed=255,force=0,wait=True)
-        #get open bit
-        self._openbit=self.getPosition()
-        obit=self._openbit
-        
-        self.close(speed=255,force=0,wait=True)
-        #get close bit
-        self._closebit=self.getPosition()
-        cbit=self._closebit
-        
-        self._aCoef=(closemm-openmm)/(cbit-obit)
-        self._bCoef=(openmm*cbit-obit*closemm)/(cbit-obit)
+        mergedHistory : numpy.ndarray, optional
+            Pre-merged history array. If None, merges internally.
+        duration : float, optional
+            Stability duration threshold. Default is 0.2.
+        tolerance : int, optional
+            Position tolerance. Default is 3.
 
-        self.isCalibrated=True
-        self._gripper_vmax_bits=self._mmToBit(self.gripper_vmax_mms)
-        self._gripper_vmin_bits=self._mmToBit(self.gripper_vmin_mms)
+        Returns:
+        --------
+        int
+            Object detection status code.
+        """
+        #df_subset = df.loc[:, ["col1", "col2", "col3"]]
+        #df_subset = df.loc[start_index:, ["time", "rPR", "gPO"]]
+
+        if not self.is_bit_calibrated():
+            raise GripperCalibrationError("The gripper need to be bit calibrated to be able to estimate object detection.")
+
+        if mergedHistory is None:
+            mergedHistory = self._mergeHistory()
+
+        last_gOBJ = mergedHistory[-1, M_GOBJ]
+
+        if last_gOBJ != -1:
+            # If gOBJ is explicitly available from the gripper, use that value.
+            return int(last_gOBJ)
+
+        # Filter for valid status rows (gPO and rPR are required for estimation).
+        valid_mask = (mergedHistory[:, M_GPO] != -1) & (mergedHistory[:, RPR] != -1)
+        if not np.any(valid_mask):
+            return GOBJ_IN_MOTION
+
+        time = mergedHistory[valid_mask, TIME]
+        rpr = mergedHistory[valid_mask, RPR]
+        gpo = mergedHistory[valid_mask, M_GPO]
+
+        last_gPO = gpo[-1]
+
+        # If we have a recent request change, consider motion in progress first.
+        rpr_diff_idx = np.flatnonzero(rpr != rpr[-1])
+        if rpr_diff_idx.size > 0 and (time[-1] - time[rpr_diff_idx[-1]] <= duration):
+            return GOBJ_IN_MOTION
+
+        # Detect object only after the gripper position has been stable long enough.
+        gpo_diff_idx = np.flatnonzero(gpo != last_gPO)
+        if gpo_diff_idx.size == 0:
+            # gPO constant on history window.
+            expected = rpr[-1]
+            expected = min(max(expected, self._openbit), self._closebit)
+
+            if abs(expected - last_gPO) < tolerance:
+                return GOBJ_AT_POSITION
+
+            dt_constant = time[-1] - time[0]
+            if dt_constant <= duration:
+                return GOBJ_IN_MOTION
+
+            if expected > last_gPO:
+                return GOBJ_DETECTED_WHILE_CLOSING
+            elif expected < last_gPO:
+                return GOBJ_DETECTED_WHILE_OPENING
+            else:
+                return GOBJ_IN_MOTION
+
+        idx = gpo_diff_idx[-1]
+        dt = time[-1] - time[idx]
+        if dt <= duration:
+            return GOBJ_IN_MOTION
+
+        expected = rpr[-1]
+        expected = min(max(expected, self._openbit), self._closebit)
+
+        if abs(expected - last_gPO) < tolerance:
+            return GOBJ_AT_POSITION
+
+        rpr_slice = rpr[idx:]
+        gpo_slice = gpo[idx:]
+
+        if np.all(rpr_slice > gpo_slice):
+            return GOBJ_DETECTED_WHILE_CLOSING
+
+        if np.all(rpr_slice < gpo_slice):
+            return GOBJ_DETECTED_WHILE_OPENING
+
+        return GOBJ_IN_MOTION
     
-    @property
-    def gripper_vmax_bits(self):
-        if not self.isCalibrated:
-            raise GripperNotCalibratedError()
-        return self._gripper_vmax_bits
+    def commandHistory(self):
+        """Return the gripper command history as a pandas DataFrame.
+
+        Returns:
+        --------
+        pd.DataFrame
+            A DataFrame containing the command history with columns for time
+            and various command registers (rARD, rATR, etc.).
+        """
+        columns = [COMMAND_HISTORY_COLUMNS_ID_2_NAME[i] for i in range(self._commandHistory.shape[1])]
+        df = pd.DataFrame(self._commandHistory, columns=columns)
+        return df
+
+    def readStatus(self):
+        """Retrieve gripper output register information and save it in the\
+        parameter dictionary.
+        """
+        #Read 3 16bits registers starting from register 2000
+        registers=self._client.read_input_registers(2000,count=3,device_id=self.device_id).registers
+        t=floor_to_ms(time.monotonic())
+        self._saveStatus(t,registers,readWrite=False)
     
-    @property
-    def gripper_vmin_bits(self):
-        if not self.isCalibrated:
-            raise GripperNotCalibratedError()
-        return self._gripper_vmin_bits
-    
-    def printStatus(self):
+    def status(self, refreshStatus=True):
+        """Return the current gripper status as a dictionary.
+
+        Parameters:
+        -----------
+        refreshStatus : bool, optional
+            Whether to read fresh status from the gripper. Default is True.
+
+        Returns:
+        --------
+        dict
+            A dictionary containing current status values for all registers.
+        """
+        if refreshStatus:
+            self.readStatus()
+        status={}
+        status["time"]=self._statusHistory[-1,TIME]
+        status["gOBJ"]=self._statusHistory[-1,GOBJ]
+        status["gSTA"]=self._statusHistory[-1,GSTA]
+        status["gGTO"]=self._statusHistory[-1,GGTO]
+        status["gACT"]=self._statusHistory[-1,GACT]
+        status["kFLT"]=self._statusHistory[-1,KFLT]
+        status["gFLT"]=self._statusHistory[-1,GFLT]
+        status["gPR"]=self._statusHistory[-1,GPR]
+        status["gPO"]=self._statusHistory[-1,GPO]
+        status["gCU"]=self._statusHistory[-1,GCU]
+        return status
+
+    def printStatus(self, refreshStatus=False):
         """Print gripper status info in the python terminal
 
         Examples
@@ -905,458 +1738,54 @@ class RobotiqGripper( ):
                 ======================================================================
 
         """
-        self.readStatus()
         
+        status=self.status(refreshStatus=refreshStatus)
+
         # Print header
         print("\n" + "=" * 70)
         print(" " * 20 + "GRIPPER STATUS")
         print("=" * 70)
         
         # Find the longest key for alignment
-        max_key_length = max(len(key) for key in self.status.keys() if key != "time")
+        max_key_length = max(len(key) for key in status.keys() if key != "time")
         
         # Print each status item with description
-        for key, value in self.status.items():
+        for key, value in status.items():
             if key != "time":
                 # Print key and value with alignment
                 print(f"\n{key:<{max_key_length}} : {value}")
                 # Print description with indentation
-                description = self.registerDic[key][value]
+                description = REGISTER_DIC[key][value]
                 print(f"  └─ {description}")
         
         print("\n" + "=" * 70 + "\n")
-    
-    def _positionEstimation(self,startPosition,requestedPosition,speed,elapsedTime):
-        """
-        Estimate what will be the gripper position after an "elapsedTime" knowing the\
-        start position of the motion, the requested position and the speed
-        
-        Parameters:
-        -----------
-        startPosition : int
-            Position in bits from which start the motion.
-        requestedPosition : int
-            Position in bits where the gripper is requested to move.
-        speed : int
-            Speed of the gripper in bits.
-        elapsedTime : float
-            Elapsed time in seconds from the start position to the estimated position
+
+    def statusHistory(self):
+        """Return the gripper status history as a pandas DataFrame.
 
         Returns:
         --------
-        estimatedPosition : int
-            Estimated position of the gripper.
+        pd.DataFrame
+            A DataFrame containing the status history with columns for time
+            and various status registers (gOBJ, gSTA, etc.).
         """
-
-        #Calculate predicted position
-        positionDelta = requestedPosition - startPosition
-        
-        direction = sign(positionDelta)
-
-        motion = int(direction * float(self.gripper_vmin_bits + (self.gripper_vmax_bits - self.gripper_vmin_bits) * speed / 255) * elapsedTime)
-        
-        estimatedPosition = 0
-        
-        if abs(positionDelta) < abs(motion):
-            #Last position request was reachable within the elapsed time
-            estimatedPosition = requestedPosition
-        else:
-            #Last position was not reachable within elapsed time
-            estimatedPosition = startPosition + motion
-
-        return estimatedPosition
+        columns = [STATUS_HISTORY_COLUMNS_ID_2_NAME[i] for i in range(self._statusHistory.shape[1])]
+        df = pd.DataFrame(self._statusHistory, columns=columns)
+        return df
     
-    def _bitPerSecond(self,speed):
-        """Return the corresponding position bits/s speed for a speed value in bit.
-        
-        Parameters:
-        -----------
-        speed : int
-            Gripper speed in bits
-        
-        Returns:
-        --------
-        bitPerSecond : float
-            Position variation in bits/s
-        """
-        bitPerSecond=self.gripper_vmin_bits + (float(self.gripper_vmax_bits-self.gripper_vmin_bits)/255)*speed
-        return bitPerSecond
-    
-    def _travelTime(self,startPosition,endPosition,speed):
-        """Return the time need to travel from a position to another at a given speed.
-        
-        Parameters:
-        -----------
-        startPosition : int
-            Start position in bits.
-        endPosition : int
-            End position in bits.
-        speed : int
-            Gripper speed in bits.
+    def history(self):
+        """Return the merged command and status history as a pandas DataFrame.
+
+        This method combines the command history and status history into a single
+        DataFrame with all timestamps aligned.
 
         Returns:
         --------
-        travelTime : float
-            Time needed to travel from start to end position.
+        pd.DataFrame
+            A DataFrame containing the merged history with columns for time,
+            commands, and status values.
         """
-        posBitPerSecond = self._bitPerSecond(speed)
-        travelTime = abs(float(endPosition-startPosition))/posBitPerSecond
-        return travelTime
-    
-    def _estimatedObjectDetection(self):
-        """Estimate if an object is detected based on the gripper command history.
-        
-        Returns:
-        --------
-        objectDetection : int
-            0: No object detected
-            1: Object detected while opening
-            2: Object detected while closing
-        """
-        objectDetection=NO_OBJECT_DETECTED
-
-        #If position is identical for more than 20x0.016s (time to move of 20 bits at\
-        # slow speed)
-        timeThresholdId=listIdValueUnderThreshold(self.commandHistory["time"],
-                                                  self.commandHistory["time"][0]-COM_TIME*25)
-        if timeThresholdId<2:
-            timeThresholdId=2
-        
-        isImobile = areValueIdentical(self.commandHistory["position"][:timeThresholdId])
-        if isImobile:
-
-            if (min(self.commandHistory["positionCommand"][:timeThresholdId]) - self.commandHistory["position"][0]) > 0:
-                objectDetection=OBJECT_DETECTED_WHILE_CLOSING
-            elif (max(self.commandHistory["positionCommand"][:timeThresholdId]) - self.commandHistory["position"][0] )<0:
-                objectDetection=OBJECT_DETECTED_WHILE_OPENING
-            else:
-                objectDetection=NO_OBJECT_DETECTED
-        
-        return objectDetection
-    
-
-    def _commandFilter(self,
-                       t0_RequestTime,
-                       t0_RequestPosition,
-                       commandHistory,
-                       status,
-                       minSpeedPosDelta=5,
-                       maxSpeedPosDelta=55,
-                       continuousGrip=True,
-                       autoLock=True,
-                       minimalMotion=1):
-        """"Filter the gripper command to perform a smooth and safe motion of the gripper.\
-        The command filter is based on the gripper command history and the gripper status.
-        
-        Parameters:
-        -----------
-        t0_RequestTime : float
-            Request time.
-        t0_RequestPosition : int
-            Requested position.
-        commandHistory : dict
-            Command history.
-        status : dict
-            Gripper status.
-        minSpeedPosDelta : int
-            Minimum speed position delta.
-        maxSpeedPosDelta : int
-            Maximum speed position delta.
-        continuousGrip : bool
-            Whether to continuously grip.
-        autoLock : bool
-            Whether to automatically lock.
-        minimalMotion : int
-            Minimal motion.
-
-        Returns:
-        --------
-        command : dict
-            Filtered command.
-        """
-
-        #Object detection
-        t1_CommandDetection =NO_OBJECT_DETECTED
-        
-        if (status is None) :
-            t1_CommandDetection = self._estimatedObjectDetection(commandHistory)
-        elif (status["time"]<commandHistory["time"][0]):
-            t1_CommandDetection = self._estimatedObjectDetection(commandHistory)
-        else:        
-            #print("Detection from status")
-            t1_CommandDetection = status["gOBJ"]
-
-        elapsedTime = t0_RequestTime-commandHistory["time"][0]
-        forceMin = continuousGrip*1
-        command = {}
-
-        command["execution"]=NO_COMMAND
-        command["position"]=0
-        command["speed"]=0
-        command["force"]=forceMin
-        command["grip"]=GRIP_NOT_REQUESTED
-        command["wait"]=0
-        
-        t0_CalculatedPosition = self._positionEstimation(commandHistory["position"][0],commandHistory["positionCommand"][0],commandHistory["speedCommand"][0], elapsedTime)
-
-        if (t1_CommandDetection == OBJECT_DETECTED_WHILE_OPENING) and autoLock:
-
-            #An object have been detected during opening
-            if commandHistory["gripCommand"][0]==GRIP_NOT_REQUESTED:
-                #The gripper has not been request to grip
-                if (t0_RequestPosition <= commandHistory["position"][0]):
-                    #Secure the grip
-                    command["execution"]=WRITE_READ_COMMAND
-                    command["position"]=0
-                    command["speed"]=255
-                    command["force"]=255
-                    command["grip"]=GRIP_REQUESTED
-                    command["wait"]=self._travelTime(0,10,GRIPPER_VMAX)
-                else:
-                    #Release
-                    command["execution"]=WRITE_READ_COMMAND
-                    command["position"]=t0_RequestPosition
-                    command["speed"]=255
-                    command["force"]=255
-                    command["grip"]=GRIP_NOT_REQUESTED
-                    command["wait"]=self._travelTime(t0_CalculatedPosition,t0_RequestPosition,255)
-            elif commandHistory["gripCommand"][0]==GRIP_REQUESTED:
-                #The gripper has been requested to grip. Final grip position is unknown.
-                if t0_RequestPosition <= commandHistory["position"][0]:
-                    #The position is inside the grip
-                    #Validate the grip
-                    command["execution"]=READ_COMMAND
-                    command["position"]=None
-                    command["speed"]=None
-                    command["force"]=None
-                    command["grip"]=None
-                    command["wait"]=None
-                else:
-                    #The position is ouside the grip
-                    #Release
-                    command["execution"]=WRITE_READ_COMMAND
-                    command["position"]=t0_RequestPosition
-                    command["speed"]=255
-                    command["force"]=255
-                    command["grip"]=GRIP_NOT_REQUESTED
-                    command["wait"]=self._travelTime(t0_CalculatedPosition,t0_RequestPosition,255)
-            else:
-                #GRIP_VALIDATED
-
-                if t0_RequestPosition <= commandHistory["position"][0]:
-                    #The position is inside the grip
-                    #Validate the grip
-                    command["execution"]=READ_COMMAND
-                    command["position"]=0
-                    command["speed"]=0
-                    command["force"]=0
-                    command["grip"]=0
-                    command["wait"]=0
-                else:
-                    #The position is ouside the grip
-                    #Release
-                    command["execution"]=WRITE_READ_COMMAND
-                    command["position"]=t0_RequestPosition
-                    command["speed"]=255
-                    command["force"]=255
-                    command["grip"]=0
-                    command["wait"]=self._travelTime(commandHistory["position"][0],t0_RequestPosition,t0_Speed)
-
-        elif t1_CommandDetection == OBJECT_DETECTED_WHILE_OPENING and autoLock:
-            #print("Object detected while closing")
-            #An object have been detected during closing
-            if commandHistory["gripCommand"][0]==GRIP_NOT_REQUESTED:
-                #The gripper has not been request to grip
-                if t0_RequestPosition >= commandHistory["position"][0]:
-                    #Secure the grip
-                    command["execution"]=WRITE_READ_COMMAND
-                    command["position"]=255
-                    command["speed"]=255
-                    command["force"]=255
-                    command["grip"]=GRIP_REQUESTED
-                    command["wait"]=self._travelTime(0,10,GRIPPER_VMAX)
-                else:
-                    #Release
-                    command["execution"]=WRITE_READ_COMMAND
-                    command["position"]=t0_RequestPosition
-                    command["speed"]=255
-                    command["force"]=255
-                    command["grip"]=GRIP_NOT_REQUESTED
-                    command["wait"]=self._travelTime(t0_CalculatedPosition,t0_RequestPosition,255)
-            elif commandHistory["gripCommand"][0]==GRIP_REQUESTED:
-                #The gripper has been requested to grip. Final grip position is unknown.
-                if t0_RequestPosition >= commandHistory["position"][0]:
-                    #The position is inside the grip
-                    #Validate the grip
-                    command["execution"]=READ_COMMAND
-                    command["position"]=None
-                    command["speed"]=None
-                    command["force"]=None
-                    command["grip"]=None
-                    command["wait"]=None
-                else:
-                    #The position is ouside the grip
-                    #Release
-                    command["execution"]=WRITE_READ_COMMAND
-                    command["position"]=t0_RequestPosition
-                    command["speed"]=255
-                    command["force"]=255
-                    command["grip"]=0
-                    command["wait"]=self._travelTime(t0_CalculatedPosition,t0_RequestPosition,255)
-            else:
-                #GRIP_VALIDATED
-
-                if t0_RequestPosition >= commandHistory["position"][0]:
-                    #The position is inside the grip
-                    #Validate the grip
-                    command["execution"]=READ_COMMAND
-                    command["position"]=0
-                    command["speed"]=0
-                    command["force"]=0
-                    command["grip"]=0
-                    command["wait"]=0
-                else:
-                    #The position is ouside the grip
-                    #Release
-                    command["execution"]=WRITE_READ_COMMAND
-                    command["position"]=t0_RequestPosition
-                    command["speed"]=255
-                    command["force"]=255
-                    command["grip"]=0
-                    command["wait"]=self._travelTime(t0_CalculatedPosition,t0_RequestPosition,255)
-
-        else:
-            if abs(commandHistory["positionCommand"][0]-t0_RequestPosition)>minimalMotion:
-                if t0_RequestPosition==0 or t0_RequestPosition==255:
-                    command["execution"]=WRITE_READ_COMMAND
-                    command["position"]=t0_RequestPosition
-                    command["speed"]=255
-                    command["force"]=255
-                    command["grip"]=GRIP_NOT_REQUESTED
-                    command["wait"]=self._travelTime(t0_CalculatedPosition,t0_RequestPosition,255)
-                else:
-                    #Move only if request is distant of 2 bits to avoid having the gripper checking between 2 positions.
-
-                    #t0_ speed calculation
-                    t0_Speed = 0
-                    posDelta = abs(t0_RequestPosition - t0_CalculatedPosition)
-                    if posDelta <= minSpeedPosDelta:
-                        #Requested position is close from current position. The speed is slow.
-                        t0_Speed = 0
-                    elif posDelta > maxSpeedPosDelta:
-                        #Requested position is fare from the current position. The speed is fast.
-                        t0_Speed = 255
-                    else:
-                        #Request is a bit distant. The speed increase with the distance between current position and requested position.
-                        t0_Speed = int((float(posDelta - minSpeedPosDelta) /(maxSpeedPosDelta - minSpeedPosDelta)) * 255)
-                    if (commandHistory["positionCommand"][0] == t0_RequestPosition) and (commandHistory["speedCommand"][0] == t0_Speed) :#and (commandHistory["forceCommand"][0] == t0_Force)
-                        #t1_ command was identical as t0_ command. We do nothing.
-                        command["execution"]=READ_COMMAND
-                        command["position"]=None
-                        command["speed"]=None
-                        command["force"]=None
-                        command["grip"]=None
-                        command["wait"]=None
-                    else:
-                        command["execution"]=WRITE_READ_COMMAND
-                        command["position"]=t0_RequestPosition
-                        command["speed"]=t0_Speed
-                        command["force"]=forceMin
-                        command["grip"]=GRIP_NOT_REQUESTED
-                        command["wait"]=0#travelTime(0,2,t0_Speed)
-            else:
-                command["execution"]=READ_COMMAND
-                command["position"]=None
-                command["speed"]=None
-                command["force"]=None
-                command["grip"]=None
-                command["wait"]=None
-        
-        return command
-    
-    def _writePreadStatus(self,position, ):
-        """Write position in the command register and read the gripper\
-        status in a single Modbus transaction.
-        
-        Parameters:
-        -----------
-        position: int
-            The position to move the gripper to in bits. Integer between 0 and 255.
-        """
-        result=self._client.readwrite_registers(read_address=2000,
-                                        read_count=3,
-                                        write_address=1001,
-                                        values=[position],
-                                        device_id=self.device_id)
-        registers=result.registers
-
-        self._saveStatus(registers)
-
-    def _writePSFreadStatus(self,position, speed, force):
-        """Write position, speed and force in the command register and read the gripper\
-        status in a single Modbus transaction.
-        
-        Parameters:
-        -----------
-        position: int
-            The position to move the gripper to in bits. Integer between 0 and 255.
-        speed: int
-            The speed of the gripper movement. Integer between 0 and 255.
-        force: int
-            The force of the gripper movement. Integer between 0 and 255.
-        """
-        result=self._client.readwrite_registers(read_address=2000,
-                                        read_count=3,
-                                        write_address=1001,
-                                        values=[position, speed * 0b100000000 + force],
-                                        device_id=self.device_id)
-        registers=result.registers
-
-        self._saveStatus(registers)
-    
-    def _writeP(self,position):
-        """Write position in the command register.
-
-        Parameters:
-        -----------
-        position: int
-            The position to move the gripper to in bits. Integer between 0 and 255.
-        """
-        res=self._client.write_registers(address=1001,
-                                 values=[position],
-                                 device_id=self.device_id)
-
-        # Check result
-        if res.isError():
-            print("Write failed")
-    
-    def _writeSF(self,speed, force):
-        """Write speed and force in the command register.
-
-        Parameters:
-        -----------
-        speed: int
-            The speed of the gripper movement. Integer between 0 and 255.
-        force: int
-            The force of the gripper movement. Integer between 0 and 255.
-        """
-        res=self._client.write_registers(address=1002,
-                                 values=[speed * 0b100000000 + force],
-                                  device_id=self.device_id)
-
-        # Check result
-        if res.isError():
-            print("Write failed")
-    
-    def waitComplete(self):
-        """Wait until the gripper has completed its motion or detect an object."""
-        gOBJ=0b00
-        startTime = time.time()
-        while gOBJ == 0b00 and (time.time() - startTime) < self.timeOut:
-            result=self._client.read_holding_registers(address=2000,
-                                               count=1,
-                                               device_id=self.device_id)
-            registers=result.registers
-            gripperStatusReg0=(registers[0] >> 8) & 0b11111111
-            gOBJ=(gripperStatusReg0 >> 6) & 0b11
-            
+        mergedHistory=self._mergeHistory()
+        columns = [HISTORY_COLUMNS_ID_2_NAME[i] for i in range(mergedHistory.shape[1])]
+        df = pd.DataFrame(mergedHistory, columns=columns)
+        return df

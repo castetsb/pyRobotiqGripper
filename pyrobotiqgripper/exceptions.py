@@ -17,9 +17,17 @@ class GripperNotActivatedError(RobotiqGripperError):
     def __init__(self):
         super().__init__(
             "Gripper must be activated before requesting an action. "
-            "Call activate() or resetActivate() first."
+            "Call activate() first."
         )
 
+class GripperNotStartedError(RobotiqGripperError):
+    """Raised when an action is requested but gripper is not started."""
+    
+    def __init__(self):
+        super().__init__(
+            "Gripper must be started before requesting an action. "
+            "Call start() first."
+        )
 
 class GripperNotCalibratedError(RobotiqGripperError):
     """Raised when mm-based operations are used without calibration."""
@@ -59,10 +67,16 @@ class GripperCommunicationError(RobotiqGripperError):
     pass
 
 
+class GripperFaultError(RobotiqGripperError):
+    """Raised when the gripper reports a fault."""
+    pass
+
+
+class GripperValidationError(RobotiqGripperError):
+    """Raised when invalid parameters are provided."""
+    pass
+
+
 class UnsupportedGripperTypeError(RobotiqGripperError):
     """Raised when an unsupported gripper type is specified."""
-    
-    def __init__(self, gripper_type: str):
-        super().__init__(
-            f"Gripper type '{gripper_type}' is not supported."
-        )
+    pass

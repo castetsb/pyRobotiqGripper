@@ -64,10 +64,10 @@ Activate the gripper and do whatever you want with the gripper: open, close, get
     gripper.open()
     gripper.close()
     gripper.move(100)
-    position_in_bit = gripper.getPosition()
+    position_in_bit = gripper.position()
     print(position_in_bit)
     gripper.move_mm(25)
-    position_in_mm = gripper.getPositionmm()
+    position_in_mm = gripper.positionmm()
     print(position_in_mm)
 
 Note: During activation, the gripper is going to fully open and close. Do not disturb this process. Do not place an object inside the gripper.
@@ -78,7 +78,7 @@ You can print the current status of gripper registers using `printStatus()`.
 
 .. code-block:: python
 
-    gripper.printStatus(()
+    gripper.printStatus()
 
 For realtime control use the realTimeMove method.
 

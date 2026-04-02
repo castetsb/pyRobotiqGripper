@@ -15,37 +15,14 @@ __author__ = "Benoit CASTETS"
 __email__ = "opensourceeng@robotiq.com"
 __license__ = "Apache License, Version 2.0"
 __url__ = "https://github.com/castetsb/pyRobotiqGripper"
-__version__ = "2.1.0"
+__version__ = "3.0.0"
 __project__ = 'pyrobotiqgripper'
 
 # Main class
 from .gripper import RobotiqGripper
 
 # Constants
-from .constants import (
-    BAUDRATE,
-    BYTESIZE,
-    PARITY,
-    STOPBITS,
-    TIMEOUT,
-    AUTO_DETECTION,
-    GRIPPER_2F85_VMAX,
-    GRIPPER_2F85_VMIN,
-    GRIPPER_2F140_VMAX,
-    GRIPPER_2F140_VMIN,
-    GRIPPER_HANDE_VMAX,
-    GRIPPER_HANDE_VMIN,
-    NO_OBJECT_DETECTED,
-    OBJECT_DETECTED_WHILE_OPENING,
-    OBJECT_DETECTED_WHILE_CLOSING,
-    GRIP_NOT_REQUESTED,
-    GRIP_REQUESTED,
-    GRIP_VALIDATED,
-    NO_COMMAND,
-    WRITE_READ_COMMAND,
-    READ_COMMAND,
-    COM_TIME,
-)
+from .constants import *
 
 # Exceptions
 from .exceptions import (
@@ -57,6 +34,8 @@ from .exceptions import (
     GripperPositionError,
     GripperCalibrationError,
     GripperCommunicationError,
+    GripperFaultError,
+    GripperValidationError,
     UnsupportedGripperTypeError,
 )
 
@@ -65,26 +44,12 @@ __all__ = [
     # Main class
     "RobotiqGripper",
     # Constants
-    "BAUDRATE",
-    "BYTESIZE",
-    "PARITY",
-    "STOPBITS",
-    "TIMEOUT",
-    "AUTO_DETECTION",
-    "GRIPPER_2F_VMAX",
-    "GRIPPER_2F_VMIN",
-    "NO_OBJECT_DETECTED",
-    "OBJECT_DETECTED_WHILE_OPENING",
-    "OBJECT_DETECTED_WHILE_CLOSING",
-    "GRIP_NOT_REQUESTED",
-    "GRIP_REQUESTED",
-    "GRIP_VALIDATED",
-    "GRIPPER_VMAX",
-    "GRIPPER_VMIN",
-    "NO_COMMAND",
-    "WRITE_READ_COMMAND",
-    "READ_COMMAND",
-    "COM_TIME",
+    #"BAUDRATE",
+    #"BYTESIZE",
+    #"PARITY",
+    #"STOPBITS",
+    #"TIMEOUT",
+    
     # Exceptions
     "RobotiqGripperError",
     "GripperConnectionError",
@@ -94,5 +59,7 @@ __all__ = [
     "GripperPositionError",
     "GripperCalibrationError",
     "GripperCommunicationError",
+    "GripperFaultError",
+    "GripperValidationError",
     "UnsupportedGripperTypeError",
 ]

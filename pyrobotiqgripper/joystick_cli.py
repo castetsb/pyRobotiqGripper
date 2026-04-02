@@ -58,7 +58,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     parser.add_argument(
         "--gripper-type",
-        default="2F",
+        default="2F85",
         help="Type of gripper (default: %(default)s)",
     )
     parser.add_argument(
@@ -125,6 +125,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         default=2,
         help="Minimal motion for real-time move (default: %(default)s)",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose output for real-time move debugging.",
+    )
 
     args = parser.parse_args(argv)
 
@@ -159,11 +164,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         com_port=args.com_port,
         device_id=args.device_id,
         gripper_type=args.gripper_type,
-        debug=args.debug,
+        debug=args.debug
     )
 
     gripper.connect()
-    gripper.resetActivate()
+    gripper.activate()
+    gripper.start()
+    gripper.calibrate_speed()
+    print("Autolock option : ",args.auto_lock)
 
     try:
         while True:
@@ -176,7 +184,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                 maxSpeedPosDelta=args.max_speed_pos_delta,
                 continuousGrip=args.continuous_grip,
                 autoLock=args.auto_lock,
-                minimalMotion=args.minimal_motion
+                minimalMotion=args.minimal_motion,
+                verbose=args.verbose,
             )
     except KeyboardInterrupt:
         logging.info("Stopping joystick control")

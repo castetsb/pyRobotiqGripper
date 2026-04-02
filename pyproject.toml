@@ -1,7 +1,7 @@
 
 [tool.poetry]
 name = "pyrobotiqgripper"
-version = "2.1.0"
+version = "3.0.0"
 authors = ["Benoit CASTETS <opensourceeng@gmail.com>"]
 description = "Python Driver for Robotiq Grippers"
 readme = "README.rst"
@@ -24,6 +24,7 @@ pyrobotiqgripper-joystick = "pyrobotiqgripper.joystick_cli:main"
 python = ">=3.8"
 pymodbus = "^3.12.1"
 pyserial = "^3.5"
+pandas = "^3.0.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.8"]

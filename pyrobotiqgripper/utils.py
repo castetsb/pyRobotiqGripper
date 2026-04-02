@@ -5,8 +5,102 @@ including list manipulation and mathematical utilities.
 """
 
 import threading
+import pandas as pd
+from .constants import *
+import numpy as np
+
+# Numpy array manipulation utilities
+
+def array_merge_on_first_column(arr1, arr2):
+    """
+    Merge two numpy arrays side by side based on a time column.
+    
+    Parameters:
+        arr1, arr2: numpy arrays
+        property: index of the time column (default: TIME)
+    
+    Returns:
+        Merged array with all timestamps and NaN where data is missing.
+    """
+    # Ensure sorted (important for searchsorted)
+    arr1 = arr1[arr1[:, 0].argsort()]
+    arr2 = arr2[arr2[:, 0].argsort()]
+
+    # All unique keys
+    all_keys = np.union1d(arr1[:, 0], arr2[:, 0])
+
+    # Prepare result filled with -1
+    result = np.full(
+        (len(all_keys), 1 + (arr1.shape[1]-1) + (arr2.shape[1]-1)),
+        -1,
+        dtype=arr1.dtype
+    )
+
+    # First column = keys
+    result[:, 0] = all_keys
+
+    # Match indices
+    idx_A = np.searchsorted(all_keys, arr1[:, 0])
+    idx_B = np.searchsorted(all_keys, arr2[:, 0])
+
+    # Fill values from A and B
+    result[idx_A, 1:arr1.shape[1]] = arr1[:, 1:]
+    result[idx_B, arr1.shape[1]:] = arr2[:, 1:]
+
+    return result
+
+def array_forward_fill_columns(arr, columns, missing_value=-1):
+    """
+    In-place forward-fill selected columns in a NumPy array.
+
+    Parameters:
+        arr: 2D numpy array (modified in-place)
+        columns: list of column indices to forward-fill
+        missing_value: value used to represent missing data (default: -1)
+    """
+    for col in columns:
+        col_data = arr[:, col]
+
+        mask = col_data != missing_value
+
+        idx = np.where(mask, np.arange(len(col_data)), 0)
+        np.maximum.accumulate(idx, out=idx)
+
+        missing_mask = ~mask
+        col_data[missing_mask] = col_data[idx[missing_mask]]
+
+def floor_to_ms(t):
+    """Floor a time value to millisecond precision.
+
+    Parameters:
+    -----------
+    t : float
+        Time value in seconds.
+
+    Returns:
+    --------
+    float
+        Time floored to millisecond precision.
+    """
+    return np.floor(t * 1000) / 1000
 
 def modbus_probe_with_timeout(port, device_id, timeout=1.0):
+    """Probe a Modbus serial port with a timeout to check for device connectivity.
+
+    Parameters:
+    -----------
+    port : str
+        The serial port to probe.
+    device_id : int
+        The Modbus device ID.
+    timeout : float, optional
+        Timeout in seconds. Default is 1.0.
+
+    Returns:
+    --------
+    bool
+        True if device responds, False otherwise.
+    """
     result_container = {"success": False}
 
     def worker():
@@ -48,80 +142,7 @@ def modbus_probe_with_timeout(port, device_id, timeout=1.0):
     thread.join(timeout)
 
     if thread.is_alive():
-        print("  ⚠ Hard timeout reached")
+        print("Hard timeout reached")
         return False
 
     return result_container["success"]
-def sign(value):
-    """Return the sign of a value
-    
-    Args:
-        - value : Value for which the sign have to be evaluated.
-    
-    Returns:
-        - valueSign : Sign of the value. 1 if positif. -1 if negative.
-    """
-    valueSign = (value > 0) - (value < 0)
-
-    return valueSign
-
-def listIdValueUnderThreshold(lst,threshold):
-    """Return the list id of the first value under a given threshold.
-
-    Args:
-        - lst (list): list of values
-        - threshold: Threshold under which should be the serached value
-    
-    Returns:
-        - lstIf (int): List id of the first value under a given threshold
-    """
-    i=0
-    lstId=0
-    found=False
-    while i<len(lst) and not found:
-        if lst[i]<threshold:
-            lstId=i
-            found=True
-        i+=1
-    if not found:
-        raise Exception("Could not find value under {} in {}".format(threshold,lst))
-    return lstId
-
-def listSubstract(lst,value):
-    """Substract a value to all values of a list.
-
-    Args:
-        - lst (list): list of values
-        - value: value to substract to all values of the list
-    """
-    for i in range(len(lst)):
-        lst[i] -= value
-
-def areValueIdentical(lst):
-    """Return True if all values of the list are identical, False otherwise.
-
-    Args:
-        - lst (list): list of values
-    
-    Returns:
-        - res (bool): True if all values of the list are identical, False otherwise.
-    """
-    value = lst[0]
-    res=True
-    i=0
-    while i<len(lst):
-        if lst[i]!=value:
-            res=False
-        i+=1
-    return res
-
-def updateList(lst,value):
-    """Shift all values of the given list of 1 to the right and set the given value as the
-    first value of the list
-
-    Args:
-        - lst (list): list to be updated
-        - value: value to set a the beginning of the list
-    """
-    lst[1:]=lst[:-1]
-    lst[0]=value
