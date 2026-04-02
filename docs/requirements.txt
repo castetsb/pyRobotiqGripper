@@ -61,3 +61,5 @@ sphinxcontrib-serializinghtml==1.1.10
     # via sphinx
 urllib3==2.2.1
     # via requests
+pandas==2.0.3
+    # via -r docs/requirements.in
