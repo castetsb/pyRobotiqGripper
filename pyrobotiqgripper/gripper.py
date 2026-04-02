@@ -1,7 +1,6 @@
 """Core Robotiq Gripper class for controlling via Modbus RTU/TCP."""
 
-#Iport libraries
-import pandas as pd
+# Optional dependency: pandas is only required for history DataFrame helpers.
 import numpy as np
 from pymodbus.client import ModbusSerialClient, ModbusTcpClient
 from pymodbus.framer import FramerType
@@ -14,6 +13,19 @@ from .exceptions import *
 import logging
 import multiprocessing
 import warnings
+
+
+def _get_pandas():
+    """Lazy import pandas and provide clear error when missing."""
+    try:
+        import pandas as pd
+        return pd
+    except ImportError as exc:
+        raise ImportError(
+            "pandas is required only for RobotiqGripper history methods "
+            "(commandHistory, statusHistory, history). Install pandas via "
+            "`pip install pandas` or avoid calling these methods."
+        ) from exc
 
 
 class RobotiqGripper( ):
@@ -1653,6 +1665,7 @@ class RobotiqGripper( ):
             A DataFrame containing the command history with columns for time
             and various command registers (rARD, rATR, etc.).
         """
+        pd = _get_pandas()
         columns = [COMMAND_HISTORY_COLUMNS_ID_2_NAME[i] for i in range(self._commandHistory.shape[1])]
         df = pd.DataFrame(self._commandHistory, columns=columns)
         return df
@@ -1769,6 +1782,7 @@ class RobotiqGripper( ):
             A DataFrame containing the status history with columns for time
             and various status registers (gOBJ, gSTA, etc.).
         """
+        pd = _get_pandas()
         columns = [STATUS_HISTORY_COLUMNS_ID_2_NAME[i] for i in range(self._statusHistory.shape[1])]
         df = pd.DataFrame(self._statusHistory, columns=columns)
         return df
@@ -1785,7 +1799,8 @@ class RobotiqGripper( ):
             A DataFrame containing the merged history with columns for time,
             commands, and status values.
         """
-        mergedHistory=self._mergeHistory()
+        pd = _get_pandas()
+        mergedHistory = self._mergeHistory()
         columns = [HISTORY_COLUMNS_ID_2_NAME[i] for i in range(mergedHistory.shape[1])]
         df = pd.DataFrame(mergedHistory, columns=columns)
         return df

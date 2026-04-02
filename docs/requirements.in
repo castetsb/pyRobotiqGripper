@@ -2,3 +2,4 @@ sphinx
 sphinx_rtd_theme
 pymodbus>=3.12.1
 pyserial>=3.5
+pandas
