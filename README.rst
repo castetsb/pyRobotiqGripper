@@ -1,7 +1,7 @@
 pyRobotiqGripper
 ================
 
-![My Logo](https://github.com/castetsb/pyRobotiqGripper/blob/master/docs/logo.svg)
+![My Logo](https://raw.githubusercontent.com/castetsb/pyRobotiqGripper/master/docs/logo.svg)
 
 Python Driver for Robotiq Grippers.
 
