@@ -8,6 +8,9 @@ It is compatible with 2F85, 2F140, and Hande.
 
 Documentation: `pyRobotiqGripper Documentation <https://pyrobotiqgripper.readthedocs.io/en/latest/>`_
 
+.. image:: https://img.shields.io/pypi/dt/pyrobotiqgripper.svg
+   :alt: PyPI - Downloads
+
 1-Disclaimer
 ------------
 
