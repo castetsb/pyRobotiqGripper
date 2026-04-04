@@ -3,6 +3,7 @@
 # Optional dependency: pandas is only required for history DataFrame helpers.
 
 #Meno: Windows / Linux: Ctrl + K then Ctrl + 0 to folds all foldable regions (functions,classes,etc.) in Visual code studio
+from click import command
 import numpy as np
 from pymodbus.client import ModbusSerialClient, ModbusTcpClient
 from pymodbus.framer import FramerType
@@ -910,13 +911,23 @@ class RobotiqGripper( ):
                     command["comment"] = "Object detected, going to release position"
         else:
             # No object detected
-            if abs(prev_gPO - current_rPR) <= minimalMotion:
+            if current_rPR in [0, 255] and not (prev_rPR in [0, 255] and prev_rSP == 255 and prev_rFR == 255):
+                command["execution"] = WRITE_READ_COMMAND
+                command["rPR"] = current_rPR
+                command["rSP"] = 255
+                command["rFR"] = 255
+                command["wait"] = True
+                command["comment"] = f"No object detected, trigger full grip to {current_rPR}"
+
+            elif ((abs(prev_gPO - current_rPR) <= minimalMotion)
+                or (prev_rPR > self._closebit and current_rPR > self._closebit)
+                or (prev_rPR < self._openbit and current_rPR < self._openbit)):
                 command["execution"] = READ_COMMAND
                 command["rPR"] = None
                 command["rSP"] = None
                 command["rFR"] = None
                 command["wait"] = False
-                command["comment"] = "No motion needed"
+                command["comment"] = "Requested position close to current position or both in extreme position, do nothing"
             else:
                 # Adjust speed based on distance
                 posDelta = abs(prev_gPO - current_rPR)
@@ -926,19 +937,25 @@ class RobotiqGripper( ):
                     speed = 255
                 else:
                     speed = int((posDelta - minSpeedPosDelta) / (maxSpeedPosDelta - minSpeedPosDelta) * 255)
-                # Check if requesting extreme position and previous was not full grip
-                if current_rPR in [0, 255] and not (prev_rPR in [0, 255] and prev_rSP == 255 and prev_rFR == 255):
+                force = forceMin
+                wait = False
+                comment = f"No object detected, move with adjusted speed {speed}"
+
+
+                if (prev_rPR==0 and current_rPR > self._openbit) or (prev_rPR==255 and current_rPR < self._closebit):
+                    force = 255
                     speed = 255
-                    forceMin = 255
-                    command["wait"] = True
-                    command["comment"] = f"No object detected, trigger full grip to {current_rPR}"
-                else:
-                    command["wait"] = False
-                    command["comment"] = f"No object detected, move with adjusted speed {speed}"
+                    wait =True
+                    comment = f"Move out of a full close of a full opening"
+
+                
+                # Check if requesting extreme position and previous was not full grip
                 command["execution"] = WRITE_READ_COMMAND
                 command["rPR"] = current_rPR
                 command["rSP"] = speed
-                command["rFR"] = forceMin
+                command["rFR"] = force
+                command["wait"] = wait
+                command["comment"] = comment
         if verbose ==1:
             if command["execution"]==WRITE_READ_COMMAND:
                 print(f"Time: {current_time:.3f} | ReqPos: {current_rPR:3d} | cPO: {cPO}| ObjDet: {prev_cOBJ} | CmdExe: {command['execution']:1d} | CmdPos: {command['rPR'] or 0:3d} | CmdSpd: {command['rSP'] or 0:3d} | CmdFrc: {command['rFR'] or 0:3d} | CmdWait: {command['wait'] or 0:.3f} | Comment: {command['comment']}")
@@ -1026,6 +1043,15 @@ class RobotiqGripper( ):
 
     def activate(self,reset= True, start=True,refreshStatus=True):
         """If not already activated, activate the gripper.
+
+        Parameters:
+        -----------
+        reset : bool
+            Whether to reset the gripper before activation. Default is True.
+        start : bool
+            Whether to start the gripper motion immediately after activation. Default is True.
+        refreshStatus : bool
+            Whether to refresh the gripper status before the activation process. Default is True.
 
         .. warning::
             When you execute this function the gripper is going to fully open\
@@ -1213,7 +1239,7 @@ class RobotiqGripper( ):
         self._is_mm_calibrated=True
 
     #ACTIONS
-    def open(self,speed=255,force=255,wait=False,readStatus=True,refreshStatus=False):
+    def open(self,speed=255,force=255,wait=True,readStatus=True,refreshStatus=False):
         """Open the gripper
         
         Parameters:
@@ -1226,7 +1252,7 @@ class RobotiqGripper( ):
         #Check if the gripper is activated
         self.move(0,speed,force,wait=wait,readStatus=readStatus,refreshStatus=refreshStatus)
     
-    def close(self,speed=None,force=None,wait=False,readStatus=True,refreshStatus=False):
+    def close(self,speed=None,force=None,wait=True,readStatus=True,refreshStatus=False):
         """Close the gripper.
 
         Parameters:
@@ -1238,7 +1264,7 @@ class RobotiqGripper( ):
         """
         self.move(255,speed,force,wait=wait,readStatus=readStatus,refreshStatus=refreshStatus)
     
-    def move(self,position,speed=None,force=None,wait=False,readStatus=True,refreshStatus=False):
+    def move(self,position,speed=None,force=None,wait=True,readStatus=True,refreshStatus=False):
         """Move gripper fingers to the requested position with determined speed and force.
         
         Parameters:
@@ -1306,7 +1332,7 @@ class RobotiqGripper( ):
             self._waitComplete()
         self._processing=False
     
-    def move_mm(self,positionmm,speed=None,force=None,wait=False,readStatus=True,refreshStatus=False):
+    def move_mm(self,positionmm,speed=None,force=None,wait=True,readStatus=True,refreshStatus=False):
         """Go to the requested opening expressed in mm
 
         Parameters:
@@ -1393,11 +1419,10 @@ class RobotiqGripper( ):
                                     verbose=verbose)
         
         if command["execution"]==WRITE_READ_COMMAND:
-            self.move(command["rPR"],command["rSP"],command["rFR"])
             if command["wait"]:
                 self.move(command["rPR"],command["rSP"],command["rFR"],wait=True)
             else:
-                self.move(command["rPR"],command["rSP"],command["rFR"])
+                self.move(command["rPR"],command["rSP"],command["rFR"],wait=False)
 
         elif command["execution"]==READ_COMMAND:
             self.readStatus()
