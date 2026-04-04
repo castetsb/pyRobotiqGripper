@@ -1,6 +1,8 @@
 """Core Robotiq Gripper class for controlling via Modbus RTU/TCP."""
 
 # Optional dependency: pandas is only required for history DataFrame helpers.
+
+#Meno: Windows / Linux: Ctrl + K then Ctrl + 0 to folds all foldable regions (functions,classes,etc.) in Visual code studio
 import numpy as np
 from pymodbus.client import ModbusSerialClient, ModbusTcpClient
 from pymodbus.framer import FramerType
@@ -108,11 +110,11 @@ class RobotiqGripper( ):
             >>> gripper.open()
             >>> gripper.close()
             >>> gripper.move(100) #Move at position 100 in bit
-            >>> print(gripper.position) #Print gripper position in bit
-            >>> gripper.calibrate(closemm=0,openmm=85) #Calibrate the gripper with 0mm when closed and 85mm when open
+            >>> print(gripper.position()) #Print gripper position in bit
+            >>> gripper.calibrate_mm(closemm=0,openmm=85) #Calibrate the gripper with 0mm when closed and 85mm when open
             >>> gripper.move_mm(50) #Move at position 50mm
             >>> gripper.printStatus() #Print gripper status information in the python terminal
-            >>> print(gripper.positionmm) #Print gripper position in mm
+            >>> print(gripper.positionmm()) #Print gripper position in mm
 
         Gripper connected to UR robot via RS495 URCAP (RTU over TCP):
             >>> import pyrobotiqgripper as rq
@@ -968,6 +970,20 @@ class RobotiqGripper( ):
             if key not in command.keys():
                 command[key] = -1
 
+    #TIME FUNCTIONS
+
+    def _waitComplete(self):
+        """Wait until the gripper has completed its motion or detect an object.
+
+        This method blocks until the gripper reaches the target position or detects an object.
+        """
+        startTime = time.time()
+        self.readStatus()
+        gOBJ=self._statusHistory[-1,GOBJ]
+        while gOBJ == GOBJ_IN_MOTION and (time.time() - startTime) < self.timeOut:
+            self.readStatus()
+            gOBJ=self._statusHistory[-1,GOBJ]
+
     ####################################################
     ### PUBLIC FUCNTIONS
     ###################################################
@@ -1287,7 +1303,7 @@ class RobotiqGripper( ):
         
         self._processing=True
         if wait:
-            self.waitComplete()
+            self._waitComplete()
         self._processing=False
     
     def move_mm(self,positionmm,speed=None,force=None,wait=False,readStatus=True,refreshStatus=False):
@@ -1387,18 +1403,6 @@ class RobotiqGripper( ):
             self.readStatus()
         else:
             warnings.warn("No command executed",UserWarning, stacklevel=2)
-
-    def waitComplete(self):
-        """Wait until the gripper has completed its motion or detect an object.
-
-        This method blocks until the gripper reaches the target position or detects an object.
-        """
-        startTime = time.time()
-        self.readStatus()
-        gOBJ=self._statusHistory[-1,GOBJ]
-        while gOBJ == GOBJ_IN_MOTION and (time.time() - startTime) < self.timeOut:
-            self.readStatus()
-            gOBJ=self._statusHistory[-1,GOBJ]
 
     #STATUS
     def isActivated(self, refreshStatus=True):

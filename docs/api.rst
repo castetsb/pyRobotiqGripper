@@ -17,17 +17,3 @@ Constants
 .. automodule:: pyrobotiqgripper.constants
    :members:
    :show-inheritance:
-
-Exceptions
-----------
-
-.. automodule:: pyrobotiqgripper.exceptions
-   :members:
-   :show-inheritance:
-
-Utilities
----------
-
-.. automodule:: pyrobotiqgripper.utils
-   :members:
-   :show-inheritance:

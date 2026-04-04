@@ -9,12 +9,21 @@ Robotiq gripper connected at PC USB port via a USB to RS485 converter
 
 .. code-block:: python
 
-    from pyrobotiqgripper import RobotiqGripper
+    import pyrobotiqgripper as rq
 
     #Create a Robotiq gripper object.
-    gripper = RobotiqGripper()
+    gripper = rq.RobotiqGripper()
 
-By default, the serial port on which the gripper is connected is automatically detected. However, you can manually specify the serial port name if you want to. Refer to the API documentation for more information.
+By default, the serial port on which the gripper is connected is automatically detected.\
+ However, you can manually specify the serial port name if you want to. Refer to the \
+ API documentation for more information.
+
+.. code-block:: python
+
+    import pyrobotiqgripper as rq
+
+    #Create a Robotiq gripper object and specify the serial port name.
+    gripper = rq.RobotiqGripper(com_port="COM3")
 
 Robotiq gripper connected to a UR robot with RS485 URCAP installed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -34,8 +43,9 @@ Activate the gripper and do whatever you want with the gripper: open, close, get
 
 .. code-block:: python
 
+    gripper.connect()
     gripper.activate()
-    gripper.calibrate(closemm=0, openmm=40)
+    gripper.calibrate_mm(closemm=0, openmm=40)
     gripper.open()
     gripper.close()
     gripper.move(100)
@@ -61,4 +71,7 @@ For realtime control use the realTimeMove method.
 
     gripper.realTimeMove(requestedPosition=100)
 
-The realTimeMove method is designed to be called in a loop with a high frequency. It will move the gripper to the requested position with a speed that depends on the distance to the target position. This allows for a smooth and responsive control of the gripper.
+The realTimeMove method is designed to be called in a loop with a high frequency.\
+ It will move the gripper to the requested position with a speed that depends on\
+ the distance to the target position. This allows for a smooth and responsive\
+ control of the gripper.
