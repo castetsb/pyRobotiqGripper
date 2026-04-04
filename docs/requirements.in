@@ -1,10 +1,2 @@
 sphinx
 sphinx_rtd_theme
-pymodbus>=3.12.1
-pyserial>=3.5
-numpy>=1.28.0
-pygame>=2.5.2
-pynput>=1.7.6
-pyautogui>=0.9.54
-# pandas is optional for docs; avoid requiring heavy data packages in RTD environment
-# pandas
