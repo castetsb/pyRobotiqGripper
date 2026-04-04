@@ -3,7 +3,7 @@ pyRobotiqGripper
 **Python Driver for Robotiq Grippers.**
 
 .. figure:: https://raw.githubusercontent.com/castetsb/pyRobotiqGripper/master/docs/logo.png
-   :alt: My Logo
+   :alt: PyRobotiqGripper Logo
    :align: center
 
 Python Driver for Robotiq Grippers.
