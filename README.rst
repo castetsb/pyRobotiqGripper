@@ -1,10 +1,9 @@
 pyRobotiqGripper
 ================
 
-+--------------------------+
-| .. image:: https://raw.githubusercontent.com/castetsb/pyRobotiqGripper/master/docs/logo.png |
-|    :alt: My Logo          |
-+--------------------------+
+.. figure:: https://raw.githubusercontent.com/castetsb/pyRobotiqGripper/master/docs/logo.png
+   :alt: My Logo
+   :align: center
 
 Python Driver for Robotiq Grippers.
 
