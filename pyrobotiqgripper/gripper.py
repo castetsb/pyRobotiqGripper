@@ -141,6 +141,8 @@ class RobotiqGripper( ):
         ###################
         #Client managing gripper commmunication
         self._client=self._create_modbus_client()
+        
+        self.connect()
 
 
         #Status retrieval historical data

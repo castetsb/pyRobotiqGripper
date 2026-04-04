@@ -1,6 +1,8 @@
 pyRobotiqGripper
 ================
 
+![My Logo](https://raw.githubusercontent.com/castetsb/pyrobotiqgripper/main/docs/logo.svg)
+
 Python Driver for Robotiq Grippers.
 
 pyRobotiqGripper is a Python library designed to facilitate control of Robotiq grippers using Modbus RTU communication via serial port or over ethernet.
