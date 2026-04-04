@@ -3,7 +3,7 @@
 # Optional dependency: pandas is only required for history DataFrame helpers.
 
 #Meno: Windows / Linux: Ctrl + K then Ctrl + 0 to folds all foldable regions (functions,classes,etc.) in Visual code studio
-from click import command
+
 import numpy as np
 from pymodbus.client import ModbusSerialClient, ModbusTcpClient
 from pymodbus.framer import FramerType
@@ -141,7 +141,7 @@ class RobotiqGripper( ):
         ###################
         #Client managing gripper commmunication
         self._client=self._create_modbus_client()
-        
+
         self.connect()
 
 
