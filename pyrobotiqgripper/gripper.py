@@ -1351,9 +1351,8 @@ class RobotiqGripper( ):
             motion is requested. If the position delta between the current position and\
             the requested position is under this value, no motion is performed. Default\
             is 2.
-        verbose : bool
-            If True, print debug information about the\
-            command filtering and execution. Default is False.
+        verbose : int
+            Verbose level to print. 1 print all executed command. 2 print all commands.
         """
         #Check if the gripper is activated
         if not self.isActivated(refreshStatus=False):

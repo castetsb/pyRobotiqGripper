@@ -15,10 +15,33 @@ import sys
 from typing import List, Optional
 
 import pygame
+from pynput import mouse
 
 from . import RobotiqGripper
 from .constants import AUTO_DETECTION, GRIPPER_MODE_RTU, GRIPPER_MODE_RTU_VIA_TCP
 
+class MouseJoystick:
+    def __init__(self):
+        self.x = 0
+
+        # Start listener in background
+        self.listener = mouse.Listener(on_move=self._on_move)
+        self.listener.start()
+
+    def _on_move(self, x, y):
+        self.x = x  # store latest mouse X
+
+    def get_axis(self, axis=None):
+        # Lazy import to avoid dependency if unused
+        import pyautogui
+
+        screen_width, _ = pyautogui.size()
+
+        # Normalize to [-1, 1]
+        value=(self.x / screen_width) * 2 - 1
+        value = max(-1, min(1, value))  # clamp to [-1, 1]
+
+        return value
 
 def map_0_255(x: float) -> int:
 
@@ -37,7 +60,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--joystick-id",
         type=int,
         default=0,
-        help="Joystick ID to use (default: %(default)s)",
+        help="Joystick ID to use (default: %(default)s). -1 to control with mouse",
     )
     parser.add_argument(
         "--connection-type",
@@ -127,8 +150,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     parser.add_argument(
         "--verbose",
-        action="store_true",
-        help="Enable verbose output for real-time move debugging.",
+        type=int,
+        default=0,
+        help="Verbose level for real-time move (default: %(default)s). 1 prints executed commands, 2 prints all commands.",
     )
 
     args = parser.parse_args(argv)
@@ -140,14 +164,22 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     logging.info("Initializing pygame joystick")
     pygame.init()
-    pygame.joystick.init()
 
-    if pygame.joystick.get_count() <= args.joystick_id:
-        logging.error("Joystick ID %d not found. Available joysticks: %d", args.joystick_id, pygame.joystick.get_count())
-        return 1
+    js=None
 
-    js = pygame.joystick.Joystick(args.joystick_id)
-    js.init()
+    if args.joystick_id == -1:
+        logging.info("Joystick ID -1 selected, using mouse position for control")
+        js = MouseJoystick()
+    else:
+
+        pygame.joystick.init()
+
+        if pygame.joystick.get_count() <= args.joystick_id:
+            logging.error("Joystick ID %d not found. Available joysticks: %d", args.joystick_id, pygame.joystick.get_count())
+            return 1
+
+        js = pygame.joystick.Joystick(args.joystick_id)
+        js.init()
 
     logging.info(
         "Connecting to Robotiq gripper at %s:%s (type: %s, device_id: %s)",
@@ -175,6 +207,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     try:
         while True:
+
             pygame.event.pump()
             joy_value = js.get_axis(args.axis)
             pos = map_0_255(joy_value)
