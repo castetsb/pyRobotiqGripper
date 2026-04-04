@@ -1,10 +1,8 @@
-Usage
-=====
-
-
-.. _installation:
-
 Installation
-------------
+============
 
-Under construction.
+Install the pyRobotiqGripper python package using PIP.
+
+.. code-block:: bash
+
+    python3 -m pip install pyRobotiqGripper
