@@ -1,5 +1,8 @@
+Connection
+==========
+
 Robotiq gripper connected at PC USB port via a USB to RS485 converter
-=====================================================================
+---------------------------------------------------------------------
 
 .. code-block:: python
 
@@ -20,7 +23,7 @@ By default, the serial port on which the gripper is connected is automatically d
     gripper = rq.RobotiqGripper(com_port="COM3")
 
 Robotiq gripper connected to a UR robot with RS485 URCAP installed
-==================================================================
+------------------------------------------------------------------
 
 Replace <UR_ROBOT_IP> with the actual IP address of your UR robot.
 
