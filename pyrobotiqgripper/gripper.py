@@ -1635,7 +1635,7 @@ class RobotiqGripper( ):
             return None
         return int(res)
 
-    def positionmm(self,refreshStatus=True):
+    def position_mm(self,refreshStatus=True):
         """Return the position of the gripper in mm.
 
         Parameters:
