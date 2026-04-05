@@ -846,7 +846,7 @@ class RobotiqGripper( ):
         history = self._mergeHistory()
         
         prev_time=history[-1,TIME]
-        prev_cOBJ=self.objectDetection(history,duration=0.2,tolerance=3)
+        prev_cOBJ=self.objectDetection(history,duration=0.2,tolerance=3,refreshStatus=False)
         prev_gPO=history[-1,M_GPO]
         prev_rPR=history[-1,RPR]
         prev_rSP=history[-1,RSP]
@@ -1691,7 +1691,7 @@ class RobotiqGripper( ):
             return None
         return value
 
-    def objectDetection(self,mergedHistory=None, duration=0.2, tolerance=3):
+    def objectDetection(self,mergedHistory=None, duration=0.2, tolerance=3, refreshStatus=True):
         """Estimate object detection status from history data.
 
         Parameters:
@@ -1707,12 +1707,22 @@ class RobotiqGripper( ):
             Position tolerance. The gripper is considered to be at the expected position \
             if the difference between the expected and actual position is less than this \
             tolerance. Default is 3.
+        refreshStatus : bool
+            Whether to refresh the gripper status to get the object detection status from the gripper.
+
 
         Returns:
         --------
         object_detection_status : int
             Object detection status code.
         """
+        if refreshStatus:
+            self.readStatus()
+            return self._statusHistory[-1,GOBJ]
+        
+        if self._statusHistory[-1,TIME] > self._commandHistory[-1,TIME]:
+            return self._statusHistory[-1,GOBJ]
+
 
         if not self.is_bit_calibrated():
             raise GripperCalibrationError("The gripper need to be bit calibrated to be able to estimate object detection.")
