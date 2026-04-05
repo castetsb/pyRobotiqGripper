@@ -1281,15 +1281,15 @@ class RobotiqGripper( ):
         #Check if the gripper is activated
         self.move(0,speed,force,wait=wait,readStatus=readStatus,refreshStatus=refreshStatus)
     
-    def close(self,speed=None,force=None,wait=True,readStatus=True,refreshStatus=False):
+    def close(self,speed=255,force=255,wait=True,readStatus=True,refreshStatus=False):
         """Close the gripper.
 
         Parameters:
         -----------
         speed : int
-            Gripper speed between 0 and 255. Default is None.
+            Gripper speed between 0 and 255. Default is 255.
         force : int
-            Gripper force between 0 and 255. Default is None.
+            Gripper force between 0 and 255. Default is 255.
         wait : bool
             If True, the function wait until the gripper\
             reach the requested position or detect an object. Default is True.
@@ -1304,7 +1304,7 @@ class RobotiqGripper( ):
         """
         self.move(255,speed,force,wait=wait,readStatus=readStatus,refreshStatus=refreshStatus)
     
-    def move(self,position,speed=None,force=None,wait=True,readStatus=True,refreshStatus=False):
+    def move(self,position,speed=255,force=255,wait=True,readStatus=True,refreshStatus=False):
         """Move gripper fingers to the requested position with determined speed and force.
         
         Parameters:
@@ -1380,7 +1380,7 @@ class RobotiqGripper( ):
             self._waitComplete()
         self._processing=False
     
-    def move_mm(self,positionmm,speed=None,force=None,wait=True,readStatus=True,refreshStatus=False):
+    def move_mm(self,positionmm,speed=255,force=255,wait=True,readStatus=True,refreshStatus=False):
         """Go to the requested opening expressed in mm
 
         Parameters:
