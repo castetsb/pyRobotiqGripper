@@ -26,7 +26,8 @@ This library can be seen as a starting point for a Robotiq integration project.
 You are responsible for what you do with this library.
 The author takes no responsibility for any malfunction.
 
-Note: This library is not maintained by Robotiq.
+.. warning::
+    This library is not maintained by Robotiq.
 
 2-How to Install
 ----------------
@@ -37,6 +38,10 @@ Install the pyRobotiqGripper python package using PIP.
 
     python3 -m pip install pyRobotiqGripper
 
+.. note::
+    The way python is called (python3 vs python) may depend on your system configuration. \
+    If the above command does not work, try replacing `python3` with `python`.
+
 3-Typical Usage:
 ----------------
 
@@ -45,12 +50,14 @@ Install the pyRobotiqGripper python package using PIP.
 
 .. code-block:: python
 
-    from pyrobotiqgripper import RobotiqGripper
+    import pyrobotiqgripper as rq
 
     #Create a Robotiq gripper object.
-    gripper = RobotiqGripper()
+    gripper = rq.RobotiqGripper()
 
-By default, the serial port on which the gripper is connected is automatically detected. However, you can manually specify the serial port name if you want to. Refer to the API documentation for more information.
+By default, the serial port on which the gripper is connected is automatically detected. \
+However, you can manually specify the serial port name if you want to. Refer to the API \
+documentation for more information.
 
 3-2-Robotiq gripper connected to a UR robot with RS485 URCAP installed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -59,10 +66,10 @@ Replace <UR_ROBOT_IP> with the actual IP address of your UR robot.
 
 .. code-block:: python
 
-    from pyrobotiqgripper import RobotiqGripper
+    import pyrobotiqgripper as rq
 
     #Create a Robotiq gripper object.
-    gripper = RobotiqGripper(connection_type="RTU_VIA_TCP", tcp_host=<UR_ROBOT_IP>)
+    gripper = rq.RobotiqGripper(connection_type="RTU_VIA_TCP", tcp_host=<UR_ROBOT_IP>)
 
 3-3-Gripper control
 ~~~~~~~~~~~~~~~~~~~
@@ -102,7 +109,8 @@ The realTimeMove method is designed to be called in a loop with a high frequency
 4-Joystick CLI Feature
 ----------------------
 
-pyRobotiqGripper includes a command-line interface (CLI) tool for controlling the gripper using a joystick or gamepad.
+pyRobotiqGripper includes a command-line interface (CLI) tool for controlling the \
+gripper using a joystick or gamepad.
 
 To use the Joystick CLI, run:
 

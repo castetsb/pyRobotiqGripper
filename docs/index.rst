@@ -11,7 +11,8 @@ Welcome to pyRobotiqGripper Documentation
    :caption: Contents:
 
    Home <home>
-   Installation <usage>
+   Installation <installation>
+   Gripper Connection <connection>
    Basic Usage <basic_usage>
    Advanced Usage <advanced_usage>
    API Reference <api>

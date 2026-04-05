@@ -1,45 +1,8 @@
 Basic Usage
 ===========
 
-Typical Usage
--------------
-
-Robotiq gripper connected at PC USB port via a USB to RS485 converter
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: python
-
-    import pyrobotiqgripper as rq
-
-    #Create a Robotiq gripper object.
-    gripper = rq.RobotiqGripper()
-
-By default, the serial port on which the gripper is connected is automatically detected.\
- However, you can manually specify the serial port name if you want to. Refer to the \
- API documentation for more information.
-
-.. code-block:: python
-
-    import pyrobotiqgripper as rq
-
-    #Create a Robotiq gripper object and specify the serial port name.
-    gripper = rq.RobotiqGripper(com_port="COM3")
-
-Robotiq gripper connected to a UR robot with RS485 URCAP installed
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Replace <UR_ROBOT_IP> with the actual IP address of your UR robot.
-
-.. code-block:: python
-
-    from pyrobotiqgripper import RobotiqGripper
-
-    #Create a Robotiq gripper object.
-    gripper = RobotiqGripper(connection_type="RTU_VIA_TCP", tcp_host=<UR_ROBOT_IP>)
-
-Gripper control
-~~~~~~~~~~~~~~~
-Activate the gripper and do whatever you want with the gripper: open, close, get position feedback, etc.
+Activate the gripper and do whatever you want with the gripper: open, close, get \
+position feedback, etc.
 
 .. code-block:: python
 
@@ -55,9 +18,12 @@ Activate the gripper and do whatever you want with the gripper: open, close, get
     position_in_mm = gripper.positionmm()
     print(position_in_mm)
 
-Note: During activation, the gripper is going to fully open and close. Do not disturb this process. Do not place an object inside the gripper.
+.. note::
+    During activation, the gripper is going to fully open and close. Do not disturb \
+    this process. Do not place an object inside the gripper.
 
-Note: Position, Speed and Force varie from 0 to 255. It is coded on 8 bits.
+.. note::
+    Position, Speed and Force varie from 0 to 255. It is coded on 8 bits.
 
 You can print the current status of gripper registers using `printStatus()`.
 
@@ -65,13 +31,13 @@ You can print the current status of gripper registers using `printStatus()`.
 
     gripper.printStatus()
 
-For realtime control use the realTimeMove method.
+The lastest gripper status can be retrieved as a dictionnary using `status()`.
 
 .. code-block:: python
 
-    gripper.realTimeMove(requestedPosition=100)
+    gripper_status = gripper.status()
+    print(gripper_status)
 
-The realTimeMove method is designed to be called in a loop with a high frequency.\
- It will move the gripper to the requested position with a speed that depends on\
- the distance to the target position. This allows for a smooth and responsive\
- control of the gripper.
+The name of the keys of the status dictionnary are the same as the names of the gripper registers.
+
+
