@@ -542,8 +542,8 @@ class RobotiqGripper( ):
             raise GripperFaultError(REGISTER_DIC["gFLT"][gFLT])
 
         
-        if gFLT in [5,9]:
-            warnings.warn(REGISTER_DIC["gFLT"][9],UserWarning, stacklevel=2)
+        #if gFLT in [5,9]:
+        #    warnings.warn(REGISTER_DIC["gFLT"][9],UserWarning, stacklevel=2)
 
         
         
@@ -1246,7 +1246,6 @@ class RobotiqGripper( ):
             before calibrating mm.
         """
         if not self.is_bit_calibrated():
-            warnings.warn("The gripper is not bit calibrated. The gripper will perform calibrate_bit() before executing the function calibrate_mm()")
             self.calibrate_bit()
 
         self._closemm=closemm
