@@ -26,4 +26,5 @@ This library can be seen as a starting point for a Robotiq integration project.
 You are responsible for what you do with this library.
 The author takes no responsibility for any malfunction.
 
-Note: This library is not maintained by Robotiq.
+.. warning::
+    This library is not maintained by Robotiq.
