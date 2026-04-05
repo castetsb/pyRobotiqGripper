@@ -22,6 +22,7 @@ pyRobotiqGripper includes a command-line interface (CLI) tool for controlling th
 gripper using a joystick, gamepad or a mouse.
 
 To use the Joystick CLI, run the following command:
+
 .. code-block:: bash
 
     pyrobotiqgripper-joystick
@@ -32,12 +33,14 @@ To use the Joystick CLI, run the following command:
     the PC via USB and that a joystick is also connected to the PC.
 
 You can also check the available options:
+
 .. code-block:: bash
 
     pyrobotiqgripper-joystick --help
 
 Here below is an example where the application is launched with mouse control and the \
 gripper communication is done via Modbus RTU over TCP.
+
 .. code-block:: bash
 
     pyrobotiqgripper-joystick --connection-type "RTU_VIA_TCP" --tcp-host 10.0.0.153 --tcp-port 2000 --joystick-id -1 --verbose 1
