@@ -2,3 +2,4 @@ venv
 __pycache__
 pyRobotiqGripper.egg-info/
 dist/
+docs/draft/
