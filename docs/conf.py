@@ -71,3 +71,7 @@ Tells the project to use sphinx pygments for color coding code examples.
 """
 
 pygments_style = 'sphinx'
+
+extensions = [
+    "sphinxcontrib.youtube",
+]

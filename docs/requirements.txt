@@ -63,3 +63,4 @@ sphinxcontrib-serializinghtml==1.1.10
     # via sphinx
 urllib3==2.2.1
     # via requests
+sphinxcontrib-youtube

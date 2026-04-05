@@ -1845,7 +1845,7 @@ class RobotiqGripper( ):
         status["gCU"]=self._statusHistory[-1,GCU]
         return status
 
-    def printStatus(self, refreshStatus=False):
+    def printStatus(self, refreshStatus=True):
         """Print gripper status info in the python terminal
 
         Parameters

@@ -19,6 +19,8 @@ Documentation: `pyRobotiqGripper Documentation <https://pyrobotiqgripper.readthe
 .. image:: https://img.shields.io/github/stars/castetsb/pyrobotiqgripper
    :alt: GitHub Stars
 
+.. youtube:: 82S5LgefvJo
+
 Disclaimer
 ----------
 
