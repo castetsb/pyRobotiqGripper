@@ -1578,6 +1578,7 @@ class RobotiqGripper( ):
         """Return the maximum speed in bits per second
 
         Returns:
+        --------
         vmax_bits : int
             Maximum gripper speed in bits per second.
         """
