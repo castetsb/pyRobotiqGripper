@@ -36,7 +36,6 @@ Control
 .. automethod:: pyrobotiqgripper.RobotiqGripper.move
 .. automethod:: pyrobotiqgripper.RobotiqGripper.move_mm
 .. automethod:: pyrobotiqgripper.RobotiqGripper.realTimeMove
-.. automethod:: pyrobotiqgripper.RobotiqGripper.
 
 Status
 ~~~~~~
