@@ -41,6 +41,7 @@ extensions = [
     'sphinx.ext.autosummary',
     'sphinx.ext.duration',
     'sphinx.ext.napoleon',  # Support Google/NumPy docstring styles
+    "sphinxcontrib.youtube",
 ]
 
 # Autodoc configuration
@@ -71,7 +72,3 @@ Tells the project to use sphinx pygments for color coding code examples.
 """
 
 pygments_style = 'sphinx'
-
-extensions = [
-    "sphinxcontrib.youtube",
-]
