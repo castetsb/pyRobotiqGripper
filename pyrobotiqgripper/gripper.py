@@ -1049,17 +1049,17 @@ class RobotiqGripper( ):
         reset : bool
             Whether to reset the gripper before activation. Default is True.
         start : bool
-            Whether to start the gripper motion immediately after activation \
+            Whether to start the gripper motion immediately after activation 
             (gGTO set to 1). Default is True.
         refreshStatus : bool
-            Whether to refresh the gripper status before the activation process. Default \
-            is True. The status information is used to know is the gripper is already \
-            activated or not. Setting this parameter to False can make the activation \
+            Whether to refresh the gripper status before the activation process. Default
+            is True. The status information is used to know is the gripper is already 
+            activated or not. Setting this parameter to False can make the activation 
             process faster if you are sure that the gripper status is up to date.
 
         .. warning::
-            When you execute this function the gripper is going to fully open \
-            and close. During this operation the gripper must be able to freely \
+            When you execute this function the gripper is going to fully open 
+            and close. During this operation the gripper must be able to freely 
             move. Do not place object inside the gripper.
         """
         
@@ -1112,16 +1112,16 @@ class RobotiqGripper( ):
     def start(self,refreshStatus=True):
         """Start the gripper motion.
         
-        GTO bit is set to 1. The gripper will move to the position command if it is not \
+        GTO bit is set to 1. The gripper will move to the position command if it is not 
         already there.
         
         Parameters
         ----------
         refreshStatus : bool
-            Whether to refresh the gripper status before the start process. Default is True.\
-            The status information is used to know if the gripper is already started or not.\
-            Setting this parameter to False can make the start process faster if you are sure that\
-            the gripper status is up to date.
+            Whether to refresh the gripper status before the start process. Default is True.
+            The status information is used to know if the gripper is already started or not.
+            Setting this parameter to False can make the start process faster if you are 
+            sure that the gripper status is up to date.
         """
         t=floor_to_ms(time.monotonic())
         command={"time":t,
@@ -1144,7 +1144,7 @@ class RobotiqGripper( ):
             self.readStatus()
     
     def stop(self):
-        """Gripper stop moving. GTO bit is set to 0 but the position command is not\
+        """Gripper stop moving. GTO bit is set to 0 but the position command is not
         changed. The gripper will stop at its current position and hold it."""
         if self.isActivated:
             self._client.write_registers(1000,[0b0000000100000000,0,0],device_id=self.device_id)
@@ -1164,8 +1164,8 @@ class RobotiqGripper( ):
             Position value in bits when the gripper is closed
 
         .. warning::
-        If no parametesr are provided, the gripper will make a full open followed by a\
-        full close to measure the maximum and minium position in bit.
+            If no parametesr are provided, the gripper will make a full open followed by a
+            full close to measure the maximum and minium position in bit.
         """
         if (openbit is None) or (closebit is None):
              
@@ -1187,18 +1187,21 @@ class RobotiqGripper( ):
     def calibrate_speed(self,minSpeedClosingTime=None,maxSpeedClosingTime=None):
         """Calibrate gripper speed to be able to estimate gripper position over time
 
-        If no parameters are provided, the gripper will do a closing at full speed and\
+        If no parameters are provided, the gripper will do a closing at full speed and
         a closing at slow speed to evaluate. the bit calibration will also be performed.
 
         Parameters :
         ------------
         minSpeedClosingTime : float
-            Time (s) is takes for the gripper to move from a full open position to a full close position at the minimum speed.
+            Time (s) is takes for the gripper to move from a full open position to a 
+            full close position at the minimum speed.
         maxSpeedClosingTime : float
-            Time (s) is takes for the gripper to move from a full open position to a full close position at the maximum speed.
+            Time (s) is takes for the gripper to move from a full open position to a 
+            full close position at the maximum speed.
         
         .. warning::
-        If no parameters are provided, the gripper will do a closing at full speed and a closing at slow speed to evaluate 
+            If no parameters are provided, the gripper will do a closing at full speed and a 
+            closing at slow speed to evaluate 
         """
         if (minSpeedClosingTime is None) or (maxSpeedClosingTime is None):
             self.open(speed=255,force=0,wait=True)
@@ -1230,8 +1233,7 @@ class RobotiqGripper( ):
                      openmm):
         """Calibrate the gripper for mm positionning.
         
-        Once the calibration is done it is possible to control the gripper in\
-        mm.
+        Once the calibration is done it is possible to control the gripper in mm.
 
         Parameters:
         -----------
@@ -1241,8 +1243,8 @@ class RobotiqGripper( ):
             Distance between the fingers when the gripper is fully open.
         
         .. warning::
-            Calibration in bit is required before executing this function. If the bit \
-            calibration is not done, the function calibrate_bit() will be executed \
+            Calibration in bit is required before executing this function. If the bit 
+            calibration is not done, the function calibrate_bit() will be executed 
             before calibrating mm.
         """
         if not self.is_bit_calibrated():
@@ -1310,23 +1312,24 @@ class RobotiqGripper( ):
         Parameters:
         -----------
         position : int
-            Position of the gripper. Integer between 0 and 255.\
+            Position of the gripper. Integer between 0 and 255.
             0 being the open position and 255 being the close position.
         speed : int
             Gripper speed between 0 and 255. Default is 255.
         force : int
             Gripper force between 0 and 255. Default is 255.
         wait : bool
-            If True, the function wait until the gripper\
-            reach the requested position or detect an object. Default is True.
+            If True, the function wait until the gripper reach the requested position
+            or detect an object. Default is True.
         readStatus : bool
-            If True, the gripper status is read after sending the command to the gripper. Default is True.
+            If True, the gripper status is read after sending the command to the gripper.
+            Default is True.
         refreshStatus : bool
-            If True, the gripper status is refreshed before sending the command to the \
-            gripper. Default is False. The status information is used to know if \
-            the gripper is already activated or not. Setting this parameter to False \
-            can make the command process faster if you are sure that the gripper status \
-            is up to date.
+            If True, the gripper status is refreshed before sending the command to the
+            gripper. Default is False. The status information is used to know if the 
+            gripper is already activated or not. Setting this parameter to False can 
+            make the command process faster if you are sure that the gripper status is
+            up to date.
         """
         if refreshStatus:
             self.readStatus()
@@ -1395,16 +1398,17 @@ class RobotiqGripper( ):
             If True, the function wait until the gripper\
             reach the requested position or detect an object. Default is True.
         readStatus : bool
-            If True, the gripper status is read after sending the command to the gripper. Default is True.
+            If True, the gripper status is read after sending the command to the gripper. 
+            Default is True.
         refreshStatus : bool
-            If True, the gripper status is refreshed before sending the command to the \
-            gripper. Default is False. The status information is used to know if \
-            the gripper is already activated or not. Setting this parameter to False \
-            can make the command process faster if you are sure that the gripper status \
+            If True, the gripper status is refreshed before sending the command to the 
+            gripper. Default is False. The status information is used to know if 
+            the gripper is already activated or not. Setting this parameter to False 
+            can make the command process faster if you are sure that the gripper status 
             is up to date.
         
         .. note::
-            mm calibration is needed to use this function.\n
+            mm calibration is needed to use this function.
             Execute the function calibrate mm before using this function.
         """
 
@@ -1432,26 +1436,23 @@ class RobotiqGripper( ):
         Parameters:
         -----------
         requestedPosition : int
-            Requested position for the gripper in bits.\
-            Integer between 0 and 255. 0 being the open position and 255 being the\
+            Requested position for the gripper in bits.
+            Integer between 0 and 255. 0 being the open position and 255 being the
             close position.
         minSpeedPosDelta : int
-            Minimum position delta to apply the\
-            minimum speed. Default is 5.
+            Minimum position delta to apply the minimum speed. Default is 5.
         maxSpeedPosDelta : int
-            Position delta over which the maximum\
-            speed is applied. Default is 100.
+            Position delta over which the maximum speed is applied. Default is 100.
         continuousGrip : bool
-            If True, the gripper continuously try to\
-            close on object even after object detection (force>0). Default is True.
+            If True, the gripper continuously try to close on object even after object 
+            detection (force>0). Default is True.
         autoLock : bool
-            If True, the gripper automatically perform a\
-            full speed, full force grip after object detection. Default is True.
+            If True, the gripper automatically perform a full speed, full force grip 
+            after object detection. Default is True.
         minimalMotion : int
-            Minimum motion in bit to perform when a\
-            motion is requested. If the position delta between the current position and\
-            the requested position is under this value, no motion is performed. Default\
-            is 2.
+            Minimum motion in bit to perform when a motion is requested. If the position 
+            delta between the current position and the requested position is under this 
+            value, no motion is performed. Default is 2.
         verbose : int
             Verbose level to print. 1 print all executed command. 2 print all commands.
         """
@@ -1495,10 +1496,10 @@ class RobotiqGripper( ):
         Parameters:
         -----------
         refreshStatus : bool
-            Whether to refresh the gripper status before checking the activation status. \
-            Default is True.\
-            The status information is used to know if the gripper is already activated \
-            or not. Setting this parameter to False can make the activation status \
+            Whether to refresh the gripper status before checking the activation status.
+            Default is True.
+            The status information is used to know if the gripper is already activated
+            or not. Setting this parameter to False can make the activation status
             check faster if you are sure that the gripper status is up to date.
 
         Returns:
@@ -1617,10 +1618,10 @@ class RobotiqGripper( ):
         Parameters:
         -----------
         refreshStatus : bool
-            Whether to refresh the gripper status before getting the position. \
-            Default is True.\
-            The status information is used to know the current position of the gripper. \
-            Setting this parameter to False can make the position retrieval faster \
+            Whether to refresh the gripper status before getting the position.
+            Default is True.
+            The status information is used to know the current position of the gripper.
+            Setting this parameter to False can make the position retrieval faster
             if you are sure that the gripper status is up to date.
         
         Returns:
@@ -1641,10 +1642,10 @@ class RobotiqGripper( ):
         Parameters:
         -----------
         refreshStatus : bool
-            Whether to refresh the gripper status before getting the position. \
-            Default is True.\
-            The status information is used to know the current position of the gripper. \
-            Setting this parameter to False can make the position retrieval faster \
+            Whether to refresh the gripper status before getting the position.
+            Default is True.
+            The status information is used to know the current position of the gripper.
+            Setting this parameter to False can make the position retrieval faster
             if you are sure that the gripper status is up to date.
 
         Returns:
@@ -1653,7 +1654,7 @@ class RobotiqGripper( ):
             Current gripper position in mm
         
         .. note::
-            Calibration is needed to use this function.\n
+            Calibration is needed to use this function.
             Execute the function calibrate at least 1 time before using this function.
         """
         if not self.is_mm_calibrated():
@@ -1696,18 +1697,19 @@ class RobotiqGripper( ):
         Parameters:
         -----------
         mergedHistory : numpy.ndarray, optional
-            Pre-merged history array. If None, history is merged from status and \
-            command history. Passing a pre-merged history can speed up the estimation \
+            Pre-merged history array. If None, history is merged from status and
+            command history. Passing a pre-merged history can speed up the estimation
             if you are calling this function multiple times in a loop. Default is None.
         duration : float, optional
-            Stability duration threshold. Object detection is done only if the position \
+            Stability duration threshold. Object detection is done only if the position
             is stable for more than this duration. Default is 0.2.
         tolerance : int, optional
-            Position tolerance. The gripper is considered to be at the expected position \
-            if the difference between the expected and actual position is less than this \
+            Position tolerance. The gripper is considered to be at the expected position
+            if the difference between the expected and actual position is less than this
             tolerance. Default is 3.
         refreshStatus : bool
-            Whether to refresh the gripper status to get the object detection status from the gripper.
+            Whether to refresh the gripper status to get the object detection status 
+            from the gripper.
 
 
         Returns:
@@ -1809,8 +1811,7 @@ class RobotiqGripper( ):
         return df
 
     def readStatus(self):
-        """Retrieve gripper output register information and save it in the\
-        status history.
+        """Retrieve gripper output register information and save it in the status history.
         """
         #Read 3 16bits registers starting from register 2000
         registers=self._client.read_input_registers(2000,count=3,device_id=self.device_id).registers
@@ -1851,8 +1852,8 @@ class RobotiqGripper( ):
         Parameters
         ----------
         refreshStatus : bool, optional
-            Whether to read fresh status from the gripper before printing. \
-            Default is False. If you are sure that the status information is up to date, \
+            Whether to read fresh status from the gripper before printing.
+            Default is False. If you are sure that the status information is up to date,
             setting this parameter to False can make the printing faster.
 
         Examples
