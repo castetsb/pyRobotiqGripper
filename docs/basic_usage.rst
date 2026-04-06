@@ -1,6 +1,8 @@
 Basic Usage
 ===========
 
+.. youtube:: 0TauzknU79I
+
 Activate the gripper and do whatever you want with the gripper: open, close, get \
 position feedback, etc.
 
