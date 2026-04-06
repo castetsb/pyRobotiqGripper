@@ -43,13 +43,16 @@ from .exceptions import (
 __all__ = [
     # Main class
     "RobotiqGripper",
-    # Constants
-    #"BAUDRATE",
-    #"BYTESIZE",
-    #"PARITY",
-    #"STOPBITS",
-    #"TIMEOUT",
-    
+    #Constants
+    "REGISTER_DIC",
+    "BAUDRATE",
+    "BYTESIZE",
+    "PARITY",
+    "STOPBITS",
+    "TIMEOUT",
+    "AUTO_DETECTION",
+    "GRIPPER_MODE_RTU_VIA_TCP",
+    "GRIPPER_MODE_RTU", 
     # Exceptions
     "RobotiqGripperError",
     "GripperConnectionError",
