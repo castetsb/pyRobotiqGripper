@@ -282,22 +282,16 @@ This dictionary is mapping integer codes to human-readable descriptions for ever
 
 
 BAUDRATE: Final[int]=115200
-"""Default baudrate of the gripper use by Robotiq gripper."""
 
 BYTESIZE: Final[int]=8
-"""Byte size use by Robotiq gripper"""
 
 PARITY: Final[str]="N"
-"""Parity use by Robotiq gripper"""
 
 STOPBITS: Final[int]=1
-"""Stop bits used by Robotiq gripper"""
 
 TIMEOUT: Final[float]=0.2
-"""Default timeout use for communication with Robotiq gripper"""
 
 AUTO_DETECTION: Final[str]="auto"
-"""Automatically detect the USB port on which the gripper connected."""
 
 #GRIPPER_2F85_VMAX = 150  # mm/s.
 #GRIPPER_2F85_VMIN = 20   # mm/s.
@@ -319,10 +313,8 @@ READ_COMMAND = 2
 COM_TIME = 0.016 #Approximative time needed to make one communication with the gripper
 
 GRIPPER_MODE_RTU_VIA_TCP: Final[str] = "RTU_VIA_TCP"
-"""Set communication to be RTU via TCP"""
 
 GRIPPER_MODE_RTU: Final[str] = "RTU"
-"""Set communication to be RTU"""
 
 MAX_HISTORY = 50
 
