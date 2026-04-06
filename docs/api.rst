@@ -7,8 +7,8 @@ RobotiqGripper
 --------------
 
 .. autoclass:: pyrobotiqgripper.RobotiqGripper
-   :noindex:
    :show-inheritance:
+   :noindex:
 
 Initialization
 ~~~~~~~~~~~~~~
