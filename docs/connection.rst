@@ -1,6 +1,8 @@
 Connection
 ==========
 
+.. youtube:: rh-5ABvLBVI
+
 Robotiq gripper connected at PC USB port via a USB to RS485 converter
 ---------------------------------------------------------------------
 
