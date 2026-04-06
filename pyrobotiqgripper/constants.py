@@ -3,6 +3,8 @@
 This module contains all configuration constants used throughout the package,
 including communication parameters, gripper limits, and status codes.
 """
+
+from typing import Final
 #Numpy data table columns id
 
 #Command table
@@ -274,27 +276,27 @@ def _build_register_dic():
 #: - rFR  : Final gripping force (0–255)
 #: 
 #: This dictionary is mapping integer codes to human-readable descriptions for every register.
-REGISTER_DIC = _build_register_dic()
+REGISTER_DIC: Final[dict] = _build_register_dic()
 
 #Constants
 
 #: Default baudrate of the gripper use by Robotiq gripper.
-BAUDRATE=115200
+BAUDRATE: Final[int]=115200
 
 #: Byte size use by Robotiq gripper
-BYTESIZE=8
+BYTESIZE: Final[int]=8
 
 #: Parity use by Robotiq gripper
-PARITY="N"
+PARITY: Final[str]="N"
 
 #: Stop bits used by Robotiq gripper
-STOPBITS=1
+STOPBITS: Final[int]=1
 
 #: Default timeout use for communication with Robotiq gripper
-TIMEOUT=0.2
+TIMEOUT: Final[float]=0.2
 
 #: Automatically detect the USB port on which the gripper connected.
-AUTO_DETECTION="auto"
+AUTO_DETECTION: Final[str]="auto"
 
 #GRIPPER_2F85_VMAX = 150  # mm/s.
 #GRIPPER_2F85_VMIN = 20   # mm/s.
@@ -316,10 +318,10 @@ READ_COMMAND = 2
 COM_TIME = 0.016 #Approximative time needed to make one communication with the gripper
 
 #: Set communication to be RTU via TCP
-GRIPPER_MODE_RTU_VIA_TCP = "RTU_VIA_TCP"
+GRIPPER_MODE_RTU_VIA_TCP: Final[str] = "RTU_VIA_TCP"
 
 #: Set communication to be RTU
-GRIPPER_MODE_RTU = "RTU"
+GRIPPER_MODE_RTU: Final[str] = "RTU"
 
 MAX_HISTORY = 50
 
