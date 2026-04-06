@@ -45,11 +45,9 @@ extensions = [
 
 # Autodoc configuration
 autodoc_default_options = {
-    'members': True,
     'member-order': 'bysource',
     'special-members': '__init__',
     'undoc-members': True,
-    'show-inheritance': True,
 }
 autodoc_typehints = 'description'
 autodoc_typehints_format = 'short'
