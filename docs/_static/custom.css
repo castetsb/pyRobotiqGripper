@@ -43,3 +43,25 @@
 .rst-content h3 {
     font-size: 18px;
 }
+
+/* ===== Sidebar width ===== */
+
+/* Increase the width of the left menu */
+.wy-side-nav-search {
+    max-width: 300px; /* default ~220px, adjust as needed */
+}
+
+/* Adjust main content to prevent overlap */
+.rst-content {
+    margin-left: 320px; /* slightly larger than sidebar width */
+}
+
+/* Optional: adjust top nav (if any) */
+.wy-side-nav {
+    width: 300px;
+}
+
+/* Optional: make nested items wrap nicely */
+.wy-menu-vertical li a {
+    white-space: normal;
+}
