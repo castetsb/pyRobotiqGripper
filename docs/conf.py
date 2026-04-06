@@ -72,3 +72,16 @@ pygments_style = 'sphinx'
 
 # Do not prepend module name to functions/classes in the TOC/sidebar
 add_module_names = False
+
+def setup(app):
+    from sphinx.ext.autodoc import FunctionDocumenter
+
+    original = FunctionDocumenter.add_target_and_index
+
+    def patched(self, *args, **kwargs):
+        # Strip class prefix from sidebar
+        if hasattr(self, 'fullname') and '.' in self.fullname:
+            self.name = self.fullname.split('.')[-1]
+        return original(self, *args, **kwargs)
+
+    FunctionDocumenter.add_target_and_index = patched
