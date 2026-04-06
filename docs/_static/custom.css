@@ -1,0 +1,23 @@
+/* Level 1: top-level (e.g., API Reference) */
+.wy-menu-vertical li.toctree-l1 > a {
+    font-size: 1.3em;
+    font-weight: bold;
+}
+
+/* Level 2: class names (RobotiqGripper) */
+.wy-menu-vertical li.toctree-l2 > a {
+    font-size: 1.2em;
+    font-weight: bold;
+}
+
+/* Level 3: group headings (Initialization, Setup, etc.) */
+.wy-menu-vertical li.toctree-l3 > a {
+    font-size: 1.1em;
+    font-weight: bold;
+}
+
+/* Level 4: actual methods */
+.wy-menu-vertical li.toctree-l4 > a {
+    font-size: 1.0em;   /* increase from default 0.8em or smaller */
+    font-weight: normal;
+}

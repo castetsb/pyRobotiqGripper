@@ -72,3 +72,7 @@ pygments_style = 'sphinx'
 
 # Do not prepend module name to functions/classes in the TOC/sidebar
 add_module_names = False
+
+html_css_files = [
+    "custom.css",
+]
