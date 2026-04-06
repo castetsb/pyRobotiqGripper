@@ -3,6 +3,8 @@ Installation
 
 Install the pyRobotiqGripper python package using PIP.
 
+.. youtube:: TuXBFMDqD1g
+
 .. code-block:: bash
 
     python3 -m pip install pyRobotiqGripper
