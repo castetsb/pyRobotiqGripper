@@ -1,0 +1,45 @@
+/* ===== Sidebar (left menu) ===== */
+
+/* Base font size */
+.wy-menu-vertical a {
+    font-size: 15px;
+}
+
+/* Section headers (Core Class, API, etc.) */
+.wy-menu-vertical li.toctree-l1 > a {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+/* Sub-items (methods, subsections) */
+.wy-menu-vertical li.toctree-l2 a {
+    font-size: 14px;
+}
+
+/* Improve spacing */
+.wy-menu-vertical li {
+    line-height: 1.5;
+}
+
+
+/* ===== Main content (right side) ===== */
+
+/* Body text */
+.rst-content {
+    font-size: 16px;
+}
+
+/* Method/function names */
+.rst-content dl dt {
+    font-size: 17px;
+    font-weight: 600;
+}
+
+/* Section titles (Initialization, Control, etc.) */
+.rst-content h2 {
+    font-size: 22px;
+}
+
+.rst-content h3 {
+    font-size: 18px;
+}

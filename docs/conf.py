@@ -24,8 +24,7 @@ try:
     release = __version__
     version=__version__
     project = __project__
-    copyright = __license__
-    copyright = '2024, Benoit CASTETS'
+    copyright = '2026, Benoit CASTETS'
     author = __author__
 
 except ImportError:
@@ -66,6 +65,15 @@ autodoc_mock_imports = ["pandas", "numpy"]
 
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
+
+html_css_files = [
+    'custom.css',
+]
+
+html_theme_options = {
+    'navigation_depth': 2,
+    'collapse_navigation': True,
+}
 
 """
 Tells the project to use sphinx pygments for color coding code examples.
