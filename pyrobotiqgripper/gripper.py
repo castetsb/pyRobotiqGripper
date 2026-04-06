@@ -1732,7 +1732,7 @@ class RobotiqGripper( ):
     def printObjectDetection(self,mergedHistory=None, duration=0.2, tolerance=3, refreshStatus=True):
         """Print object detection status in a human readable way
         """
-        gOBJ=self.objectDetection(self,mergedHistory=mergedHistory, duration=duration, tolerance=tolerance, refreshStatus=refreshStatus)
+        gOBJ=self.objectDetection(mergedHistory=mergedHistory, duration=duration, tolerance=tolerance, refreshStatus=refreshStatus)
 
         print(REGISTER_DIC["gOBJ"][gOBJ])
 
