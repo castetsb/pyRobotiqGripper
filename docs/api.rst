@@ -14,6 +14,9 @@ Core Class
 Constants
 ---------
 
-.. automodule:: pyrobotiqgripper.constants
-   :members:
-   :show-inheritance:
+.. currentmodule:: pyrobotiqgripper.constants
+.. autosummary::
+   :toctree: generated/
+   :nosignatures:
+
+   *
