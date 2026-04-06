@@ -29,3 +29,5 @@ Constants
    :annotation:
 .. autodata:: GRIPPER_MODE_RTU
    :annotation:
+.. autodata:: REGISTER_DIC
+   :annotation:
