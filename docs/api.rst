@@ -3,13 +3,63 @@
 API Reference
 =============
 
-Core Class
-----------
+RobotiqGripper
+--------------
 
 .. autoclass:: pyrobotiqgripper.RobotiqGripper
-   :members:
-   :special-members: __init__
+   :noindex:
    :show-inheritance:
+
+Initialization
+~~~~~~~~~~~~~~
+
+.. automethod:: pyrobotiqgripper.RobotiqGripper.__init__
+
+Setup
+~~~~~
+
+.. automethod:: pyrobotiqgripper.RobotiqGripper.connect
+.. automethod:: pyrobotiqgripper.RobotiqGripper.disconnect
+.. automethod:: pyrobotiqgripper.RobotiqGripper.reset
+.. automethod:: pyrobotiqgripper.RobotiqGripper.activate
+.. automethod:: pyrobotiqgripper.RobotiqGripper.start
+.. automethod:: pyrobotiqgripper.RobotiqGripper.stop
+.. automethod:: pyrobotiqgripper.RobotiqGripper.calibrate_bit
+.. automethod:: pyrobotiqgripper.RobotiqGripper.calibrate_speed
+.. automethod:: pyrobotiqgripper.RobotiqGripper.calibrate_mm
+
+Control
+~~~~~~~
+
+.. automethod:: pyrobotiqgripper.RobotiqGripper.open
+.. automethod:: pyrobotiqgripper.RobotiqGripper.close
+.. automethod:: pyrobotiqgripper.RobotiqGripper.move
+.. automethod:: pyrobotiqgripper.RobotiqGripper.move_mm
+.. automethod:: pyrobotiqgripper.RobotiqGripper.realTimeMove
+.. automethod:: pyrobotiqgripper.RobotiqGripper.
+
+Status
+~~~~~~
+
+.. automethod:: pyrobotiqgripper.RobotiqGripper.isActivated
+.. automethod:: pyrobotiqgripper.RobotiqGripper.isStarted
+.. automethod:: pyrobotiqgripper.RobotiqGripper.is_bit_calibrated
+.. automethod:: pyrobotiqgripper.RobotiqGripper.is_mm_calibrated
+.. automethod:: pyrobotiqgripper.RobotiqGripper.is_speed_calibrated
+.. automethod:: pyrobotiqgripper.RobotiqGripper.gripper_vmax_bits
+.. automethod:: pyrobotiqgripper.RobotiqGripper.gripper_vmin_bits
+.. automethod:: pyrobotiqgripper.RobotiqGripper.positionCommand
+.. automethod:: pyrobotiqgripper.RobotiqGripper.position
+.. automethod:: pyrobotiqgripper.RobotiqGripper.position_mm
+.. automethod:: pyrobotiqgripper.RobotiqGripper.speed
+.. automethod:: pyrobotiqgripper.RobotiqGripper.force
+.. automethod:: pyrobotiqgripper.RobotiqGripper.objectDetection
+.. automethod:: pyrobotiqgripper.RobotiqGripper.readStatus
+.. automethod:: pyrobotiqgripper.RobotiqGripper.status
+.. automethod:: pyrobotiqgripper.RobotiqGripper.printStatus   
+.. automethod:: pyrobotiqgripper.RobotiqGripper.commandHistory
+.. automethod:: pyrobotiqgripper.RobotiqGripper.statusHistory
+.. automethod:: pyrobotiqgripper.RobotiqGripper.history
 
 Constants
 ---------
