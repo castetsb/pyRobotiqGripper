@@ -72,3 +72,28 @@ pygments_style = 'sphinx'
 
 # Do not prepend module name to functions/classes in the TOC/sidebar
 add_module_names = False
+
+def strip_class_prefix(app, what, name, obj, skip, options):
+    """
+    Modify the sidebar name for methods to remove the class prefix.
+    """
+    # Only target methods
+    if what == "method" and "." in name:
+        # name is "ClassName.method", return just "method"
+        app.env.temp_data.setdefault("autodoc_function_name_overrides", {})[name] = name.split(".")[-1]
+    return None  # don't skip anything
+
+def setup(app):
+    app.connect("autodoc-skip-member", strip_class_prefix)
+
+    # Patch for sidebar display (works for Sphinx 7+)
+    from sphinx.ext.autodoc import MethodDocumenter
+
+    original_get_target = MethodDocumenter.get_target
+
+    def patched_get_target(self, *args, **kwargs):
+        name = original_get_target(self, *args, **kwargs)
+        # strip class prefix from sidebar target
+        return name.split(".")[-1] if "." in name else name
+
+    MethodDocumenter.get_target = patched_get_target
