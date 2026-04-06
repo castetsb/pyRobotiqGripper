@@ -1729,6 +1729,13 @@ class RobotiqGripper( ):
 
         return GOBJ_IN_MOTION
     
+    def printObjectDetection(self,mergedHistory=None, duration=0.2, tolerance=3, refreshStatus=True):
+        """Print object detection status in a human readable way
+        """
+        gOBJ=self.objectDetection(self,mergedHistory=mergedHistory, duration=duration, tolerance=tolerance, refreshStatus=refreshStatus)
+
+        print(REGISTER_DIC["gOBJ"][gOBJ])
+
     def commandHistory(self):
         """Return the gripper command history as a pandas DataFrame.
 
