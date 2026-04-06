@@ -11,6 +11,12 @@
     font-weight: 600;
 }
 
+
+/* Remove class prefix from sidebar (RobotiqGripper.) */
+.wy-menu-vertical a .pre {
+    display: none;
+}
+
 /* Sub-items (methods, subsections) */
 .wy-menu-vertical li.toctree-l2 a {
     font-size: 14px;
