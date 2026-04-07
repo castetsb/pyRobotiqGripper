@@ -1424,21 +1424,21 @@ class RobotiqGripper( ):
         Examples:
             Make a loop to control the gripper using a joystick with pygame
 
-            import pygame
-            import time
-            import pyrobotiqgripper as rq
+            >>> import pygame
+            >>> import time
+            >>> import pyrobotiqgripper as rq
 
-            grip = rq.RobotiqGripper()
+            >>> grip = rq.RobotiqGripper()
 
-            pygame.init()
-            pygame.joystick.init()
-            js = pygame.joystick.Joystick(0)
-            js.init()
-            while True:
-                pygame.event.pump()
+            >>> pygame.init()
+            >>> pygame.joystick.init()
+            >>> js = pygame.joystick.Joystick(0)
+            >>> js.init()
+            >>> while True:
+            >>>     pygame.event.pump()
 
-                requested_pos=int((js.get_axis(0) + 1) * 255 / 2)
-                grip.realtimemove(requested_pos)
+            >>>     requested_pos=int((js.get_axis(0) + 1) * 255 / 2)
+            >>>     grip.realtimemove(requested_pos)
         """
         #Check if the gripper is activated
         if not self.isActivated(refreshStatus=False):
