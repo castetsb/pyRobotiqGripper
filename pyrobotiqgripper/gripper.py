@@ -1427,16 +1427,13 @@ class RobotiqGripper( ):
             >>> import pygame
             >>> import time
             >>> import pyrobotiqgripper as rq
-
             >>> grip = rq.RobotiqGripper()
-
             >>> pygame.init()
             >>> pygame.joystick.init()
             >>> js = pygame.joystick.Joystick(0)
             >>> js.init()
             >>> while True:
             >>>     pygame.event.pump()
-
             >>>     requested_pos=int((js.get_axis(0) + 1) * 255 / 2)
             >>>     grip.realtimemove(requested_pos)
         """
