@@ -802,7 +802,8 @@ class RobotiqGripper( ):
                        autoLock=True,
                        minimalMotion=1,
                        verbose=0,
-                       refreshStatus=False
+                       refreshStatus=False,
+                       objectDetectionDuration=0.5
                        ):
         """"Filter the gripper command to perform a smooth and safe motion of the gripper.\
         The command filter is based on the gripper command history and the gripper status.
@@ -846,7 +847,7 @@ class RobotiqGripper( ):
         history = self._mergeHistory()
         
         prev_time=history[-1,TIME]
-        prev_cOBJ=self.objectDetection(history,duration=0.2,tolerance=3,refreshStatus=False)
+        prev_cOBJ=self.objectDetection(history,duration=objectDetectionDuration,tolerance=3,refreshStatus=False)#, verbose=verbose)
         prev_gPO=history[-1,M_GPO]
         prev_rPR=history[-1,RPR]
         prev_rSP=history[-1,RSP]
@@ -1401,7 +1402,8 @@ class RobotiqGripper( ):
                      continuousGrip=True,
                      autoLock=True,
                      minimalMotion=2,
-                     verbose=False):
+                     verbose=False,
+                     objectDetectionDuration=0.5):
         """Move the gripper in real time to the requested position.
 
         Args:
@@ -1457,7 +1459,8 @@ class RobotiqGripper( ):
                                     continuousGrip=continuousGrip,
                                     autoLock=autoLock,
                                     minimalMotion=minimalMotion,
-                                    verbose=verbose)
+                                    verbose=verbose,
+                                    objectDetectionDuration=objectDetectionDuration)
         
         if command["execution"]==WRITE_READ_COMMAND:
             if command["wait"]:
@@ -1646,7 +1649,7 @@ class RobotiqGripper( ):
             return None
         return value
 
-    def objectDetection(self,mergedHistory=None, duration=0.2, tolerance=3, refreshStatus=True):
+    def objectDetection(self,mergedHistory=None, duration=0.5, tolerance=3, refreshStatus=True,verbose=0):
         """Estimate object detection status from history data.
 
         Args:
@@ -1717,8 +1720,14 @@ class RobotiqGripper( ):
                 return GOBJ_IN_MOTION
 
             if expected > last_gPO:
+                if verbose > 0:
+                    print(REGISTER_DIC["gOBJ"][GOBJ_DETECTED_WHILE_CLOSING])
+                    print(self.history())
                 return GOBJ_DETECTED_WHILE_CLOSING
             elif expected < last_gPO:
+                if verbose > 0:
+                    print(REGISTER_DIC["gOBJ"][GOBJ_DETECTED_WHILE_OPENING])
+                    print(self.history())
                 return GOBJ_DETECTED_WHILE_OPENING
             else:
                 return GOBJ_IN_MOTION
@@ -1738,11 +1747,17 @@ class RobotiqGripper( ):
         gpo_slice = gpo[idx:]
 
         if np.all(rpr_slice > gpo_slice):
+            if verbose > 0:
+                print(REGISTER_DIC["gOBJ"][GOBJ_DETECTED_WHILE_CLOSING])
+                print(self.history())
             return GOBJ_DETECTED_WHILE_CLOSING
 
         if np.all(rpr_slice < gpo_slice):
+            if verbose > 0:
+                print(REGISTER_DIC["gOBJ"][GOBJ_DETECTED_WHILE_OPENING])
+                print(self.history())
             return GOBJ_DETECTED_WHILE_OPENING
-
+        
         return GOBJ_IN_MOTION
     
     def printObjectDetection(self,mergedHistory=None, duration=0.2, tolerance=3, refreshStatus=True):

@@ -149,6 +149,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Minimal motion for real-time move (default: %(default)s)",
     )
     parser.add_argument(
+        "--detection-duration",
+        type=float,
+        default=0.5,
+        help="Duration used to detect if an object is inside the gripper.",
+    )
+    parser.add_argument(
         "--verbose",
         type=int,
         default=0,
@@ -219,6 +225,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 autoLock=args.auto_lock,
                 minimalMotion=args.minimal_motion,
                 verbose=args.verbose,
+                objectDetectionDuration=args.detection_duration
             )
     except KeyboardInterrupt:
         logging.info("Stopping joystick control")
