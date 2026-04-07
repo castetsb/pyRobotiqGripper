@@ -11,7 +11,7 @@ pyRobotiqGripper
 pyRobotiqGripper is a Python library designed to facilitate control of Robotiq grippers using Modbus RTU communication via serial port or over ethernet.
 It is compatible with 2F85, 2F140, and Hande.
 
-.. youtube:: 82S5LgefvJo0
+.. youtube:: 82S5LgefvJo
 
 Documentation: `pyRobotiqGripper Documentation <https://pyrobotiqgripper.readthedocs.io/en/latest/>`_
 
