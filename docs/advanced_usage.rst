@@ -4,6 +4,8 @@ Advanced Usage
 Realtime control
 ----------------
 
+.. youtube:: 55NyOWzFGxA
+
 For realtime control use the realTimeMove method.
 
 .. code-block:: python
