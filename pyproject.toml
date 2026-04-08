@@ -17,11 +17,23 @@ dependencies = [
     "pymodbus>=3.12.1",
     "pyserial>=3.5",
     "numpy>=1.28",
+]
+
+[project.optional-dependencies]
+
+dev = [
+  "sphinx",
+  "sphinx-rtd-theme",
+  "sphinxcontrib-youtube"
+]
+
+all = [
     "pandas>=1.5",
     "pygame>=2.5.2",
     "pynput>=1.7.6",
     "pyautogui>=0.9.54",
 ]
+
 
 [build-system]
 requires = ["uv_build>=0.9.4,<0.10.0"]
