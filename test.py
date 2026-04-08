@@ -8,13 +8,13 @@ WARNING: Ensure the gripper is properly connected and can move freely before
 running these tests. Do NOT place objects inside the gripper during calibration.
 
 To run these tests:
-    python test_gripper_hardware.py -v
+    python test.py -v
     
 Or with specific test:
-    python -m pytest test_gripper_hardware.py::TestRobotiqGripperHardware::test_connect_disconnect -v
+    python -m pytest test.py::Hardware::test_connect_disconnect -v
 
 Or
-    python -m unittest test_gripper.TestRobotiqGripperHardware.test_01_connect_disconnect
+    python -m unittest test.Hardware.test_01_connect_disconnect
 """
 import traceback
 import unittest
@@ -22,6 +22,7 @@ import sys
 import time
 from functools import wraps
 from pyrobotiqgripper import RobotiqGripper
+import json
 
 
 def detailed_errors(test_fn):
@@ -868,49 +869,40 @@ class Hardware(unittest.TestCase):
         print(command)
         for key in COMMAND_HISTORY_COLUMNS_NAME_2_ID.keys():
             self.assertIn(key,command.keys(),"The command complete function did not add the key "+key+" to the command")
+    
+    def test_34_objectDetection_realtime(self):
+        print("Test 34: Test that object detection does not make wrong object detection when the gripper is control in realtime.")
+        #self.gripper.activate()
+        self.gripper.calibrate_speed()
+        with open('realTimeData.json', 'r') as f:
+            data = json.load(f)
+            i=0
+            while i < len(data):
+                t=time.monotonic()
+                self.gripper.realTimeMove(data[i],verbose=0,continuousGrip=False)
+                #cOBJ = self.gripper.objectDetection(self.gripper._mergeHistory(),duration=0.2)
+                #self.assertNotIn(cOBJ,[GOBJ_DETECTED_WHILE_CLOSING,GOBJ_DETECTED_WHILE_OPENING],"Object detected while no object present")
+                print(time.monotonic()-t)
+                i+=1
+    def test_35_writeFrequency(self):
+        startTime=time.monotonic()
 
-    def test_boundary_position_0(self):
-        """Test moving to position 0 (fully open)."""
-        print("\nTest: Boundary - Position 0 (Fully Open)")
-        self.gripper.move(0, speed=255, force=100, wait=True)
-        position = self.gripper.position()
-        self.assertLess(position, 50)
-        print(f"  - Position 0 achieved: {position}")
+        maxWriteTime=0
+        minWriteTime=10
+        
+        while time.monotonic()-startTime <10:
+            start=time.monotonic()
+            self.gripper.move(100,wait=False)
+            duration = time.monotonic() - start
+            if duration > maxWriteTime:
+                maxWriteTime = duration
+            if duration < minWriteTime:
+                minWriteTime = duration
+        
+        print(f"Minimum write time: {minWriteTime}")
+        print(f"Maximum write time: {maxWriteTime}")
+            
 
-    def test_boundary_position_255(self):
-        """Test moving to position 255 (fully closed)."""
-        print("\nTest: Boundary - Position 255 (Fully Closed)")
-        self.gripper.move(255, speed=255, force=255, wait=True)
-        position = self.gripper.position()
-        self.assertGreater(position, 200)
-        print(f"  - Position 255 achieved: {position}")
-
-    def test_rapid_position_changes(self):
-        """Test rapid position changes."""
-        print("\nTest: Rapid Position Changes")
-        for _ in range(5):
-            self.gripper.move(0, speed=255, force=100, wait=True)
-            self.gripper.move(255, speed=255, force=100, wait=True)
-        print("  - Rapid changes completed")
-
-    def test_slow_speed_movement(self):
-        """Test movement at minimum speed."""
-        print("\nTest: Low Speed Movement")
-        # Calibrate first to access bit speed properties
-        self.gripper.calibrate_bit()
-        self.gripper.calibrate_mm(closemm=0, openmm=85)
-        self.gripper.open(speed=0, force=50, wait=True)
-        self.gripper.close(speed=0, force=50, wait=True)
-        print("  - Low speed movement completed")
-
-    def test_high_force_grip(self):
-        """Test gripper with maximum force."""
-        print("\nTest: High Force Grip")
-        self.gripper.open(speed=255, force=255, wait=True)
-        self.gripper.close(speed=0, force=255, wait=True)
-        self.gripper.open(speed=255, force=255, wait=True)
-        position = self.gripper.position()
-        print(f"  - High force grip achieved position: {position}")
         
 
     

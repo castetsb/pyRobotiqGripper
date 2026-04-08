@@ -3,3 +3,4 @@ __pycache__
 pyRobotiqGripper.egg-info/
 dist/
 docs/draft/
+draft/
