@@ -7,7 +7,10 @@ Install the pyRobotiqGripper python package using PIP.
 
 .. code-block:: bash
 
-    python3 -m pip install pyRobotiqGripper
+    python3 -m pip install "pyRobotiqGripper[all]"
+
+The `all` extra includes the optional dependencies used by the joystick CLI and \
+history/data helper methods.
 
 .. note::
     The way python is called (python3 vs python) may depend on your system configuration. \

@@ -23,6 +23,8 @@ Joystick CLI Feature
 pyRobotiqGripper includes a command-line interface (CLI) tool for controlling the \
 gripper using a joystick, gamepad or a mouse.
 
+This CLI requires the `all` extra.
+
 To use the Joystick CLI, run the following command:
 
 .. code-block:: bash
