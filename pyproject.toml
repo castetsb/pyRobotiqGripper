@@ -23,6 +23,16 @@ dependencies = [
     "pyautogui>=0.9.54",
 ]
 
+[project.optional-dependencies]
+
+dev = [
+  "sphinx",
+  "sphinx-rtd-theme",
+  "sphinxcontrib-youtube"
+]
+
+
+
 [build-system]
 requires = ["uv_build>=0.9.4,<0.10.0"]
 build-backend = "uv_build"
