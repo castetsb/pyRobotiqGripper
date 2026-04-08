@@ -15,6 +15,9 @@ Or with specific test:
 
 Or
     python -m unittest test.Hardware.test_01_connect_disconnect
+
+ALL THOSE TESTS REQUIRE A BIT OF CLEANING
+IT IS A DRAFT AND ON GOING WORK
 """
 import traceback
 import unittest
