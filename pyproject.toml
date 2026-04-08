@@ -1,7 +1,7 @@
 
 [project]
 name = "pyrobotiqgripper"
-version = "3.2.3"
+version = "3.2.5"
 authors = [{name="Benoit CASTETS", email = "opensourceeng@gmail.com"}]
 description = "Python Driver for Robotiq Grippers"
 readme = "README.rst"
@@ -36,7 +36,7 @@ all = [
 
 
 [build-system]
-requires = ["uv_build>=0.9.4,<0.10.0"]
+requires = ["uv_build>=0.9.4,<1.0.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
