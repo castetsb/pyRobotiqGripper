@@ -1,12 +1,21 @@
 pyRobotiqGripper
 ================
 
-**Python Driver for Robotiq Grippers.**
-
-.. image:: https://static.pepy.tech/personalized-badge/pyrobotiqgripper?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads
-   :target: https://pepy.tech/projects/pyrobotiqgripper
-   :alt: PyPI Downloads
+.. list-table::
    :align: center
+   :class: borderless
+
+   * - .. image:: https://static.pepy.tech/personalized-badge/pyrobotiqgripper?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads
+         :target: https://pepy.tech/projects/pyrobotiqgripper
+         :alt: PyPI Downloads
+
+     - .. image:: https://img.shields.io/pypi/dm/pyrobotiqgripper
+         :alt: PyPI Monthly Downloads
+
+     - .. image:: https://img.shields.io/github/stars/castetsb/pyrobotiqgripper
+         :alt: GitHub Stars
+
+**Python Driver for Robotiq Grippers.**
 
 .. figure:: _static/logo.png
    :alt: My Logo
@@ -19,12 +28,6 @@ It is compatible with 2F85, 2F140, and Hande.
 .. youtube:: 82S5LgefvJo
 
 Documentation: `pyRobotiqGripper Documentation <https://pyrobotiqgripper.readthedocs.io/en/latest/>`_
-
-.. image:: https://img.shields.io/pypi/dm/pyrobotiqgripper
-   :alt: PyPI - Downloads
-
-.. image:: https://img.shields.io/github/stars/castetsb/pyrobotiqgripper
-   :alt: GitHub Stars
 
 
 
