@@ -2,7 +2,7 @@ pyRobotiqGripper
 ================
 **Python Driver for Robotiq Grippers.**
 
-.. image:: https://static.pepy.tech/personalized-badge/pyrobotiqgripper?period=total&units=INTERNATIONAL_SYSTE…
+.. image:: https://static.pepy.tech/personalized-badge/pyrobotiqgripper?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads
    :target: https://pepy.tech/projects/pyrobotiqgripper
    :alt: PyPI Downloads
    :align: center
