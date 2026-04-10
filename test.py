@@ -26,6 +26,12 @@ import time
 from functools import wraps
 from pyrobotiqgripper import RobotiqGripper
 import json
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import norm
+import os
+
+
 
 
 def detailed_errors(test_fn):
@@ -90,13 +96,31 @@ class Hardware(unittest.TestCase):
         print("HARDWARE TEST")
         print("="*70)
         print("Ensuring gripper is connected and powered on...")
+
+        cls.connection_type = os.getenv("CONNECTION_TYPE", "RTU")
+        cls.tcp_host = os.getenv("TCP_HOST", "10.0.0.153")
+        cls.tcp_port = int(os.getenv("TCP_PORT", "2000"))
+
+        print("\n=== Connect to the gripper ===")
+        print(f"Connection type: {cls.connection_type}")
+
+        if cls.connection_type == GRIPPER_MODE_RTU:
+            print("Using direct RTU connection")
+            cls.gripper = RobotiqGripper(
+                com_port=AUTO_DETECTION,  # Auto-detect COM port
+                connection_type=GRIPPER_MODE_RTU,
+            )
+
+        elif cls.connection_type == GRIPPER_MODE_RTU_VIA_TCP:
+            print(f"TCP host: {cls.tcp_host}")
+            print(f"TCP port: {cls.tcp_port}")
+            cls.gripper = RobotiqGripper(
+                connection_type=GRIPPER_MODE_RTU_VIA_TCP,
+                tcp_host=cls.tcp_host,
+                tcp_port=cls.tcp_port
+            )
         
-        cls.gripper = RobotiqGripper(
-            com_port=AUTO_DETECTION,  # Auto-detect COM port
-            device_id=9,
-            connection_type=GRIPPER_MODE_RTU,
-            debug=False
-        )
+        
         
         try:
             cls.gripper.connect()
@@ -887,23 +911,101 @@ class Hardware(unittest.TestCase):
                 #self.assertNotIn(cOBJ,[GOBJ_DETECTED_WHILE_CLOSING,GOBJ_DETECTED_WHILE_OPENING],"Object detected while no object present")
                 print(time.monotonic()-t)
                 i+=1
-    def test_35_writeFrequency(self):
-        startTime=time.monotonic()
+    def test_35_communicationTime(self):
+        
+        
+        self.gripper.calibrate_speed()
+        self.gripper.move(100)
 
-        maxWriteTime=0
-        minWriteTime=10
+        def measure_time(data, func, *args, **kwargs):
+            i=0
+            while i < 100:
+                start = time.monotonic()
+                func(*args, **kwargs)
+                end = time.monotonic()
+                duration = end - start
+                data.append(duration)
+                i+=1
         
-        while time.monotonic()-startTime <10:
-            start=time.monotonic()
-            self.gripper.move(100,wait=False)
-            duration = time.monotonic() - start
-            if duration > maxWriteTime:
-                maxWriteTime = duration
-            if duration < minWriteTime:
-                minWriteTime = duration
+        data={}
+
+        data["writeP"]=[]
+        measure_time(data["writeP"], lambda: self.gripper.move(100,wait=False,readStatus=False))
+
+        data["writeP_wait"]=[]
+        measure_time(data["writeP_wait"], lambda: self.gripper.move(100,wait=True,readStatus=False))
+
+        data["writePFS"]=[]
+        measure_time(data["writePFS"], lambda: self.gripper.move(100,100,100,wait=False,readStatus=False))
+
+        data["writePFS_wait"]=[]
+        measure_time(data["writePFS_wait"], lambda: self.gripper.move(100,100,100,wait=True,readStatus=False))
+
+        data["writereadP"]=[]
+        measure_time(data["writereadP"], lambda: self.gripper.move(100,wait=False,readStatus=True))
+
+        data["writereadP_wait"]=[]
+        measure_time(data["writereadP_wait"], lambda: self.gripper.move(100,wait=True,readStatus=True))
+
+        data["writereadPFS"]=[]
+        measure_time(data["writereadPFS"], lambda: self.gripper.move(100,100,100,wait=False,readStatus=True))
+
+        data["writereadPFS_wait"]=[]
+        measure_time(data["writereadPFS_wait"], lambda: self.gripper.move(100,100,100,wait=True,readStatus=True))
+
+        data["realtimemove"]=[]
+
+        i=0
+        while i < 50:
+            start = time.monotonic()
+            self.gripper.realTimeMove(150)
+            end = time.monotonic()
+            duration = end - start
+            data["realtimemove"].append(duration)
+
+            start = time.monotonic()
+            self.gripper.realTimeMove(100)
+            end = time.monotonic()
+            duration = end - start
+            data["realtimemove"].append(duration)
+            i+=1
+
+        plt.figure(figsize=(12, 6))
+
+        for key, values in data.items():
+            print(key)
+            values = np.array(values)
+
+            # Fit Gaussian: mean and std
+            mu, std = norm.fit(values)
+
+            # Generate x range
+            #x = np.linspace(0, 0.05, 100)
+            x = np.linspace(values.min(), values.max(), 100)
+
+            # Gaussian PDF
+            y = norm.pdf(x, mu, std)
+
+            # Plot
+            plt.plot(x, y, label=f"{key} (μ={mu:.2f}, σ={std:.2f})")
         
-        print(f"Minimum write time: {minWriteTime}")
-        print(f"Maximum write time: {maxWriteTime}")
+        all_values = np.concatenate([np.array(v) for v in data.values()])
+        xmin, xmax = all_values.min(), all_values.max()
+        xmin = np.floor(xmin / 0.01) * 0.01
+        xmax = np.ceil(xmax / 0.01) * 0.01
+        plt.xticks(np.arange(xmin, xmax + 0.01, 0.01))
+
+
+        plt.legend()
+        plt.xlabel("Value")
+        plt.ylabel("Density")
+        title = self.connection_type + " - Gaussian Fits"
+        plt.title(title)
+        plt.grid()
+        filename = "docs/_static/" + self.connection_type + "_time.png"
+        plt.savefig(filename, dpi=300, bbox_inches="tight")
+        plt.show()
+    
             
 
         

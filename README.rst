@@ -2,6 +2,11 @@ pyRobotiqGripper
 ================
 **Python Driver for Robotiq Grippers.**
 
+.. image:: https://static.pepy.tech/personalized-badge/pyrobotiqgripper?period=total&units=INTERNATIONAL_SYSTE…
+   :target: https://pepy.tech/projects/pyrobotiqgripper
+   :alt: PyPI Downloads
+   :align: center
+
 .. figure:: https://raw.githubusercontent.com/castetsb/pyRobotiqGripper/master/docs/_static/logo.png
    :alt: PyRobotiqGripper Logo
    :align: center
