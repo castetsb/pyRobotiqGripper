@@ -71,6 +71,8 @@ pygments_style = 'sphinx'
 # Do not prepend module name to functions/classes in the TOC/sidebar
 add_module_names = False
 
+napoleon_include_init_with_doc = False
+
 #html_css_files = [
 #    "custom.css",
 #]
