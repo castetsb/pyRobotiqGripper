@@ -73,37 +73,30 @@ class RobotiqGripper( ):
         """Create a RobotiqGripper object which can be use to control Robotiq
         grippers using modbus RTU protocol USB/RS485 connection.
         
-        Parameters:
-        -----------
-        com_port : str
-            COM port to which the gripper is connected.
-            If "auto" (or equal to the constant AUTO_DETECTION), the library will try 
-            to find the COM port to which the gripper is connected.
-            On Windows, COM ports are named COM1, COM2, etc. On Linux, COM ports are
-            named /dev/ttyUSB0, /dev/ttyUSB1, etc. Default is AUTO_DETECTION.
-        device_id : int
-            Address of the gripper (integer) usually 9.
-        gripper_type : str
-            Type of the gripper. Currently only "2F" is supported.
-            Default is "2F".
-        connection_type : str
-            Type of connection to the gripper.
-            "RTU" (or equal to the constant GRIPPER_MODE_RTU) for direct Modbus RTU connection (e.g. via USB/RS485
-            adapter). "RTU_VIA_TCP" (or equal to the constant GRIPPER_MODE_RTU_VIA_TCP) for Modbus RTU connection via TCP
-            (e.g. when using the UR RS485 URCAP). Default is "RTU".
-        tcp_host : str
-            Host IP address for TCP connection. Default is "127.0.0.1"
-        tcp_port : int
-            Port number for TCP connection. Default is 54321.
-        debug : bool
-            If True, enable debug logging for Modbus
-            communication. Default is False.
+        Args:
+            com_port (str): COM port to which the gripper is connected.
+                If "auto" (or equal to the constant AUTO_DETECTION), the library will try 
+                to find the COM port to which the gripper is connected.
+                On Windows, COM ports are named COM1, COM2, etc. On Linux, COM ports are
+                named /dev/ttyUSB0, /dev/ttyUSB1, etc. Default is AUTO_DETECTION.
+            device_id (int): Address of the gripper (integer) usually 9.
+            gripper_type (str): Type of the gripper. Currently only "2F" is supported.
+                Default is "2F".
+            connection_type (str): Type of connection to the gripper.
+                "RTU" (or equal to the constant GRIPPER_MODE_RTU) for direct Modbus RTU
+                connection (e.g. via USB/RS485 adapter). "RTU_VIA_TCP" (or equal to the
+                constant GRIPPER_MODE_RTU_VIA_TCP) for Modbus RTU connection via TCP
+                (e.g. when using the UR RS485 URCAP). Default is "RTU".
+            tcp_host (str): Host IP address for TCP connection. Default is "127.0.0.1"
+            tcp_port (int): Port number for TCP connection. Default is 54321.
+            debug (bool): If True, enable debug logging for Modbus communication.
+                Default is False.
         
-        Examples
-        --------
-        Gripper connected at PC USB port:
+        Examples:
+
+            Gripper connected at PC USB port:
+            
             >>> import pyrobotiqgripper as rq
-        
             >>> gripper = rq.RobotiqGripper(connection_type=rq.GRIPPER_MODE_RTU)
             >>> gripper.connect()
             >>> gripper.activate()
@@ -116,10 +109,10 @@ class RobotiqGripper( ):
             >>> gripper.move_mm(50) #Move at position 50mm
             >>> gripper.printStatus() #Print gripper status information in the python terminal
             >>> print(gripper.positionmm()) #Print gripper position in mm
-
-        Gripper connected to UR robot via RS495 URCAP (RTU over TCP):
+            
+            Gripper connected to UR robot via RS495 URCAP (RTU over TCP):
+            
             >>> import pyrobotiqgripper as rq
-
             >>> gripper = rq.RobotiqGripper(connection_type=rq.GRIPPER_MODE_RTU_VIA_TCP,tcp_host="192.168.1.100")
             >>> gripper.connect()
             >>> gripper.activate()
@@ -135,7 +128,7 @@ class RobotiqGripper( ):
         #: On Windows, COM ports are named COM1, COM2, etc. On Linux, COM ports are
         #: named /dev/ttyUSB0, /dev/ttyUSB1, etc. Default is AUTO_DETECTION.
         self.com_port=com_port
-        
+
         self.device_id=device_id
         self.connection_type=connection_type
         self.tcp_host=tcp_host
@@ -156,28 +149,6 @@ class RobotiqGripper( ):
         self._commandHistory=np.ones((MAX_HISTORY,len(COMMAND_HISTORY_COLUMNS_ID_2_NAME)))*-1
 
         self._statusHistory=np.ones((MAX_HISTORY,len(STATUS_HISTORY_COLUMNS_ID_2_NAME)))*-1
-        '''
-        self._statusHistory=pd.DataFrame(columns=["time",#Time of the status
-                                                  "gOBJ",#Object detection
-                                                  "gSTA",#Gripper status
-                                                  "gGTO",#Action status. echo of rGTO (go to bit)
-                                                  "gACT",#Activation status
-                                                  "kFLT",#Universal controler
-                                                  "gFLT",#Fault
-                                                  "gPR",#Echo of request position
-                                                  "gPO",#Actual position of the gripper
-                                                  "gCU"])#Current
-        
-        #Command historical data
-        self._commandHistory=pd.DataFrame(columns=["time",#time of the command
-                                                   "rARD",#Auto-releasedirection (0: close, 1:open)
-                                                   "rATR",#Auto-release trigger
-                                                   "rGTO",#If 1 move the gripper ot requested position
-                                                   "rACT",#Activate the gripper
-                                                   "rPR",#Position request
-                                                   "rSP",#Speed request
-                                                   "rFR"])#Force request
-        '''
         
         
         self._is_bit_calibrated=False
