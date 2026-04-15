@@ -54,7 +54,7 @@ templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 # build even without pandas or numpy
-autodoc_mock_imports = ["pandas", "numpy", "pygame", "pynput", "pyautogui", ]
+autodoc_mock_imports = ["pandas", "numpy", "pygame", "pynput", "pyautogui" ]
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
