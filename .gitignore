@@ -4,3 +4,5 @@ pyRobotiqGripper.egg-info/
 dist/
 docs/draft/
 draft/
+.python-version
+uv.lock

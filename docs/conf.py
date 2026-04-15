@@ -9,6 +9,7 @@
 import os
 import sys
 
+
 # Get the project root dir, which is the parent dir of this
 cwd = os.getcwd()
 project_root = os.path.dirname(cwd)
@@ -17,18 +18,15 @@ project_root = os.path.dirname(cwd)
 # This lets us ensure that the source package is imported, and that its
 # version is used.
 sys.path.insert(0, project_root)
+from pyrobotiqgripper import __version__, __author__, __project__
+
 
 # Import version from package
-try:
-    from pyrobotiqgripper import __version__, __author__, __email__, __license__, __url__, __project__
-    release = __version__
-    version=__version__
-    project = __project__
-    copyright = '2026, Benoit CASTETS'
-    author = __author__
-
-except ImportError:
-    raise ImportError("Could not import pyrobotiqgripper package. Make sure it is installed and that the PYTHONPATH is set correctly.")
+release = __version__
+version=__version__
+project = __project__
+copyright = '2026, Benoit CASTETS'
+author = __author__
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
