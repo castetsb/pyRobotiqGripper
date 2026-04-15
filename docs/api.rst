@@ -10,11 +10,6 @@ RobotiqGripper
    :show-inheritance:
    :noindex:
 
-Initialization
-~~~~~~~~~~~~~~
-
-.. automethod:: pyrobotiqgripper.RobotiqGripper.__init__
-
 Setup
 ~~~~~
 
