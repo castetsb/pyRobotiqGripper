@@ -29,7 +29,7 @@ dev = [
 
 all = [
     "pandas>=1.5",
-    "pygame>=2.5.2",
+    "pygame-ce>=2.5.2",
     "pynput>=1.7.6",
     "pyautogui>=0.9.54",
 ]
