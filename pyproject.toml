@@ -44,7 +44,7 @@ requires = ["uv_build>=0.9.4,<1.0.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-module-name = ["pyrobotiqgripper"]
+module-name = "pyrobotiqgripper"
 module-root = ""
 
 [project.urls]

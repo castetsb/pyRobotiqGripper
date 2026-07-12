@@ -4,6 +4,7 @@
 
 # Meno: Windows / Linux: Ctrl + K then Ctrl + 0 to folds all foldable regions (functions,classes,etc.) in Visual code studio
 
+from typing import Optional
 import numpy as np
 from pymodbus.client import ModbusSerialClient, ModbusTcpClient
 from pymodbus.framer import FramerType
@@ -2151,7 +2152,7 @@ class RobotiqGripper( ):
         if not self.is_mm_calibrated():
             raise GripperCalibrationError("The gripper is not mm calibrated")
         
-        return self._openmm()
+        return self._openmm
     
     def close_mm(self):
         """Return distance between fingers in open position
@@ -2167,7 +2168,7 @@ class RobotiqGripper( ):
         Returns:
             int | None: The last position command value (0-255), or None if the history is empty.
         """
-        value = self._statusHistory[-1,GPO]
+        value = self._commandHistory[-1,RPR]
         if value == -1:
             warnings.warn("Command history is empty. Last set position is unknown.",UserWarning, stacklevel=2)
             return None
