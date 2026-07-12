@@ -3,6 +3,24 @@ Connection
 
 .. youtube:: rh-5ABvLBVI
 
+Before running the examples below, activate the virtual environment you used
+to install the package, then launch a Python interpreter.
+
+If you installed with pip:
+
+.. code-block:: bash
+
+    # Windows
+    .venv\Scripts\activate
+    # macOS/Linux
+    source .venv/bin/activate
+
+Once the virtual environment is activated, launch a Python interpreter:
+
+.. code-block:: bash
+
+    python
+
 Robotiq gripper connected at PC USB port via a USB to RS485 converter
 ---------------------------------------------------------------------
 
@@ -14,8 +32,8 @@ Robotiq gripper connected at PC USB port via a USB to RS485 converter
     gripper = rq.RobotiqGripper()
 
 By default, the serial port on which the gripper is connected is automatically detected.\
- However, you can manually specify the serial port name if you want to. Refer to the \
- API documentation for more information.
+However, you can manually specify the serial port name if you want to. Refer to the \
+API documentation for more information.
 
 .. code-block:: python
 

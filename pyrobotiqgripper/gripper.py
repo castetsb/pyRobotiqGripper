@@ -2,7 +2,7 @@
 
 # Optional dependency: pandas is only required for history DataFrame helpers.
 
-#Meno: Windows / Linux: Ctrl + K then Ctrl + 0 to folds all foldable regions (functions,classes,etc.) in Visual code studio
+# Meno: Windows / Linux: Ctrl + K then Ctrl + 0 to folds all foldable regions (functions,classes,etc.) in Visual code studio
 
 import numpy as np
 from pymodbus.client import ModbusSerialClient, ModbusTcpClient
@@ -17,7 +17,6 @@ import logging
 import multiprocessing
 import warnings
 
-
 def _get_pandas():
     """Lazy import pandas and provide clear error when missing."""
     try:
@@ -29,7 +28,6 @@ def _get_pandas():
             "(commandHistory, statusHistory, history). Install pandas via "
             "`pip install pandas` or avoid calling these methods."
         ) from exc
-
 
 class RobotiqGripper( ):
     """Class use to control Robotiq grippers (2F85, 2F140 or hande).
@@ -168,11 +166,29 @@ class RobotiqGripper( ):
         
         #Linear coefficient to link bit and distance between fingers
         #mm=self._aCoef*bit+self._bCoef
-        self._aCoef=None
+        self._aCoef=None #positioning resolution
         self._bCoef=None
         
-        self._gripper_vmax_bits=None #Speed in bit per second
-        self._gripper_vmin_bits=None #Speed in bit per second
+        self._gripper_vmax_bits=None #Speed in bit per second with gripper
+        #speed parameter at 255
+        self._gripper_vmin_bits=None #Speed in bit per second with gripper
+        #speed parameter at 0
+
+        #Last direction of movement of the gripper.
+        # 1 if closing, -1 if opening, 0 if unknown
+        self._lastMoveDirection = 0
+        self._lastMoveTime = None
+
+        #Force/speed baselines used by pushPullMove() to decide whether a
+        #change is significant enough to retry the grip while an object
+        #is latched. None means "not currently tracking a latch episode".
+        self._pushPullNudgeForceBaseline = None
+        self._pushPullNudgeSpeedBaseline = None
+
+        #Ramping force target tracked by pushPullMove(), independent of
+        #_commandHistory so it keeps accumulating every tick even while a
+        #send is being withheld pending the nudge threshold.
+        self._pushPullForceCommand = None
 
         #Initialisation
         ###############
@@ -180,7 +196,7 @@ class RobotiqGripper( ):
         self.readStatus()
 
     ####################################################
-    ### PRIVATE FUCNTIONS
+    ### PRIVATE FUNCTIONS
     ###################################################
     
     #SETUP FUNCTIONS
@@ -293,7 +309,7 @@ class RobotiqGripper( ):
                 stopbits=1,
                 bytesize=8,
                 timeout=1)
-    
+
     def _autoConnect(self):
         """Automatically detect the COM port to which the gripper is connected.
 
@@ -321,7 +337,7 @@ class RobotiqGripper( ):
             p = multiprocessing.Process(
                 target=self._probe_port_process,
                 args=(port.device, self.device_id, return_dict)
-            )
+                )
 
             p.start()
             p.join(3.0)  # HARD TIMEOUT (1 second)
@@ -350,17 +366,181 @@ class RobotiqGripper( ):
             f"{', '.join([p.device for p in serial.tools.list_ports.comports()])}. "
             f"Please check: 1) Gripper is powered, 2) USB cable connected, "
             f"3) Device ID matches (expected {self.device_id})"
-            )
+        )
 
     #COMMUNICATION FUNCTIONS
+
+    #Write only: Modbus function code 16 (Write multiple registers)
+
+    def _writeA(self, rARD, rATR, rGTO, rACT):
+        """Write activation and action control parameters. "A" means Action.
+
+        Args:
+            rARD (int): Automatic release status
+                0: Closing auto-release
+                1: Opening auto-release
+            rATR (int): Automatic release type
+                0: Normal
+                1: Emergency auto-release
+            rGTO (int): Go-to action command.
+                0: Stop
+                1: Go to requested position
+            rACT (int): Activation command.
+                0: Deactivate gripper
+                1: Activate gripper (must stay on until routine completes)
+        """
+        action = (rARD << 13) | (rATR << 12) | (rGTO << 11) | rACT<<8
+
+        res=self._client.write_registers(address=1000,
+                                         values=[action],
+                                         device_id=self.device_id)
+        
+        # Check result
+        if res.isError():
+            raise GripperCommunicationError("Write failed")
+        
+        t=floor_to_ms(time.monotonic())
+        command={"time":t,"rARD":rARD,"rATR":rATR,"rGTO":rGTO,"rACT":rACT}
+
+        self._completeAndSaveCommand(command)
+
+    def _writeP(self,position):
+        """Write position in the command register.
+
+        Args:
+            position (int):
+                The position to move the gripper to in bits. Integer between 0 and 255.
+        """
+        res=self._client.write_registers(address=1001,
+                                 values=[position],
+                                 device_id=self.device_id)
+
+        # Check result
+        if res.isError():
+            raise GripperCommunicationError("Write failed")
+        t=floor_to_ms(time.monotonic())
+        command={"time":t,"rPR":position}
+
+        self._completeAndSaveCommand(command)
+    
+    def _writeSF(self,speed, force):
+        """Write speed and force in the command register.
+
+        Args:
+            speed (int):
+                The speed of the gripper movement. Integer between 0 and 255.
+            force (int):
+                The force of the gripper movement. Integer between 0 and 255.
+        """
+        res=self._client.write_registers(address=1002,
+                                 values=[(speed << 8) | force],
+                                  device_id=self.device_id)
+
+        # Check result
+        if res.isError():
+            raise GripperCommunicationError("Write failed")
+        t=floor_to_ms(time.monotonic())
+        command={"time":t,"rSP":speed,"rFR":force}
+
+        self._completeAndSaveCommand(command)
+
+    def _writePSF(self,position, speed, force):
+        """Write position, speed and force in the command register.
+
+        Args:
+            position (int):
+                The position to move the gripper to in bits. Integer between 0 and 255.
+            speed (int):
+                The speed of the gripper movement. Integer between 0 and 255.
+            force (int):
+                The force of the gripper movement. Integer between 0 and 255.
+        """
+        res=self._client.write_registers(address=1001,
+                                 values=[position, (speed << 8) | force],
+                                  device_id=self.device_id)
+
+        # Check result
+        if res.isError():
+            raise GripperCommunicationError("Write failed")
+        t=floor_to_ms(time.monotonic())
+        command={"time":t,"rPR":position, "rSP":speed,"rFR":force}
+
+        self._completeAndSaveCommand(command)
+    
+    def _writeAPSF(self, rARD, rATR, rGTO, rACT, position, speed, force):
+        """Write Action Position Speed Force in the command register.
+
+        Args:
+            rARD (int): Automatic release status
+                0: Closing auto-release
+                1: Opening auto-release
+            rATR (int): Automatic release type
+                0: Normal
+                1: Emergency auto-release
+            rGTO (int): Go-to action command.
+                0: Stop
+                1: Go to requested position
+            rACT (int): Activation command.
+                0: Deactivate gripper
+                1: Activate gripper (must stay on until routine completes)
+            position (int):
+                The position to move the gripper to in bits. Integer between 0 and 255.
+            speed (int):
+                The speed of the gripper movement. Integer between 0 and 255.
+            force (int):
+                The force of the gripper movement. Integer between 0 and 255.
+        """
+        action = (rARD << 13) | (rATR << 12) | (rGTO << 11) | rACT<<8
+
+        res=self._client.write_registers(address=1000,
+                                         values=[action,
+                                                 position,
+                                                 (speed << 8) | force],
+                                         device_id=self.device_id)
+        
+        # Check result
+        if res.isError():
+            raise GripperCommunicationError("Write failed")
+        
+        t=floor_to_ms(time.monotonic())
+
+        command={"time":t,"rARD":rARD,"rATR":rATR,"rGTO":rGTO,"rACT":rACT,"rPR":position,"rSP":speed,"rFR":force}
+
+        self._completeAndSaveCommand(command)
+
+    #Read and write: Modbus function code 23 (Read/Write multiple registers)
+
+    def _writeAreadStatus(self, rARD, rATR, rGTO, rACT):
+        """Write action parameters in the command register and read the gripper
+        status in a single Modbus transaction."""
+        
+        action = (rARD << 13) | (rATR << 12) | (rGTO << 11) | (rACT<<8)
+
+        result=self._client.readwrite_registers(read_address=2000,
+                                        read_count=3,
+                                        write_address=1000,
+                                        values=[action],
+                                        device_id=self.device_id)
+        
+        # Check result
+        if result.isError():
+            raise GripperCommunicationError("Write failed")
+
+        registers=result.registers
+        t=floor_to_ms(time.monotonic())
+
+        self._saveStatus(t,registers,readWrite=True)
+        command={"time":t,"rARD":rARD,"rATR":rATR,"rGTO":rGTO,"rACT":rACT}
+
+        self._completeAndSaveCommand(command)
+
     def _writePreadStatus(self,position):
         """Write position in the command register and read the gripper\
         status in a single Modbus transaction.
         
-        Parameters:
-        -----------
-        position: int
-            The position to move the gripper to in bits. Integer between 0 and 255.
+        Args:
+            position (int):
+                The position to move the gripper to in bits. Integer between 0 and 255.
         """
         result=self._client.readwrite_registers(read_address=2000,
                                         read_count=3,
@@ -379,21 +559,26 @@ class RobotiqGripper( ):
         """Write position, speed and force in the command register and read the gripper\
         status in a single Modbus transaction.
         
-        Parameters:
-        -----------
-        position: int
-            The position to move the gripper to in bits. Integer between 0 and 255.
-        speed: int
-            The speed of the gripper movement. Integer between 0 and 255.
-        force: int
-            The force of the gripper movement. Integer between 0 and 255.
+        Args:
+            position (int):
+                The position to move the gripper to in bits. Integer between 0 and 255.
+            speed (int):
+                The speed of the gripper movement. Integer between 0 and 255.
+            force (int):
+                The force of the gripper movement. Integer between 0 and 255.
         """
-        result=self._client.readwrite_registers(read_address=2000,
+        res=self._client.readwrite_registers(read_address=2000,
                                         read_count=3,
                                         write_address=1001,
-                                        values=[position, speed * 0b100000000 + force],
+                                        values=[position, (speed << 8) | force],
                                         device_id=self.device_id)
-        registers=result.registers
+
+        # Check result
+        if res.isError():
+            raise GripperCommunicationError("Write failed")
+        
+        registers=res.registers
+
         t=floor_to_ms(time.monotonic())
         self._saveStatus(t,registers,readWrite=True)
 
@@ -401,84 +586,72 @@ class RobotiqGripper( ):
         command={"time":t,"rPR":position, "rSP":speed,"rFR":force}
 
         self._completeAndSaveCommand(command)
-    
-    def _writePSF(self,position, speed, force):
-        """Write position, speed and force in the command register.
 
-        Parameters:
-        -----------
-        position: int
-            The position to move the gripper to in bits. Integer between 0 and 255.
-        speed: int
-            The speed of the gripper movement. Integer between 0 and 255.
-        force: int
-            The force of the gripper movement. Integer between 0 and 255.
+    def _writeAPSFreadStatus(self,rARD, rATR, rGTO, rACT, position, speed, force):
+        """Write Action Position Speed Force in the command register and read the gripper\
+        status in a single Modbus transaction.
+        
+        Args:
+            rARD (int): Automatic release status
+                0: Closing auto-release
+                1: Opening auto-release
+            rATR (int): Automatic release type
+                0: Normal
+                1: Emergency auto-release
+            rGTO (int): Go-to action command.
+                0: Stop
+                1: Go to requested position
+            rACT (int): Activation command.
+                0: Deactivate gripper
+                1: Activate gripper (must stay on until routine completes)
+            position (int):
+                The position to move the gripper to in bits. Integer between 0 and 255.
+            speed (int):
+                The speed of the gripper movement. Integer between 0 and 255.
+            force (int):
+                The force of the gripper movement. Integer between 0 and 255.
         """
-        res=self._client.write_registers(address=1001,
-                                 values=[position, speed * 0b100000000 + force],
-                                  device_id=self.device_id)
+        action = (rARD << 13) | (rATR << 12) | (rGTO << 11) | (rACT<<8)
 
-        # Check result
-        if res.isError():
-            raise GripperCommunicationError("Write failed")
-        t=floor_to_ms(time.monotonic())
-        command={"time":t,"rPR":position, "rSP":speed,"rFR":force}
-
-        self._completeAndSaveCommand(command)
-    
-    def _writeP(self,position):
-        """Write position in the command register.
-
-        Parameters:
-        -----------
-        position: int
-            The position to move the gripper to in bits. Integer between 0 and 255.
-        """
-        res=self._client.write_registers(address=1001,
-                                 values=[position],
-                                 device_id=self.device_id)
-
-        # Check result
-        if res.isError():
-            raise GripperCommunicationError("Write failed")
-        t=floor_to_ms(time.monotonic())
-        command={"rPR":position}
-
-        self._completeAndSaveCommand(command)
-    
-    def _writeSF(self,speed, force):
-        """Write speed and force in the command register.
-
-        Parameters:
-        -----------
-        speed: int
-            The speed of the gripper movement. Integer between 0 and 255.
-        force: int
-            The force of the gripper movement. Integer between 0 and 255.
-        """
-        res=self._client.write_registers(address=1002,
-                                 values=[speed * 0b100000000 + force],
-                                  device_id=self.device_id)
-
+        res=self._client.readwrite_registers(read_address = 2000,
+                                             read_count = 3,
+                                             write_address = 1000,
+                                             values = [action,
+                                                       position,
+                                                       speed << 8 | force],
+                                             device_id = self.device_id)
         # Check result
         if res.isError():
             raise GripperCommunicationError("Write failed")
         
-        t=floor_to_ms(time.monotonic())
-        command={"rSP":speed,"rFR":force}
+        t = floor_to_ms(time.monotonic())
+        registers = res.registers
+        self._saveStatus(t,registers,readWrite=True)
+
+        command={"time":t,
+                 "rARD":rARD,
+                 "rATR":rATR,
+                 "rGTO":rGTO,
+                 "rACT":rACT,
+                 "rPR":position,
+                 "rSP":speed,
+                 "rFR":force}
 
         self._completeAndSaveCommand(command)
-        
+ 
     #DATA SAVING FUNCTIONS
     def _saveStatus(self,t,statusRegisters,readWrite):
         """Save the gripper status register values in status history.
 
-        Parameters:
-        -----------
-        t:
-            Time of the status
-        statusRegisters :
-            Status register
+        Args:
+            t (float):
+                Time of the status is second
+            statusRegisters (int) :
+                Status registers
+            readWrite (boolean) :
+                Whether the status was read after a write command or not. This is
+                to manage the object detection status while is reset following read
+                write command.
         """
         #########################################
         #Register 2000
@@ -523,8 +696,6 @@ class RobotiqGripper( ):
         #if gFLT in [5,9]:
         #    warnings.warn(REGISTER_DIC["gFLT"][9],UserWarning, stacklevel=2)
 
-        
-        
         #########################################
         #Second Byte: Pos request echo
         posRequestEchoReg3=statusRegisters[1] & 0b11111111 #00000000xxxxxxxx
@@ -553,6 +724,15 @@ class RobotiqGripper( ):
 
         self._statusHistory[:-1,:]=self._statusHistory[1:,:]
         self._statusHistory[-1,:]=[t,gOBJ,gSTA,gGTO,gACT,kFLT,gFLT,gPR,gPO,gCU]
+
+        #Save last move time and direction
+        pastPosition = self._statusHistory[-2,GPO]
+        currentPosition = self._statusHistory[-1,GPO]
+
+        if pastPosition != currentPosition:
+            self._lastMoveTime = t
+            self._lastMoveDirection= np.sign(currentPosition-pastPosition)
+        
   
     def _completeAndSaveCommand(self,command):
         """Complete a partial command dictionary and save it to history.
@@ -573,11 +753,11 @@ class RobotiqGripper( ):
                                     command["rPR"],
                                     command["rSP"],
                                     command["rFR"]]
-
+    
     #DATA PROCESSING FUNCTIONS
 
     def _mmToBit(self,mm):
-        """Convert a mm gripper opening in bit opening.
+        """Convert a mm gripper opening into gripper position paramter bit value
 
         .. note::
             Calibration is needed to use this function.\n
@@ -594,9 +774,9 @@ class RobotiqGripper( ):
             bit=0
         
         return bit
-        
+    
     def _bitTomm(self,bit):
-        """Convert a bit gripper opening in mm opening.
+        """Convert gripper actual position out parameter in mm opening.
 
         Returns:
         --------
@@ -958,7 +1138,7 @@ class RobotiqGripper( ):
         if "time" not in command.keys():
             raise GripperValidationError("Time is required to complete the command record.")
 
-        for key in ["rPR", "rSP", "rFR"]:
+        for key in ["rARD", "rATR", "rGTO", "rACT", "rPR", "rSP", "rFR"]:
             if key not in command.keys():
                 arrayID=COMMAND_HISTORY_COLUMNS_NAME_2_ID[key]
                 command[key] = self._commandHistory[-1, arrayID]
@@ -979,11 +1159,12 @@ class RobotiqGripper( ):
         while gOBJ == GOBJ_IN_MOTION and (time.time() - startTime) < self.timeOut:
             self.readStatus()
             gOBJ=self._statusHistory[-1,GOBJ]
-
+            
     ####################################################
     ### PUBLIC FUCNTIONS
     ###################################################
-    #SETUP
+    # SETUP
+    
     def connect(self):
         """Connect to the gripper. If the connection is already established, do nothing.
         """
@@ -1085,7 +1266,7 @@ class RobotiqGripper( ):
             if res is not None and res.isError():
                 raise GripperCommunicationError("Failed to write register")
     
-    def start(self,refreshStatus=True):
+    def start(self,refreshStatus=True,readStatus=True):
         """Start the gripper motion.
 
         The GTO bit is set to 1. The gripper will move to the position command
@@ -1097,34 +1278,60 @@ class RobotiqGripper( ):
                 if the gripper is already started. Setting this parameter to
                 False can make the start process faster if you are sure the
                 gripper status is up to date.
+            readStatus (bool): Whether to read the gripper status while sending
+                the start command.
         """
-        t=floor_to_ms(time.monotonic())
-        command={"time":t,
-                 "rARD":0,
-                 "rATR":0,
-                 "rGTO":RGTO_GO_TO_REQUESTED_POSITION
-                 }
+        rARD=0
+        rATR=0
+        rGTO=RGTO_GO_TO_REQUESTED_POSITION
+        rATC=0
         if not self.isStarted(refreshStatus=refreshStatus):
             if self.isActivated(refreshStatus=refreshStatus):
-                res=self._client.write_registers(1000,[0b0000100100000000],device_id=self.device_id)
-                command["rACT"]=RACT_ACTIVATE
-                if res.isError():
-                    raise GripperCommunicationError("Communication to set rGTO bit failed")
+                rATC=1
+                if readStatus:
+                    self._writeAreadStatus(rARD=rARD,
+                                           rATR=rATR,
+                                           rGTO=rGTO,
+                                           rACT=rATC
+                                           )
+                else:
+                    self._writeA(rARD=rARD,
+                                rATR=rATR,
+                                rGTO=rGTO,
+                                rACT=rATC
+                                )
             else:
-                res=self._client.write_registers(1000,[0b0000100000000000],device_id=self.device_id)
-                command["rACT"]=RACT_DESACTIVATE
-                if res.isError():
-                    raise GripperCommunicationError("Communication to set rGTO bit failed")
-            self._completeAndSaveCommand(command)
-            self.readStatus()
+                rATC=0
+                if readStatus:
+                    self._writeAreadStatus(rARD=rARD,
+                                           rATR=rATR,
+                                           rGTO=rGTO,
+                                           rACT=rATC
+                                           )
+                else:
+                    
+                    self._writeA(rARD=rARD,
+                                rATR=rATR,
+                                rGTO=rGTO,
+                                rACT=rATC
+                                )
     
-    def stop(self):
+    def stop(self,refreshStatus=True,readStatus=True):
         """Gripper stop moving. GTO bit is set to 0 but the position command is not
-        changed. The gripper will stop at its current position and hold it."""
-        if self.isActivated:
-            self._client.write_registers(1000,[0b0000000100000000,0,0],device_id=self.device_id)
+        changed. The gripper will stop at its current position and hold it.
+
+        Args:
+            refreshStatus (bool, optional): Whether to refresh the gripper status before
+                deciding whether to preserve the activation bit. Defaults to True.
+            readStatus (bool, optional): If True, read fresh gripper status in the same
+                Modbus transaction as the stop write (function code 23). If False, only
+                the stop is written (function code 16). Defaults to True.
+        """
+        rACT = RACT_ACTIVATE if self.isActivated(refreshStatus=refreshStatus) else RACT_DESACTIVATE
+        if readStatus:
+            self._writeAreadStatus(rARD=0, rATR=0, rGTO=RGTO_STOP, rACT=rACT)
         else:
-            self._client.write_registers(1000,[0b0000000000000000,0,0],device_id=self.device_id)
+            self._writeA(rARD=0, rATR=0, rGTO=RGTO_STOP, rACT=rACT)
     
     def calibrate_bit(self,
                       openbit=None,
@@ -1161,7 +1368,7 @@ class RobotiqGripper( ):
         
         self._is_bit_calibrated =True
 
-    def calibrate_speed(self,minSpeedClosingTime=None,maxSpeedClosingTime=None):
+    def calibrate_speed(self, minSpeedClosingTime: Optional[float]=None, maxSpeedClosingTime: Optional[float]=None):
         """Calibrate gripper speed to estimate gripper position over time.
 
         If no parameters are provided, the gripper will perform a full-speed
@@ -1231,8 +1438,9 @@ class RobotiqGripper( ):
         self._bCoef=(openmm*self._closebit-self._openbit*closemm)/(self._closebit-self._openbit)
 
         self._is_mm_calibrated=True
-
+    
     #ACTIONS
+    
     def open(self,speed=255,force=255,wait=True,readStatus=True,refreshStatus=False):
         """Open the gripper.
 
@@ -1252,7 +1460,7 @@ class RobotiqGripper( ):
         #Check if the gripper is activated
         self.move(0,speed,force,wait=wait,readStatus=readStatus,refreshStatus=refreshStatus)
     
-    def close(self,speed=255,force=255,wait=True,readStatus=True,refreshStatus=False):
+    def close(self,speed=255,force=255,wait=True,readStatus=True,refreshStatus=False, start =False):
         """Close the gripper.
 
         Args:
@@ -1267,10 +1475,14 @@ class RobotiqGripper( ):
                 if the gripper is already activated. Setting this parameter to False
                 can make the command process faster if the gripper status is up to date.
                 Defaults to False.
+            start (bool, optional): If True, the activation and go-to bits are combined
+                with this move in a single Modbus transaction instead of requiring a
+                separate start() call first. The gripper must already be activated
+                (activate() called at least once). Defaults to False.
         """
-        self.move(255,speed,force,wait=wait,readStatus=readStatus,refreshStatus=refreshStatus)
+        self.move(255,speed,force,wait=wait,readStatus=readStatus,refreshStatus=refreshStatus,start=start)
     
-    def move(self,position,speed=255,force=255,wait=True,readStatus=True,refreshStatus=False):
+    def move(self,position,speed=255,force=255,wait=True,readStatus=True,refreshStatus=False,start=False):
         """Move gripper fingers to the requested position with specified speed and force.
 
         Args:
@@ -1287,10 +1499,20 @@ class RobotiqGripper( ):
                 if the gripper is already activated. Setting this parameter to False
                 can make the command process faster if the gripper status is up to date.
                 Defaults to False.
+            start (bool, optional): If True, the activation and go-to bits are combined
+                with this move in a single Modbus transaction instead of requiring a
+                separate start() call first. The gripper must already be activated
+                (activate() called at least once). Defaults to False.
+
+        Examples:
+            Combine start() and move() in a single Modbus transaction:
+
+            >>> gripper.activate()
+            >>> gripper.move(200, speed=150, force=100, start=True)
         """
         if refreshStatus:
             self.readStatus()
-        
+
         speed_value=0
         if speed is None:
             if self.speed() is not None:
@@ -1299,7 +1521,7 @@ class RobotiqGripper( ):
                 speed_value = 0
         else:
             speed_value = speed
-        
+
         force_value=0
         if force is None:
             if self.force() is not None:
@@ -1308,25 +1530,47 @@ class RobotiqGripper( ):
                 force_value = 0
         else:
             force_value = force
-        
+
         #Check if the gripper is activated
-        if not self.isActivated(refreshStatus=False):
-            print("Status history:")
-            print(self._statusHistory)
+        if not start:
+            if not self.isActivated(refreshStatus=False):
+                raise GripperNotActivatedError()
+            if not self.isStarted(refreshStatus=False):
+                raise GripperNotStartedError()
+        elif not self.isActivated(refreshStatus=False):
             raise GripperNotActivatedError()
-        if not self.isStarted(refreshStatus=False):
-            raise GripperNotStartedError()
+        
         #Check input value
         if position>255 or position<0:
             raise GripperPositionError(position)
-        
+
         position=int(position)
 
-        if (speed is None) and (force is None):
+        if start:
+            speed_value=int(speed_value)
+            force_value=int(force_value)
+            if readStatus:
+                self._writeAPSFreadStatus(rARD=0,
+                                          rATR=0,
+                                          rGTO=RGTO_GO_TO_REQUESTED_POSITION,
+                                          rACT=RACT_ACTIVATE,
+                                          position=position,
+                                          speed=speed_value,
+                                          force=force_value)
+            else:
+                self._writeAPSF(rARD=0,
+                                rATR=0,
+                                rGTO=RGTO_GO_TO_REQUESTED_POSITION,
+                                rACT=RACT_ACTIVATE,
+                                position=position,
+                                speed=speed_value,
+                                force=force_value)
+        elif (speed is None) and (force is None):
             if readStatus:
                 self._writePreadStatus(position)
             else:
                 self._writeP(position)
+
         else:
             speed_value=int(speed_value)
             force_value=int(force_value)
@@ -1334,7 +1578,7 @@ class RobotiqGripper( ):
                 self._writePSFreadStatus(position,speed_value,force_value)
             else:
                 self._writePSF(position,speed_value,force_value)
-        
+
         self._processing=True
         if wait:
             self._waitComplete()
@@ -1380,7 +1624,7 @@ class RobotiqGripper( ):
                      continuousGrip=True,
                      autoLock=True,
                      minimalMotion=2,
-                     verbose=False,
+                     verbose=0,
                      objectDetectionDuration=0.5):
         """Move the gripper in real time to the requested position.
 
@@ -1451,7 +1695,320 @@ class RobotiqGripper( ):
         else:
             warnings.warn("No command executed",UserWarning, stacklevel=2)
 
+    def moveToCurrentPosition(self, speed = None, force = None):
+        """Move the gripper to its current position. This has the effect to stop
+        the gripper while keeping it started.
+        It is more flexible than jsut stopping the gripper.
+        
+        args:
+        
+            speed (int):
+                Gripper speed parameter value to move to current position
+            force (int):
+                Gripper force parameter value to move to current position
+        """
+        
+        #Stop the gripper
+        self.stop(readStatus=False)
+
+        #Position command
+        #The position command is set to fresh gripper position value
+        positionCommand = self.position(refreshStatus=True)
+        
+        #Speed command
+        speedCommand = 0
+        if speed is None:
+            speedCommand = self.speed()
+        else:
+            speedCommand = speed
+        
+        forceCommand = 0
+        if force is None:
+            forceCommand = self.force()
+        else:
+            forceCommand = force
+
+        self.move(positionCommand,
+                  speedCommand,
+                  forceCommand,
+                  start=True,
+                  wait=False)
+        
+        if not self.isStarted():
+            print("speed: ",speed)
+            print("force: ",force)
+            raise GripperNotStartedError()
+
+    def pushPullMove(self,
+                     pushPullMotionSignal,
+                     pushPullForceSignal=0,
+                     forceNudgeThreshold=20,
+                     speedNudgeThreshold=20,
+                     verbose=0):
+        """Move the gripper using a push-pull motion signal and a force signal.
+
+        Meant to be called at high frequency (e.g. 100 Hz) from a non-blocking
+        control loop, e.g. driven by a joystick. Each call checks the gripper's
+        current object-detection state (gOBJ) and decides what to send:
+
+        - If the gripper is free (gOBJ == GOBJ_IN_MOTION), the motion and force
+          signals apply directly and immediately.
+        - Otherwise (an object is detected, or the gripper stopped/gave up),
+          the firmware ignores a move() whose target position is unchanged, so
+          speed/force changes normally have no effect. To make a change stick
+          without repeatedly driving the fingers into the obstruction, this
+          only retries (stop() then move(..., start=True), forcing a genuine
+          GTO 0->1 transition) once the requested force or speed has increased
+          by at least forceNudgeThreshold/speedNudgeThreshold since the last
+          retry. Reversing direction instead sends a different target directly,
+          which wakes the firmware on its own without needing a retry.
+
+        Args:
+            pushPullMotionSignal (float): Number in the range [-1, 1]. Positive
+                closes the gripper, negative opens it, 0 holds the current
+                position. Magnitude controls the commanded speed.
+            pushPullForceSignal (float, optional): Number in the range [-1, 1]
+                controlling grip force. Ramps the commanded force up or down
+                gradually across calls (like a trigger squeeze) rather than
+                mapping directly to a value; exactly -1 or 1 jumps straight to
+                0 or 255. Defaults to 0.
+            forceNudgeThreshold (int, optional): Minimum increase in requested
+                force (0-255) needed to retry closing/opening while latched.
+                Defaults to 20.
+            speedNudgeThreshold (int, optional): Minimum increase in requested
+                speed (0-255) needed to retry closing/opening while latched.
+                Defaults to 20.
+            verbose (int, optional): Currently unused.
+        """
+        speedCommand = None
+        forceCommand = None
+        try:
+            # Get time
+            t = floor_to_ms(time.monotonic())
+
+            # retrieve object detection status
+            # We are forced to retriev the gripper status because we need to know if
+            # an object has been gripped to send the proper control command.
+            
+            
+            #gOBJ = self.objectDetection(refreshStatus=False)
+            
+            gOBJ = self.objectDetection(refreshStatus=False)
+            
+            #print("Estimated gOBJ: ",gOBJ)
+            #sprint(REGISTER_DIC["gOBJ"][gOBJ])
+            # 1- Convert input signal into register command value
+            #####################################################
+
+            # a) Speed register command value
+            #----------------------------
+
+            #Conditionning of the push pull signal to be between -1 and 1
+            pushPullMotionSignal = max(-1.0, min(1.0, pushPullMotionSignal))
+            
+            # speedCommand = -1 Means that the gripper has to be holded at its
+            # current position by stopping the gripper setting the target position
+            # equal to the current position and starting the gripper again
+            speedCommand = int(min(abs (pushPullMotionSignal * 256),256) - 1)
+
+            directionCommand = np.sign(pushPullMotionSignal)
+
+
+            # b) Force register command value
+            #----------------------------
+
+            #Conditionning of the force signal to be between -1 and 1
+            pushPullForceSignal = max(-1.0, min(1.0, pushPullForceSignal))
+            
+            
+            #calculate force value from force signal.
+            lastForce = self._pushPullForceCommand
+            if lastForce is None or lastForce < 0:
+                lastForce = 0
+
+            #The force variation speed depends on the pushPullForce Signal
+            forceVariation = 0
+            if (pushPullForceSignal == -1) or (pushPullForceSignal == 1):
+                forceVariation = np.sign(pushPullForceSignal) * 255
+            else:
+                forceVariation = pushPullForceSignal * 10
+
+            forceCommand = int(max(0,min(255,(lastForce + forceVariation))))
+            self._pushPullForceCommand = forceCommand
+
+            # c) Position register command value
+            #----------------------------
+            positionCommand = None
+
+            # 3-Control logic
+            #################
+
+            # speedCommand = -1 Means that no motion is requested
+
+            if (gOBJ == GOBJ_IN_MOTION):
+                #Not latched: reset the nudge baselines so the next latch
+                #episode starts fresh from whatever is being requested right
+                #now, rather than comparing against a stale value from a
+                #previous latch.
+                self._pushPullNudgeForceBaseline = forceCommand
+                self._pushPullNudgeSpeedBaseline = speedCommand
+                if speedCommand < 0:
+                    #No motion requested
+                    self.moveToCurrentPosition(0,forceCommand)
+                    positionCommand = self.position(refreshStatus=False)
+                    return
+                else:
+                    if directionCommand >= 0:
+                        positionCommand = 255
+                    else:
+                        positionCommand = 0
+                    self.move(positionCommand,speedCommand,forceCommand,wait=False)
+                    return
+
+            elif (gOBJ == GOBJ_AT_POSITION):
+                if speedCommand < 0:
+                    #No motion requested
+                    #The gripper is already stopped so we just same the force parameter
+                    positionCommand = self.position(refreshStatus=False)
+                    self.move(positionCommand,0,forceCommand,wait=False,start=True)
+                    return
+                else:
+                    if directionCommand >= 0:
+                        positionCommand = 255
+                    else:
+                        positionCommand = 0
+                    self.move(positionCommand,speedCommand,forceCommand,wait=False,start=True)
+                    return
+            elif (gOBJ == GOBJ_DETECTED_WHILE_CLOSING): #2
+                if speedCommand < 0:
+                    
+                    # No motion requested
+                    # The gripper is stopped if force is 0 are continuously closing if force >0
+                    if self._pushPullNudgeForceBaseline is None:
+                        self._pushPullNudgeForceBaseline = forceCommand
+                    forceCommandDelta = forceCommand - self._pushPullNudgeForceBaseline
+                    if (forceCommandDelta > forceNudgeThreshold) or ((forceCommand == 255) and (self._pushPullNudgeForceBaseline!=255)):
+                        #Reset object detection status and set new force parameter
+                        self._pushPullNudgeForceBaseline = forceCommand
+                        self.stop()
+                        if directionCommand >= 0:
+                            positionCommand = 255
+                        else:
+                            positionCommand = 0
+
+                        self.move(positionCommand,0,forceCommand,wait=False,start=True)
+                        return
+                    else:
+                        return
+                else:
+                    if directionCommand < 0:
+                        positionCommand = 0
+                        self.move(positionCommand,speedCommand,forceCommand,wait=False)
+                        return
+                    else:
+                        if self._pushPullNudgeSpeedBaseline is None:
+                            self._pushPullNudgeSpeedBaseline = speedCommand
+                        if self._pushPullNudgeForceBaseline is None:
+                            self._pushPullNudgeForceBaseline = forceCommand
+
+                        speedCommandDelta = speedCommand - self._pushPullNudgeSpeedBaseline
+                        forceCommandDelta = forceCommand - self._pushPullNudgeForceBaseline
+
+                        if ((speedCommandDelta > speedNudgeThreshold) or (forceCommandDelta > forceNudgeThreshold)
+                                or ((forceCommand == 255) and (self._pushPullNudgeForceBaseline != 255))
+                                or ((speedCommand == 255) and (self._pushPullNudgeSpeedBaseline != 255))):
+                            self._pushPullNudgeSpeedBaseline = speedCommand
+                            self._pushPullNudgeForceBaseline = forceCommand
+                            if (directionCommand > 0):
+                                self.stop()
+                                positionCommand = 255
+
+                                self.move(positionCommand,speedCommand,forceCommand,wait=False,start=True)
+                                return
+                            else:
+                                positionCommand = 0
+                                self.move(positionCommand,speedCommand,forceCommand,wait=False)
+                                return
+
+                        else:
+                            return
+
+            elif (gOBJ == GOBJ_DETECTED_WHILE_OPENING):
+                if speedCommand < 0:
+                    # No motion requested
+                    # The gripper is stopped if force is 0 are continuously closing if force >0
+                    if self._pushPullNudgeForceBaseline is None:
+                        self._pushPullNudgeForceBaseline = forceCommand
+                    forceCommandDelta = forceCommand - self._pushPullNudgeForceBaseline
+                    if (forceCommandDelta > forceNudgeThreshold) or ((forceCommand == 255) and (self._pushPullNudgeForceBaseline!=255)):
+                        #Reset object detection status and set new force parameter
+                        self._pushPullNudgeForceBaseline = forceCommand
+                        self.stop()
+                        if directionCommand >= 0:
+                            positionCommand = 255
+                        else:
+                            positionCommand = 0
+                        self.move(positionCommand,0,forceCommand,wait=False,start=True)
+                        return
+                    else:
+                        return
+                
+                
+                else:
+                    if directionCommand > 0:
+                        positionCommand = 255
+                        self.move(positionCommand,speedCommand,forceCommand,wait=False)
+                        return
+                    else:
+                        
+                        if self._pushPullNudgeSpeedBaseline is None:
+                            self._pushPullNudgeSpeedBaseline = speedCommand
+                        if self._pushPullNudgeForceBaseline is None:
+                            self._pushPullNudgeForceBaseline = forceCommand
+
+                        speedCommandDelta = speedCommand - self._pushPullNudgeSpeedBaseline
+                        forceCommandDelta = forceCommand - self._pushPullNudgeForceBaseline
+
+                        if ((speedCommandDelta > speedNudgeThreshold) or (forceCommandDelta > forceNudgeThreshold)
+                                or ((forceCommand == 255) and (self._pushPullNudgeForceBaseline != 255))
+                                or ((speedCommand == 255) and (self._pushPullNudgeSpeedBaseline != 255))):
+                            self._pushPullNudgeSpeedBaseline = speedCommand
+                            self._pushPullNudgeForceBaseline = forceCommand
+                            if (directionCommand < 0):
+                                self.stop()
+                                positionCommand = 0
+
+                                self.move(positionCommand,speedCommand,forceCommand,wait=False,start=True)
+                                return
+                            else:
+                                positionCommand = 255
+                                self.move(positionCommand,speedCommand,forceCommand,wait=False)
+                                return
+                        else:
+                            return
+        finally:
+            if verbose == 1:
+                # Print of deburg
+                history=self._mergeHistory()
+                print(" rGTO : ",history[-1,RGTO],
+                    " gOBJ :",history[-1,M_GOBJ],
+                    " rPR :",history[-1,RPR],
+                    " gPO : ",history[-1,M_GPO],
+                    " rFR : ",history[-1,RFR],
+                    " rSPR : ",history[-1,RSP],
+                    " Sc : ",speedCommand,
+                    " Fc : ",forceCommand,
+                    " real_gGTO : ",self._statusHistory[-1,GGTO],
+                    " real_gOBJ : ",self._statusHistory[-1,GOBJ],
+
+                    )
+
+
+
+
+
     #STATUS
+
     def isActivated(self, refreshStatus=True):
         """Check whether the gripper is activated.
 
@@ -1463,15 +2020,19 @@ class RobotiqGripper( ):
                 Defaults to True.
 
         Returns:
-            bool: True if the gripper is activated, False otherwise.
+            bool: True if the gripper is activated, False if not activated,
+            None if there is no available information to confirm gripper activation status
         """
         if refreshStatus:
             self.readStatus()
         gSTA = self._statusHistory[-1,GSTA]
 
+        res=None
+
         if gSTA == -1:
             warnings.warn("Status history is empty. Activation status unknown.",UserWarning, stacklevel=2)
             res=None
+            return res
 
         res=False
         if gSTA == GSTA_ACTIVATED:
@@ -1485,25 +2046,41 @@ class RobotiqGripper( ):
         """Check whether the gripper is started.
 
         Returns:
-            bool: True if the gripper is started, False otherwise.
+            bool: True if the gripper is started, False if not started, None
+            is there is not enough information to confirm if the gripper is started.
         """
         if refreshStatus:
             self.readStatus()
+        
+        rGTO=self._commandHistory[-1,RGTO]
         gGTO=self._statusHistory[-1,GGTO]
 
-        if gGTO == -1:
+        lastCommandTime = self._commandHistory[-1,TIME]
+        lastStatusTime = self._statusHistory[-1,TIME]
+
+        res=None
+
+        if (gGTO == -1) and (rGTO == -1):
             warnings.warn("Status history is empty. Action status unknown.",UserWarning, stacklevel=2)
-            print(self.statusHistory())
-            return None
+            res = None
+            return res
         
         res=False
-        if gGTO == GGTO_GO_TO_REQUESTED_POSITION:
-            res=True
+        if lastCommandTime > lastStatusTime:
+            if rGTO == RGTO_GO_TO_REQUESTED_POSITION:
+                res=True
+        elif lastCommandTime < lastStatusTime:
+            if gGTO == GGTO_GO_TO_REQUESTED_POSITION:
+                res=True
+        else:
+            if (gGTO == GGTO_GO_TO_REQUESTED_POSITION) or (rGTO == RGTO_GO_TO_REQUESTED_POSITION):
+                res = True
         
         return res
     
     def is_bit_calibrated(self):
-        """Check whether the gripper is bit calibrated.
+        """Check whether the gripper is bit calibrated (ie. the gripper know
+        its position in bit when fully open and fully closed).
 
         Returns:
             bool: True if the gripper is bit calibrated, False otherwise.
@@ -1517,6 +2094,27 @@ class RobotiqGripper( ):
             bool: True if the gripper is mm calibrated, False otherwise.
         """
         return self._is_mm_calibrated
+
+    def positioningResolution(self):
+        """Return the gripper positionning resolution in mm/bit. The number of
+        mm the gripper will move if its position parameter vary of 1 bit.
+        """
+        if not self.is_mm_calibrated():
+            raise GripperCalibrationError("The gripper is not mm calibrated")
+        return abs(self._aCoef)
+
+    def speedResolutionBit(self):
+        """Return the speed resultion in gripper position bit/s per gripper
+        speed bit. Correspond to the speed increase if speed parameter vary of
+        1 bit.
+        """
+        return (self.gripper_vmax_bits() - self.gripper_vmin_bits())/255
+    
+    def speedResultionMm(self):
+        """Return the speed resultion in mm/s per bit. This correspond the 
+        speed increase in mm/s if the speed parameter vary of 1 bit
+        """
+        return self.speedResolutionBit() * self.positioningResolution()
 
     def is_speed_calibrated(self):
         """Check whether the gripper speed calibration is done.
@@ -1547,7 +2145,23 @@ class RobotiqGripper( ):
             raise GripperCalibrationError("The gripper is not speed calibrated")
         return self._gripper_vmin_bits
     
-    def positionCommand(self):
+    def open_mm(self):
+        """Return distance between fingers in open position
+        """
+        if not self.is_mm_calibrated():
+            raise GripperCalibrationError("The gripper is not mm calibrated")
+        
+        return self._openmm()
+    
+    def close_mm(self):
+        """Return distance between fingers in open position
+        """
+        if not self.is_mm_calibrated():
+            raise GripperCalibrationError("The gripper is not mm calibrated")
+        
+        return self._closemm
+    
+    def lastPositionCommand(self):
         """Return the last commanded position value.
 
         Returns:
@@ -1602,7 +2216,7 @@ class RobotiqGripper( ):
         return res
 
     def speed(self):
-        """Return the last set speed value.
+        """Return the last set speed parameter value.
 
         Returns:
         --------
@@ -1610,25 +2224,40 @@ class RobotiqGripper( ):
             The last speed value set (0-255), or None if history is empty.
         """
         value=self._commandHistory[-1, RSP]
-        if value == -1:
+        if (value == -1) or (value is None):
             warnings.warn("Command history is empty. Last set speed is unknown.",UserWarning, stacklevel=2)
             return None
         return value
     
     def force(self):
-        """Return the last set force value.
+        """Return the last set force paramater value.
 
         Returns:
             int | None: The last force value set (0-255), or None if the history is empty.
         """
         value = self._commandHistory[-1, RFR]
-        if value == -1:
+        if (value == -1) or (value is None):
             warnings.warn("Command history is empty. Last set force is unknown.",UserWarning, stacklevel=2)
             return None
         return value
 
+    def maxSpeedMmSecond(self):
+        """Return the maximum gripper speed in mm/s
+        """
+        if not self.is_speed_calibrated():
+            raise GripperCalibrationError("The gripper is not speed calibrated")
+        return self.gripper_vmax_bits() * self.positioningResolution()
+
+    def minSpeedMmSecond(self):
+        """Return the minimum gripper speed in mm/s
+        """
+        if not self.is_speed_calibrated():
+            raise GripperCalibrationError("The gripper is not speed calibrated")
+        return self.gripper_vmin_bits() * self.positioningResolution()
+
     def objectDetection(self,mergedHistory=None, duration=0.5, tolerance=3, refreshStatus=True,verbose=0):
-        """Estimate object detection status from history data.
+        """Estimate object detection status from history data or gripper object
+        detection register.
 
         Args:
             mergedHistory (numpy.ndarray, optional): Pre-merged history array. If None,
@@ -1647,14 +2276,17 @@ class RobotiqGripper( ):
         Returns:
             int: Object detection status code.
         """
+        # If requested gOBJ is directly read from the status register.
+        # No estimation.
         if refreshStatus:
             self.readStatus()
             return self._statusHistory[-1,GOBJ]
         
+        #If there is a gOBJ retrieved more recently than lastWrite command, it is not worst it to
         if self._statusHistory[-1,TIME] > self._commandHistory[-1,TIME]:
             return self._statusHistory[-1,GOBJ]
 
-
+        #
         if not self.is_bit_calibrated():
             raise GripperCalibrationError("The gripper need to be bit calibrated to be able to estimate object detection.")
 
@@ -1667,75 +2299,51 @@ class RobotiqGripper( ):
             # If gOBJ is explicitly available from the gripper, use that value.
             return int(last_gOBJ)
 
-        # Filter for valid status rows (gPO and rPR are required for estimation).
-        valid_mask = (mergedHistory[:, M_GPO] != -1) & (mergedHistory[:, RPR] != -1)
-        if not np.any(valid_mask):
+        last_rPR = mergedHistory[-1, RPR]
+        # gPO is read straight from _statusHistory rather than the merged/
+        # filtered array: it's decoded unconditionally on every real status
+        # read (never wiped like gOBJ), so it's always trustworthy here and
+        # isn't at the mercy of whichever row the merge happened to keep last.
+        last_gPO = self._statusHistory[-1, GPO]
+
+        if last_rPR == -1 or last_gPO == -1:
             return GOBJ_IN_MOTION
 
-        time = mergedHistory[valid_mask, TIME]
-        rpr = mergedHistory[valid_mask, RPR]
-        gpo = mergedHistory[valid_mask, M_GPO]
+        now = mergedHistory[-1, TIME]
 
-        last_gPO = gpo[-1]
-
-        # If we have a recent request change, consider motion in progress first.
-        rpr_diff_idx = np.flatnonzero(rpr != rpr[-1])
-        if rpr_diff_idx.size > 0 and (time[-1] - time[rpr_diff_idx[-1]] <= duration):
+        # If the target changed recently, consider motion in progress first.
+        rpr_col = mergedHistory[:, RPR]
+        rpr_diff_idx = np.flatnonzero((rpr_col != -1) & (rpr_col != last_rPR))
+        if rpr_diff_idx.size > 0 and (now - mergedHistory[rpr_diff_idx[-1], TIME] <= duration):
             return GOBJ_IN_MOTION
 
-        # Detect object only after the gripper position has been stable long enough.
-        gpo_diff_idx = np.flatnonzero(gpo != last_gPO)
-        if gpo_diff_idx.size == 0:
-            # gPO constant on history window.
-            expected = rpr[-1]
-            expected = min(max(expected, self._openbit), self._closebit)
-
-            if abs(expected - last_gPO) < tolerance:
-                return GOBJ_AT_POSITION
-
-            dt_constant = time[-1] - time[0]
-            if dt_constant <= duration:
-                return GOBJ_IN_MOTION
-
-            if expected > last_gPO:
-                if verbose > 0:
-                    print(REGISTER_DIC["gOBJ"][GOBJ_DETECTED_WHILE_CLOSING])
-                    print(self.history())
-                return GOBJ_DETECTED_WHILE_CLOSING
-            elif expected < last_gPO:
-                if verbose > 0:
-                    print(REGISTER_DIC["gOBJ"][GOBJ_DETECTED_WHILE_OPENING])
-                    print(self.history())
-                return GOBJ_DETECTED_WHILE_OPENING
-            else:
-                return GOBJ_IN_MOTION
-
-        idx = gpo_diff_idx[-1]
-        dt = time[-1] - time[idx]
-        if dt <= duration:
+        # Detect object only after the gripper position has been stable long
+        # enough. lastMoveTime() is used instead of re-deriving "how long
+        # stable" from the span of the (filtered) merged-history window:
+        # that window can be silently truncated by command-only writes (e.g.
+        # moveToCurrentPosition()'s stop()), which previously made this
+        # estimate flip between IN_MOTION and AT_POSITION even while gPO/rPR
+        # never changed. lastMoveTime() only advances when gPO itself
+        # actually changes, so it isn't affected by that churn.
+        lastMoveTime = self.lastMoveTime()
+        if lastMoveTime is not None and (now - lastMoveTime) <= duration:
             return GOBJ_IN_MOTION
 
-        expected = rpr[-1]
-        expected = min(max(expected, self._openbit), self._closebit)
+        expected = min(max(last_rPR, self._openbit), self._closebit)
 
         if abs(expected - last_gPO) < tolerance:
             return GOBJ_AT_POSITION
-
-        rpr_slice = rpr[idx:]
-        gpo_slice = gpo[idx:]
-
-        if np.all(rpr_slice > gpo_slice):
+        elif expected > last_gPO:
             if verbose > 0:
                 print(REGISTER_DIC["gOBJ"][GOBJ_DETECTED_WHILE_CLOSING])
                 print(self.history())
             return GOBJ_DETECTED_WHILE_CLOSING
-
-        if np.all(rpr_slice < gpo_slice):
+        elif expected < last_gPO:
             if verbose > 0:
                 print(REGISTER_DIC["gOBJ"][GOBJ_DETECTED_WHILE_OPENING])
                 print(self.history())
             return GOBJ_DETECTED_WHILE_OPENING
-        
+
         return GOBJ_IN_MOTION
     
     def printObjectDetection(self,mergedHistory=None, duration=0.2, tolerance=3, refreshStatus=True):
@@ -1757,13 +2365,22 @@ class RobotiqGripper( ):
         df = pd.DataFrame(self._commandHistory, columns=columns)
         return df
 
+   #Read only: Modbus function code 4 (Read input registers)
     def readStatus(self):
         """Retrieve gripper output register information and save it in the status history.
         """
         #Read 3 16bits registers starting from register 2000
-        registers=self._client.read_input_registers(2000,count=3,device_id=self.device_id).registers
-        t=floor_to_ms(time.monotonic())
-        self._saveStatus(t,registers,readWrite=False)
+        res = self._client.read_input_registers(2000,
+                                                count=3,
+                                                device_id=self.device_id)
+        
+        # Check result
+        if res.isError():
+            raise GripperCommunicationError("Read failed")
+
+        registers=res.registers
+        t = floor_to_ms(time.monotonic())
+        self._saveStatus(t, registers, readWrite=False)
     
     def status(self, refreshStatus=True):
         """Return the current gripper status as a dictionary.
@@ -1874,9 +2491,9 @@ class RobotiqGripper( ):
     
     def history(self):
         """Return the merged command and status history as a pandas DataFrame.
-
-        This method combines the command history and status history into a single
-        DataFrame with all timestamps aligned.
+        The first line of the DataFrame corresponds to the odlest command or
+        status entry, the last line corresponds to the most recent command or
+        status entry.
 
         Returns:
             pd.DataFrame: A DataFrame containing the merged history with columns for
@@ -1884,6 +2501,25 @@ class RobotiqGripper( ):
         """
         pd = _get_pandas()
         mergedHistory = self._mergeHistory()
+        #Build column headers for the merged history DataFrame
         columns = [HISTORY_COLUMNS_ID_2_NAME[i] for i in range(mergedHistory.shape[1])]
         df = pd.DataFrame(mergedHistory, columns=columns)
         return df
+
+    def lastStatusReadTime(self):
+        t = self._statusHistory[-1,TIME]
+        return t
+
+    def lastMoveTime(self):
+        """ Return the time of gripper last move"""
+        return self._lastMoveTime
+    
+    def lastMoveDirection(self):
+        """ Return the last direction of movement of the gripper based gripper
+        position history
+
+        Returns:
+            int: Last direction of movement. 1 for closing, -1 for opening, 0 if unknown.
+        """
+
+        return self._lastMoveDirection

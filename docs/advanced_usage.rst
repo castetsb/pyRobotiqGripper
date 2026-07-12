@@ -19,6 +19,8 @@ control of the gripper.
 
 Joystick CLI Feature
 --------------------
+Position control
+^^^^^^^^^^^^^^^^
 
 pyRobotiqGripper includes a command-line interface (CLI) tool for controlling the \
 gripper using a joystick, gamepad or a mouse.
@@ -48,3 +50,36 @@ gripper communication is done via Modbus RTU over TCP.
 .. code-block:: bash
 
     pyrobotiqgripper-joystick --connection-type "RTU_VIA_TCP" --tcp-host 10.0.0.153 --tcp-port 2000 --joystick-id -1 --verbose 1
+
+Speed control (Push Pull control)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Push-pull control drives the gripper directly from two live input signals instead of a
+target position: a motion signal (open/close direction and speed) and a force signal
+(grip force), read at high frequency from a joystick, gamepad or mouse axis.
+
+To use it from the CLI, pass ``--control-method push-pull``:
+
+.. code-block:: bash
+
+    pyrobotiqgripper-joystick --control-method push-pull
+
+- The motion axis (``--motion-axis``) controls direction and speed: pushing it one way
+  closes the gripper, the other way opens it, and centered holds the current position.
+  Speed follows the axis directly.
+- The force axis (``--force-axis``) controls grip force. Force ramps up or down
+  gradually while the axis is held away from center, like squeezing a trigger, rather
+  than jumping straight to a value.
+- Once the gripper grips an object (or reaches its target), pushing further in the same
+  direction only re-engages the grip once the requested force or speed has increased
+  meaningfully (``--force-nudge-threshold`` / ``--speed-nudge-threshold``, out of 255),
+  so the fingers aren't repeatedly driven into the object on every control-loop tick.
+  Reversing direction releases immediately, without needing to cross either threshold.
+
+Use ``--joystick-id -1`` to control push-pull mode with the mouse instead of a
+joystick/gamepad; ``--deadzone`` then sets the mouse dead zone described above. Pass
+``--verbose 1`` to print the commanded speed/force/position on every call.
+
+.. code-block:: python
+
+    gripper.pushPullMove(pushPullMotionSignal=0.5, pushPullForceSignal=0.2)

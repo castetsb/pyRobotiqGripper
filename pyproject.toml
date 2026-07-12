@@ -1,7 +1,7 @@
 
 [project]
 name = "pyrobotiqgripper"
-version = "3.2.6"
+version = "3.2.7"
 authors = [{name="Benoit CASTETS", email = "opensourceeng@gmail.com"}]
 description = "Python Driver for Robotiq Grippers"
 readme = "README.rst"
@@ -17,6 +17,10 @@ dependencies = [
     "pymodbus>=3.12.1",
     "pyserial>=3.5",
     "numpy>=1.28",
+    "matplotlib>=3.10.9",
+    "pytest>=9.1.1",
+    "scipy>=1.15.3",
+    "asciichartpy>=1.5.25",
 ]
 
 [project.optional-dependencies]
@@ -29,7 +33,7 @@ dev = [
 
 all = [
     "pandas>=1.5",
-    "pygame>=2.5.2",
+    "pygame-ce>=2.5.2",
     "pynput>=1.7.6",
     "pyautogui>=0.9.54",
 ]

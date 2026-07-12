@@ -5,7 +5,15 @@ including communication parameters, gripper limits, and status codes.
 """
 
 from typing import Final
-#Numpy data table columns id
+# Numpy data table columns id
+
+# The command sent to the gripper are stored in a numpy table.
+# The columns of this table are defined here with their corresponding index.
+
+# Table indexes
+# Those constant make it easy to select table columns by name instead of by
+# index. For example, to select the column corresponding to the rACT register,
+# you can use the constant RACT instead of the integer 4.
 
 #Command table
 TIME = 0
@@ -17,6 +25,9 @@ RPR = 5
 RSP = 6
 RFR = 7
 
+# The following dictionaries allow to convert between column names and their
+# corresponding index.
+
 COMMAND_HISTORY_COLUMNS_ID_2_NAME= {0:"time",
                           1:"rARD",
                           2:"rATR",
@@ -26,11 +37,20 @@ COMMAND_HISTORY_COLUMNS_ID_2_NAME= {0:"time",
                           6:"rSP",
                           7:"rFR"}
 
+# The following dictionary is the inverse of COMMAND_HISTORY_COLUMNS_ID_2_NAME,
+# allowing to convert from column names to their corresponding index.
+
 COMMAND_HISTORY_COLUMNS_NAME_2_ID={name: id for id, name in COMMAND_HISTORY_COLUMNS_ID_2_NAME.items()}
 
+# Status retrieved from the gripper are also stored in a numpy table. The
+# columns of this table are defined here with their corresponding index.
+
+# the following constants make it easy to select table columns by name instead
+# of by index. For example, to select the column corresponding to the gSTA
+# register, you can use the constant GSTA instead of the integer 2.
 
 #Status table
-TIME = 0
+TIME = 0 #Double define but it is not a problem since the definition is the same for both tables
 GOBJ = 1
 GSTA = 2
 GGTO = 3
@@ -41,16 +61,8 @@ GPR = 7
 GPO = 8
 GCU = 9
 
-M_GOBJ = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + GOBJ
-M_GSTA = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + GSTA
-M_GGTO = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + GGTO
-M_GACT = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + GACT
-M_KFLT = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + KFLT
-M_GFLT = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + GFLT
-M_GPR = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + GPR
-M_GPO = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + GPO
-M_GCU = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + GCU
-
+# The following dictionaries allow to convert between column names and their
+# corresponding index.
 STATUS_HISTORY_COLUMNS_ID_2_NAME= {0:"time",
                           1:"gOBJ",
                           2:"gSTA",
@@ -61,7 +73,15 @@ STATUS_HISTORY_COLUMNS_ID_2_NAME= {0:"time",
                           7:"gPR",
                           8:"gPO",
                           9:"gCU"}
+
+# The following dictionary is the inverse of STATUS_HISTORY_COLUMNS_ID_2_NAME,
+# allowing to convert from column names to their corresponding index.
 STATUS_HISTORY_COLUMNS_NAME_2_ID={name: id for id, name in STATUS_HISTORY_COLUMNS_ID_2_NAME.items()}
+
+# To make it easy to check gripper command history and status history at the same
+# time, pyRobotigGripper can join the command history and status history tables into a single table.
+
+# The following constants are the indexes of the status columns in this merged table.
 
 HISTORY_COLUMNS_ID_2_NAME={0:"time",
                  1:"rARD",
@@ -81,11 +101,39 @@ HISTORY_COLUMNS_ID_2_NAME={0:"time",
                  15:"gPO",
                  16:"gCU"}
 
+# The following dictionary is the inverse of HISTORY_COLUMNS_ID_2_NAME,
+# allowing to convert from column names to their corresponding index.
+
 HISTORY_COLUMNS_NAME_2_ID={name: id for id, name in HISTORY_COLUMNS_ID_2_NAME.items()}
 
+# The following constants are the indexes of the status columns in the merged table.
+
+M_GOBJ = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + GOBJ
+M_GSTA = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + GSTA
+M_GGTO = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + GGTO
+M_GACT = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + GACT
+M_KFLT = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + KFLT
+M_GFLT = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + GFLT
+M_GPR = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + GPR
+M_GPO = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + GPO
+M_GCU = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + GCU
 
 def _build_register_dic():
-    """Function use to build the register dictionnary
+    """Builds a dictionary containing all input and output registers of the
+    Robotiq gripper. The dictionary contains a description of the signification
+    of each register value.
+
+    The structure of the dictionary is as follows:
+    {
+        "gOBJ": {0: "Fingers are in motion towards requested position. No object detected.",
+                 1: "Fingers have stopped due to a contact while opening before requested position. Object detected opening.",
+                 2: "Fingers have stopped due to a contact while closing before requested position. Object detected closing.",
+                 3: "Fingers are at requested position. No object detected or object has been loss / dropped."},
+        "gSTA": {0: "Gripper is in reset ( or automatic release ) state. See Fault Status if Gripper is activated.",
+                 1: "Activation in progress.",
+                 3: "Activation is completed."},
+        ...
+    }
     """
     register_dic = {}
     #input register variable

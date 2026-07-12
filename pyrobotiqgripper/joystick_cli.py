@@ -14,33 +14,11 @@ import logging
 from typing import List, Optional
 
 import pygame
-from pynput import mouse
 
 from . import RobotiqGripper
 from .constants import AUTO_DETECTION, GRIPPER_MODE_RTU, GRIPPER_MODE_RTU_VIA_TCP
+from .mouse_joystick import *
 
-class MouseJoystick:
-    def __init__(self):
-        self.x = 0
-
-        # Start listener in background
-        self.listener = mouse.Listener(on_move=self._on_move)
-        self.listener.start()
-
-    def _on_move(self, x, y):
-        self.x = x  # store latest mouse X
-
-    def get_axis(self, axis=None):
-        # Lazy import to avoid dependency if unused
-        import pyautogui
-
-        screen_width, _ = pyautogui.size()
-
-        # Normalize to [-1, 1]
-        value=(self.x / screen_width) * 2 - 1
-        value = max(-1, min(1, value))  # clamp to [-1, 1]
-
-        return value
 
 def map_0_255(x: float) -> int:
 
@@ -52,115 +30,162 @@ def main(argv: Optional[List[str]] = None) -> int:
     """Entry point for the joystick CLI."""
     parser = argparse.ArgumentParser(
         prog="pyrobotiqgripper-joystick",
-        description="Control a Robotiq gripper using a joystick (pygame).",
+        description="Control a Robotiq gripper using a joystick (pygame) or mouse.",
     )
 
-    parser.add_argument(
+    common_group = parser.add_argument_group("Common options")
+    common_group.add_argument(
         "--joystick-id",
         type=int,
         default=0,
         help="Joystick ID to use (default: %(default)s). -1 to control with mouse",
     )
-    parser.add_argument(
+    common_group.add_argument(
         "--connection-type",
         choices=[GRIPPER_MODE_RTU, GRIPPER_MODE_RTU_VIA_TCP],
         default=GRIPPER_MODE_RTU,
         help="Connection type for the gripper (default: %(default)s)",
     )
-    parser.add_argument(
+    common_group.add_argument(
         "--device-id",
         type=int,
         default=9,
         help="Modbus device ID for the gripper (default: %(default)s)",
     )
-    parser.add_argument(
+    common_group.add_argument(
         "--com-port",
         default=AUTO_DETECTION,
         help="COM port for RTU connection (default: %(default)s)",
     )
-    parser.add_argument(
+    common_group.add_argument(
         "--gripper-type",
         default="2F85",
         help="Type of gripper (default: %(default)s)",
     )
-    parser.add_argument(
+    common_group.add_argument(
         "--tcp-host",
         default="10.0.0.153",
         help="TCP host/IP for the gripper Modbus TCP gateway (default: %(default)s)",
     )
-    parser.add_argument(
+    common_group.add_argument(
         "--tcp-port",
         type=int,
         default=54321,
         help="TCP port for the gripper Modbus TCP gateway (default: %(default)s)",
     )
-    parser.add_argument(
-        "--axis",
+    common_group.add_argument(
+        "--motion-axis",
         type=int,
-        default=3,
-        help="Joystick axis index to read for position (default: %(default)s)",
+        default=None,
+        help="Joystick axis index to read for the position/speed control input. "
+             "Defaults to 3 for a joystick, or %d (AXIS_X) for mouse control." % AXIS_X,
     )
-    parser.add_argument(
+    common_group.add_argument(
+        "--force-axis",
+        type=int,
+        default=None,
+        help="Joystick axis index to read for the force control input. "
+             "Defaults to 4 for a joystick, or %d (AXIS_Y) for mouse control." % AXIS_Y,
+    )
+    common_group.add_argument(
+        "--deadzone",
+        type=float,
+        default=0.10,
+        help="Mouse control only: dead zone as a fraction (0-1) of each screen "
+             "dimension, centered on the middle of the screen (default: %(default)s)",
+    )
+    common_group.add_argument(
+        "--control-method",
+        choices=["position", "push-pull"],
+        default="position",
+        help="Control method to use: 'position' for target-position control or 'push-pull' for direct push/pull motion (default: %(default)s)",
+    )
+    common_group.add_argument(
         "--debug",
         action="store_true",
         help="Enable debug logging.",
     )
-    parser.add_argument(
+    common_group.add_argument(
+        "--verbose",
+        type=int,
+        default=0,
+        help="Verbose level for gripper control calls (default: %(default)s). "
+             "1 prints executed commands (real-time move) or force/speed/position "
+             "after each call (push-pull).",
+    )
+
+    position_group = parser.add_argument_group("Position control options")
+    position_group.add_argument(
         "--min-speed-pos-delta",
         type=int,
         default=5,
         help="Minimum speed position delta for real-time move (default: %(default)s)",
     )
-    parser.add_argument(
+    position_group.add_argument(
         "--max-speed-pos-delta",
         type=int,
         default=100,
         help="Maximum speed position delta for real-time move (default: %(default)s)",
     )
-    parser.add_argument(
+    position_group.add_argument(
         "--continuous-grip",
         action="store_true",
         default=True,
         help="Enable continuous grip for real-time move (default: %(default)s)",
     )
-    parser.add_argument(
+    position_group.add_argument(
         "--no-continuous-grip",
         action="store_false",
         dest="continuous_grip",
         help="Disable continuous grip for real-time move",
     )
-    parser.add_argument(
+    position_group.add_argument(
         "--auto-lock",
         action="store_true",
         default=True,
         help="Enable auto lock for real-time move (default: %(default)s)",
     )
-    parser.add_argument(
+    position_group.add_argument(
         "--no-auto-lock",
         action="store_false",
         dest="auto_lock",
         help="Disable auto lock for real-time move",
     )
-    parser.add_argument(
+    position_group.add_argument(
         "--minimal-motion",
         type=int,
         default=2,
         help="Minimal motion for real-time move (default: %(default)s)",
     )
-    parser.add_argument(
+    position_group.add_argument(
         "--detection-duration",
         type=float,
         default=0.5,
         help="Duration used to detect if an object is inside the gripper.",
     )
-    parser.add_argument(
-        "--verbose",
+
+    push_pull_group = parser.add_argument_group("Push-pull control options")
+    push_pull_group.add_argument(
+        "--force-nudge-threshold",
         type=int,
-        default=0,
-        help="Verbose level for real-time move (default: %(default)s). 1 prints executed commands, 2 prints all commands.",
+        default=20,
+        help="Minimum increase in requested force (0-255) needed to retry closing/opening "
+             "while an object is latched (default: %(default)s)",
+    )
+    push_pull_group.add_argument(
+        "--speed-nudge-threshold",
+        type=int,
+        default=20,
+        help="Minimum increase in requested speed (0-255) needed to retry closing/opening "
+             "while an object is latched (default: %(default)s)",
     )
 
     args = parser.parse_args(argv)
+
+    if args.motion_axis is None:
+        args.motion_axis = AXIS_X if args.joystick_id == -1 else 3
+    if args.force_axis is None:
+        args.force_axis = AXIS_Y if args.joystick_id == -1 else 4
 
     logging.basicConfig(
         level=logging.DEBUG if args.debug else logging.INFO,
@@ -174,7 +199,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.joystick_id == -1:
         logging.info("Joystick ID -1 selected, using mouse position for control")
-        js = MouseJoystick()
+        js = MouseJoystick(deadzone=args.deadzone)
     else:
 
         pygame.joystick.init()
@@ -208,24 +233,39 @@ def main(argv: Optional[List[str]] = None) -> int:
     gripper.activate()
     gripper.start()
     gripper.calibrate_speed()
-    print("Autolock option : ",args.auto_lock)
+    gripper.open()
+
+    if args.auto_lock :
+        print("Autolock option : ",args.auto_lock)
+    logging.info("Using control method: %s", args.control_method)
 
     try:
         while True:
 
             pygame.event.pump()
-            joy_value = js.get_axis(args.axis)
-            pos = map_0_255(joy_value)
-            gripper.realTimeMove(
-                pos,
-                minSpeedPosDelta=args.min_speed_pos_delta,
-                maxSpeedPosDelta=args.max_speed_pos_delta,
-                continuousGrip=args.continuous_grip,
-                autoLock=args.auto_lock,
-                minimalMotion=args.minimal_motion,
-                verbose=args.verbose,
-                objectDetectionDuration=args.detection_duration
-            )
+            motion_value = js.get_axis(args.motion_axis)
+
+            if args.control_method == "push-pull":
+                force_value = js.get_axis(args.force_axis)
+                gripper.pushPullMove(
+                    motion_value,
+                    pushPullForceSignal=force_value,
+                    forceNudgeThreshold=args.force_nudge_threshold,
+                    speedNudgeThreshold=args.speed_nudge_threshold,
+                    verbose=args.verbose,
+                )
+            else:
+                pos = map_0_255(motion_value)
+                gripper.realTimeMove(
+                    pos,
+                    minSpeedPosDelta=args.min_speed_pos_delta,
+                    maxSpeedPosDelta=args.max_speed_pos_delta,
+                    continuousGrip=args.continuous_grip,
+                    autoLock=args.auto_lock,
+                    minimalMotion=args.minimal_motion,
+                    verbose=args.verbose,
+                    objectDetectionDuration=args.detection_duration
+                )
     except KeyboardInterrupt:
         logging.info("Stopping joystick control")
     finally:

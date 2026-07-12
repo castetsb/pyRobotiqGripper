@@ -31,9 +31,6 @@ import matplotlib.pyplot as plt
 from scipy.stats import norm
 import os
 
-
-
-
 def detailed_errors(test_fn):
     @wraps(test_fn)
     def wrapper(self, *args, **kwargs):
@@ -149,9 +146,10 @@ class Hardware(unittest.TestCase):
         except Exception as e:
             traceback.print_exc()
             raise unittest.SkipTest(f"Skipping test due to failed setup (activate/start): {e}")
-            
 
-    def test_01_connect_disconnect(self):
+   #SETUP FUNCTIONS
+
+    def test_connect_disconnect(self):
         """Test connection and disconnection to gripper."""
         print("\nTest: Connection & Disconnection")
         
@@ -167,17 +165,255 @@ class Hardware(unittest.TestCase):
         print("  - Reconnected to gripper")
         self.assertIsNotNone(self.gripper._client)
 
+    #COMMUNICATION FUNCTIONS
+    #Write only: Modbus function code 16 (Write multiple registers)
+
+    def test_writeA(self):
+        """Test writing action parameters to the gripper."""
+        print("\nTest: Write Action Parameters")
+
+        # Put the gripper in a different state first (GTO=0, no motion) so the
+        # transition triggered by _writeA below is actually observable, instead
+        # of just re-writing the state already set by setUp()'s activate()/start().
+        self.gripper.stop()
+        self.gripper.readStatus()
+        self.assertEqual(self.gripper.status()["gGTO"], 0, "Precondition: gripper should not be in motion")
+
+        # Write action parameters
+        self.gripper._writeA(rARD=0, rATR=0, rGTO=1, rACT=1)
+
+        # Verify that the command history has been updated
+        history = self.gripper.history()
+        last_command = history.iloc[-1]
+        print("\nLast merged history rows after _writeA:")
+        print(history.tail(5))
+        self.assertEqual(last_command["rARD"], 0)
+        self.assertEqual(last_command["rATR"], 0)
+        self.assertEqual(last_command["rGTO"], 1)
+        self.assertEqual(last_command["rACT"], 1)
+
+        print("  - Action parameters has been successfully written and command history updated")
+
+        self.gripper.readStatus()
+
+        history = self.gripper.history()
+        last_status = history.iloc[-1]
+        print("\nLast merged history rows after readStatus:")
+        print(history.tail(5))
+        self.assertEqual(last_status["gACT"], 1, "Gripper should be activated after writing action parameters")
+        self.assertEqual(last_status["gGTO"], 1, "Gripper should be in motion after writing action parameters")
+
+    def test_writeP(self):
+        """Test writing a position command to the gripper (write-only, function code 16)."""
+        print("\nTest: Write Position")
+
+        # Start from a known, different position so the movement is observable.
+        self.gripper.move(0, speed=255, force=0, wait=True)
+
+        target_position = 150
+        self.gripper._writeP(target_position)
+
+        history = self.gripper.history()
+        last_command = history.iloc[-1]
+        print("\nLast merged history rows after _writeP:")
+        print(history.tail(5))
+        self.assertEqual(last_command["rPR"], target_position)
+
+        self.gripper._waitComplete()
+        actual_position = self.gripper.position()
+        print(f"  - Requested position: {target_position}, actual: {actual_position}")
+        self.assertAlmostEqual(actual_position, target_position, delta=30)
+
+    def test_writeSF(self):
+        """Test writing speed and force to the gripper (write-only, function code 16)."""
+        print("\nTest: Write Speed & Force")
+
+        speed, force = 128, 50
+        self.gripper._writeSF(speed, force)
+
+        history = self.gripper.history()
+        last_command = history.iloc[-1]
+        print("\nLast merged history rows after _writeSF:")
+        print(history.tail(5))
+        self.assertEqual(last_command["rSP"], speed)
+        self.assertEqual(last_command["rFR"], force)
+
+        # speed()/force() read directly from command history, confirming the
+        # write is actually usable by move() when speed/force aren't given.
+        self.assertEqual(self.gripper.speed(), speed)
+        self.assertEqual(self.gripper.force(), force)
+
+        print(f"  - Speed {speed} and force {force} written and recorded successfully")
+
+    def test_writePSF(self):
+        """Test writing position, speed and force in one command (write-only, function code 16)."""
+        print("\nTest: Write Position, Speed & Force")
+
+        self.gripper.move(0, speed=255, force=0, wait=True)
+
+        position, speed, force = 200, 150, 100
+        self.gripper._writePSF(position, speed, force)
+
+        history = self.gripper.history()
+        last_command = history.iloc[-1]
+        print("\nLast merged history rows after _writePSF:")
+        print(history.tail(5))
+        self.assertEqual(last_command["rPR"], position)
+        self.assertEqual(last_command["rSP"], speed)
+        self.assertEqual(last_command["rFR"], force)
+
+        self.gripper._waitComplete()
+        actual_position = self.gripper.position()
+        print(f"  - Requested position: {position}, actual: {actual_position}")
+        self.assertAlmostEqual(actual_position, position, delta=30)
+
+    def test_writeAPSF(self):
+        """Test writing action, position, speed and force in one command (write-only, function code 16)."""
+        print("\nTest: Write Action, Position, Speed & Force")
+
+        self.gripper.move(0, speed=255, force=0, wait=True)
+
+        position, speed, force = 100, 150, 100
+        self.gripper._writeAPSF(rARD=0, rATR=0, rGTO=1, rACT=1,
+                                 position=position, speed=speed, force=force)
+
+        history = self.gripper.history()
+        last_command = history.iloc[-1]
+        print("\nLast merged history rows after _writeAPSF:")
+        print(history.tail(5))
+        self.assertEqual(last_command["rARD"], 0)
+        self.assertEqual(last_command["rATR"], 0)
+        self.assertEqual(last_command["rGTO"], 1)
+        self.assertEqual(last_command["rACT"], 1)
+        self.assertEqual(last_command["rPR"], position)
+        self.assertEqual(last_command["rSP"], speed)
+        self.assertEqual(last_command["rFR"], force)
+
+        self.gripper._waitComplete()
+        self.gripper.readStatus()
+        status = self.gripper.status()
+        print(f"  - Requested position: {position}, actual: {status['gPO']}")
+        print(f"  - Full status after motion: {status}")
+        self.assertEqual(status["gACT"], 1, "Gripper should be activated")
+        self.assertEqual(status["gGTO"], 1, "Gripper should be in motion")
+        self.assertAlmostEqual(status["gPO"], position, delta=30)
+
+    #Read and write: Modbus function code 23 (Read/Write multiple registers)
+
+    def test_writeAreadStatus(self):
+        """Test the combined write action + read status transaction (function code 23)."""
+        print("\nTest: Write Action & Read Status (combined)")
+
+        self.gripper.stop()
+
+        self.gripper._writeAreadStatus(rARD=0, rATR=0, rGTO=1, rACT=1)
+
+        # The status embedded in a readwrite (function code 23) response reflects
+        # the gripper's last internal poll cycle, not necessarily the state right
+        # after this write. Only check the command echo against this row.
+        history = self.gripper.history()
+        last_row = history.iloc[-1]
+        print("\nLast merged history rows after _writeAreadStatus:")
+        print(history.tail(5))
+        self.assertEqual(last_row["rARD"], 0)
+        self.assertEqual(last_row["rATR"], 0)
+        self.assertEqual(last_row["rGTO"], 1)
+        self.assertEqual(last_row["rACT"], 1)
+
+        # Do a separate, fresh read to confirm the gripper actually applied it.
+        status = self.gripper.status(refreshStatus=True)
+        print(f"  - Status after a fresh read: {status}")
+        self.assertEqual(status["gACT"], 1, "Gripper should be activated")
+        self.assertEqual(status["gGTO"], 1, "Gripper should be in motion")
+
+        print("  - Action written and status read in a single transaction")
+
+    def test_writePreadStatus(self):
+        """Test the combined write position + read status transaction (function code 23)."""
+        print("\nTest: Write Position & Read Status (combined)")
+
+        self.gripper.move(0, speed=255, force=0, wait=True)
+
+        target_position = 180
+        self.gripper._writePreadStatus(target_position)
+
+        history = self.gripper.history()
+        last_row = history.iloc[-1]
+        print("\nLast merged history rows after _writePreadStatus:")
+        print(history.tail(5))
+        self.assertEqual(last_row["rPR"], target_position)
+        print(f"  - Requested position: {target_position}, gPO right after write: {last_row['gPO']}")
+
+        self.gripper._waitComplete()
+        actual_position = self.gripper.position()
+        print(f"  - Final actual position: {actual_position}")
+        self.assertAlmostEqual(actual_position, target_position, delta=30)
+
+    def test_writePSFreadStatus(self):
+        """Test the combined write position/speed/force + read status transaction (function code 23)."""
+        print("\nTest: Write Position, Speed, Force & Read Status (combined)")
+
+        self.gripper.move(0, speed=255, force=0, wait=True)
+
+        position, speed, force = 220, 150, 100
+        self.gripper._writePSFreadStatus(position, speed, force)
+
+        history = self.gripper.history()
+        last_row = history.iloc[-1]
+        print("\nLast merged history rows after _writePSFreadStatus:")
+        print(history.tail(5))
+        self.assertEqual(last_row["rPR"], position)
+        self.assertEqual(last_row["rSP"], speed)
+        self.assertEqual(last_row["rFR"], force)
+
+        self.gripper._waitComplete()
+        actual_position = self.gripper.position()
+        print(f"  - Requested position: {position}, actual: {actual_position}")
+        self.assertAlmostEqual(actual_position, position, delta=30)
+
+    def test_writeAPSFreadStatus(self):
+        """Test the combined write action/position/speed/force + read status transaction (function code 23)."""
+        print("\nTest: Write Action, Position, Speed, Force & Read Status (combined)")
+
+        self.gripper.move(0, speed=255, force=0, wait=True)
+
+        position, speed, force = 90, 150, 100
+        self.gripper._writeAPSFreadStatus(rARD=0, rATR=0, rGTO=1, rACT=1,
+                                           position=position, speed=speed, force=force)
+
+        history = self.gripper.history()
+        last_row = history.iloc[-1]
+        print("\nLast merged history rows after _writeAPSFreadStatus:")
+        print(history.tail(5))
+        self.assertEqual(last_row["rARD"], 0)
+        self.assertEqual(last_row["rATR"], 0)
+        self.assertEqual(last_row["rGTO"], 1)
+        self.assertEqual(last_row["rACT"], 1)
+        self.assertEqual(last_row["rPR"], position)
+        self.assertEqual(last_row["rSP"], speed)
+        self.assertEqual(last_row["rFR"], force)
+
+        # The gACT/gGTO embedded in this readwrite response reflect the
+        # gripper's last internal poll cycle, not necessarily post-write, so
+        # wait for motion to complete and take a fresh read before checking them.
+        self.gripper._waitComplete()
+        status = self.gripper.status(refreshStatus=True)
+        print(f"  - Requested position: {position}, status after motion: {status}")
+        self.assertEqual(status["gACT"], 1, "Gripper should be activated")
+        self.assertEqual(status["gGTO"], 1, "Gripper should be in motion")
+        self.assertAlmostEqual(status["gPO"], position, delta=30)
+
     def test_02_read_status(self):
         """Test reading gripper status."""
         print("\nTest: Read Status")
         
-
-        print(self.gripper.status(refreshStatus=True))
+        status=self.gripper.status(refreshStatus=True)
+        print(status)
         
         # Verify key status registers exist
         expected_keys = ["gOBJ", "gSTA", "gGTO", "gACT", "kFLT", "gFLT", "gPR", "gPO", "gCU"]
         for key in expected_keys:
-            self.assertIn(key, self.gripper.status(), f"Status key '{key}' missing")
+            self.assertIn(key, status, f"Status key '{key}' missing")
         
         print(f"  - Status read successfully: {len(self.gripper.status())} registers")
 
@@ -1005,14 +1241,8 @@ class Hardware(unittest.TestCase):
         filename = "docs/_static/" + self.connection_type + "_time.png"
         plt.savefig(filename, dpi=300, bbox_inches="tight")
         plt.show()
-    
-            
 
-        
 
-    
-
-        
 class Software(unittest.TestCase):
     """Test utils functions."""
     @classmethod
