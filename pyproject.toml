@@ -17,13 +17,16 @@ dependencies = [
     "pymodbus>=3.12.1",
     "pyserial>=3.5",
     "numpy>=1.28",
+]
+
+[project.optional-dependencies]
+
+test = [
     "matplotlib>=3.10.9",
     "pytest>=9.1.1",
     "scipy>=1.15.3",
     "asciichartpy>=1.5.25",
 ]
-
-[project.optional-dependencies]
 
 dev = [
   "sphinx",
