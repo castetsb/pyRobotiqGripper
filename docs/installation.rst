@@ -9,18 +9,6 @@ We recommend using `uv <https://docs.astral.sh/uv/>`_, a fast, modern Python
 package and project manager, but a traditional pip installation works just
 as well.
 
-Base install vs. the ``all`` extra
------------------------------------
-
-The base package only depends on ``pymodbus``, ``pyserial`` and ``numpy`` —
-everything needed to connect to a gripper and control it. This is enough for
-most use cases and keeps the install lightweight.
-
-The ``all`` extra additionally pulls in the dependencies used by the
-joystick CLI (``pygame-ce``, ``pynput``, ``pyautogui``) and by the
-history/data-to-DataFrame helper methods (``pandas``). Install it only if
-you need one of those optional features. Both options are shown below.
-
 Using uv (recommended)
 -----------------------
 
@@ -31,6 +19,7 @@ Install pyrobotiqgripper with minimal dependencies.
     uv add pyrobotiqgripper
 
 Install pyrobotiqgripper with all dependencies to have extra features like:
+
 - Gripper command and status history accessible as a pandas table
 - A CLI (Command Line Tool) to control the gripper with a mouse or a joystick.
 
