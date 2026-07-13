@@ -1658,9 +1658,9 @@ class RobotiqGripper( ):
             >>> js = pygame.joystick.Joystick(0)
             >>> js.init()
             >>> while True:
+            >>>     positionSignal = js.get_axis(0)
             >>>     pygame.event.pump()
-            >>>     requested_pos=int((js.get_axis(0) + 1) * 255 / 2)
-            >>>     grip.realtimemove(requested_pos)
+            >>>     grip.realtimePositionMove(positionSignal)
         """
         #Check if the gripper is activated
         if not self.isActivated(refreshStatus=False):
@@ -1783,6 +1783,23 @@ class RobotiqGripper( ):
                 speed (0-255) needed to retry closing/opening while latched.
                 Defaults to 20.
             verbose (int, optional): Currently unused.
+
+        Examples:
+            Make a loop to control the gripper using a joystick with pygame
+
+            >>> import pygame
+            >>> import time
+            >>> import pyrobotiqgripper as rq
+            >>> grip = rq.RobotiqGripper()
+            >>> pygame.init()
+            >>> pygame.joystick.init()
+            >>> js = pygame.joystick.Joystick(0)
+            >>> js.init()
+            >>> while True:
+            >>>     speedSignal = js.get_axis(0)
+            >>>     forceSignal = js.get_axis(0)
+            >>>     pygame.event.pump()
+            >>>     grip.realtimeSpeedMove(speedSignal,forceSignal)
         """
         speedCommand = None
         forceCommand = None
