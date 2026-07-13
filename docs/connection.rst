@@ -6,13 +6,18 @@ Connection
 Before running the examples below, activate the virtual environment you used
 to install the package, then launch a Python interpreter.
 
-If you installed with pip:
+Activate the vitual environment.
+
+If you are on Windows use the following command to activate the virtual environment
 
 .. code-block:: bash
 
-    # Windows
     .venv\Scripts\activate
-    # macOS/Linux
+
+If you are on macOS/Linux use the following command to activate the virtual environment
+
+.. code-block:: bash
+
     source .venv/bin/activate
 
 Once the virtual environment is activated, launch a Python interpreter:
@@ -20,6 +25,14 @@ Once the virtual environment is activated, launch a Python interpreter:
 .. code-block:: bash
 
     python
+
+.. note::
+    With uv you can directly run a python interpreter in the virtual environment
+    without having to activate it.
+
+    .. code-block:: bash
+        uv run python
+
 
 Robotiq gripper connected at PC USB port via a USB to RS485 converter
 ---------------------------------------------------------------------

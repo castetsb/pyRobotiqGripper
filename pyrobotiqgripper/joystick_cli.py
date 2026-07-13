@@ -20,12 +20,6 @@ from .constants import AUTO_DETECTION, GRIPPER_MODE_RTU, GRIPPER_MODE_RTU_VIA_TC
 from .mouse_joystick import *
 
 
-def map_0_255(x: float) -> int:
-
-    """Map a joystick axis value from [-1, 1] to [0, 255]."""
-    return int((x + 1) * 255 / 2)
-
-
 def main(argv: Optional[List[str]] = None) -> int:
     """Entry point for the joystick CLI."""
     parser = argparse.ArgumentParser(
@@ -76,14 +70,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     common_group.add_argument(
         "--motion-axis",
         type=int,
-        default=None,
+        default=0,
         help="Joystick axis index to read for the position/speed control input. "
              "Defaults to 3 for a joystick, or %d (AXIS_X) for mouse control." % AXIS_X,
     )
     common_group.add_argument(
         "--force-axis",
         type=int,
-        default=None,
+        default=1,
         help="Joystick axis index to read for the force control input. "
              "Defaults to 4 for a joystick, or %d (AXIS_Y) for mouse control." % AXIS_Y,
     )
@@ -96,9 +90,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     common_group.add_argument(
         "--control-method",
-        choices=["position", "push-pull"],
+        choices=["position", "speed"],
         default="position",
-        help="Control method to use: 'position' for target-position control or 'push-pull' for direct push/pull motion (default: %(default)s)",
+        help="Control method to use: 'position' to control the gripper in" \
+        "position or 'speed' to control the gripper from its speed (default: %(default)s)",
     )
     common_group.add_argument(
         "--debug",
@@ -245,19 +240,19 @@ def main(argv: Optional[List[str]] = None) -> int:
             pygame.event.pump()
             motion_value = js.get_axis(args.motion_axis)
 
-            if args.control_method == "push-pull":
-                force_value = js.get_axis(args.force_axis)
-                gripper.pushPullMove(
+            if args.control_method == "speed":
+                force_value = -js.get_axis(args.force_axis)
+                gripper.realTimeSpeedMove(
                     motion_value,
-                    pushPullForceSignal=force_value,
+                    forceSignal=force_value,
                     forceNudgeThreshold=args.force_nudge_threshold,
                     speedNudgeThreshold=args.speed_nudge_threshold,
                     verbose=args.verbose,
                 )
             else:
-                pos = map_0_255(motion_value)
-                gripper.realTimeMove(
-                    pos,
+                gripper.realTimePositionMove(
+                    
+                    motion_value,
                     minSpeedPosDelta=args.min_speed_pos_delta,
                     maxSpeedPosDelta=args.max_speed_pos_delta,
                     continuousGrip=args.continuous_grip,

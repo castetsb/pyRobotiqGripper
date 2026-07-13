@@ -1495,20 +1495,13 @@ sdist = { url = "https://files.pythonhosted.org/packages/cb/04/2ba023d5f771b645f
 
 [[package]]
 name = "pyrobotiqgripper"
-version = "3.2.6"
+version = "3.2.8"
 source = { editable = "." }
 dependencies = [
-    { name = "asciichartpy" },
-    { name = "matplotlib", version = "3.10.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "matplotlib", version = "3.11.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pymodbus" },
     { name = "pyserial" },
-    { name = "pytest" },
-    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
-    { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
 
 [package.optional-dependencies]
@@ -1519,7 +1512,7 @@ all = [
     { name = "pygame-ce" },
     { name = "pynput" },
 ]
-dev = [
+docs = [
     { name = "sphinx", version = "8.1.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "sphinx", version = "9.0.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
     { name = "sphinx", version = "9.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -1527,10 +1520,20 @@ dev = [
     { name = "sphinxcontrib-youtube" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "asciichartpy" },
+    { name = "matplotlib", version = "3.10.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "matplotlib", version = "3.11.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "pyrobotiqgripper", extra = ["all"] },
+    { name = "pytest" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
+    { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
+
 [package.metadata]
 requires-dist = [
-    { name = "asciichartpy", specifier = ">=1.5.25" },
-    { name = "matplotlib", specifier = ">=3.10.9" },
     { name = "numpy", specifier = ">=1.28" },
     { name = "pandas", marker = "extra == 'all'", specifier = ">=1.5" },
     { name = "pyautogui", marker = "extra == 'all'", specifier = ">=0.9.54" },
@@ -1538,13 +1541,20 @@ requires-dist = [
     { name = "pymodbus", specifier = ">=3.12.1" },
     { name = "pynput", marker = "extra == 'all'", specifier = ">=1.7.6" },
     { name = "pyserial", specifier = ">=3.5" },
+    { name = "sphinx", marker = "extra == 'docs'" },
+    { name = "sphinx-rtd-theme", marker = "extra == 'docs'" },
+    { name = "sphinxcontrib-youtube", marker = "extra == 'docs'" },
+]
+provides-extras = ["docs", "all"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "asciichartpy", specifier = ">=1.5.25" },
+    { name = "matplotlib", specifier = ">=3.10.9" },
+    { name = "pyrobotiqgripper", extras = ["all"], editable = "." },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "scipy", specifier = ">=1.15.3" },
-    { name = "sphinx", marker = "extra == 'dev'" },
-    { name = "sphinx-rtd-theme", marker = "extra == 'dev'" },
-    { name = "sphinxcontrib-youtube", marker = "extra == 'dev'" },
 ]
-provides-extras = ["dev", "all"]
 
 [[package]]
 name = "pyscreeze"

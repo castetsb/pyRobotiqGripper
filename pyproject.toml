@@ -1,7 +1,7 @@
 
 [project]
 name = "pyrobotiqgripper"
-version = "3.2.8"
+version = "3.3.1"
 authors = [{name="Benoit CASTETS", email = "opensourceeng@gmail.com"}]
 description = "Python Driver for Robotiq Grippers"
 readme = "README.rst"
@@ -13,22 +13,20 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
+# Dependencies required at import time. Keep as-is: pymodbus, pyserial, numpy.
+# This is what every installer (pip, uv) always pulls in.
 dependencies = [
     "pymodbus>=3.12.1",
     "pyserial>=3.5",
     "numpy>=1.28",
-    "matplotlib>=3.10.9",
-    "pytest>=9.1.1",
-    "scipy>=1.15.3",
-    "asciichartpy>=1.5.25",
 ]
 
 [project.optional-dependencies]
 
-dev = [
+docs = [
   "sphinx",
   "sphinx-rtd-theme",
-  "sphinxcontrib-youtube"
+  "sphinxcontrib-youtube",
 ]
 
 all = [
@@ -38,6 +36,15 @@ all = [
     "pyautogui>=0.9.54",
 ]
 
+[dependency-groups]
+
+dev = [
+  "pytest>=9.1.1",
+  "scipy>=1.15.3",
+  "matplotlib>=3.10.9",
+  "asciichartpy>=1.5.25",
+  "pyrobotiqgripper[all]",
+]
 
 [build-system]
 requires = ["uv_build>=0.9.4,<1.0.0"]
@@ -46,6 +53,9 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-name = ["pyrobotiqgripper"]
 module-root = ""
+
+[tool.uv.sources]
+pyrobotiqgripper = { workspace = true }
 
 [project.urls]
 homepage = "https://github.com/castetsb/pyRobotiqGripper"

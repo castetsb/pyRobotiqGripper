@@ -652,7 +652,7 @@ class Hardware(unittest.TestCase):
             self.assertAlmostEqual(actual_mm, target_mm, delta=5)
 
     def test_17_real_time_move(self):
-        """Test 17: realTimeMove() for smooth continuous motion.
+        """Test 17: realTimePositionMove() for smooth continuous motion.
 
         This test also captures a simple velocity curve by printing speed vs.
         delta-to-target for each request.
@@ -669,8 +669,8 @@ class Hardware(unittest.TestCase):
         target_positions = [50, 100, 150, 100, 50, 0, 255, 128]
 
         for target_pos in target_positions:
-            self.gripper.realTimeMove(
-                requestedPosition=target_pos,
+            self.gripper.realTimePositionMove(
+                positionSignal=target_pos / 255,
                 minSpeedPosDelta=5,
                 maxSpeedPosDelta=100,
                 continuousGrip=True,
@@ -889,23 +889,23 @@ class Hardware(unittest.TestCase):
 
         print(f"  - Return trip: Estimated time: {estimated_time_fast:.3f}s, Actual time: {actual_time_fast:.3f}s")
         self.assertAlmostEqual(actual_time_fast, estimated_time_fast, delta=0.5, msg="Actual return travel time should match estimated time within tolerance")
-    def test_27_realTimeMove(self):
-        """Test realTimeMove() by checking if gripper speed vary with distance to target."""
+    def test_27_realTimePositionMove(self):
+        """Test realTimePositionMove() by checking if gripper speed vary with distance to target."""
         print("\nTest: Real Time Move Speed")
         self.gripper.calibrate_speed()
 
         print("\nOpen the gripper")
         self.gripper.open(speed=255,wait=True)
-        print("\nClose the gripper in realTimeMove")
+        print("\nClose the gripper in realTimePositionMove")
 
         gripPositions=[]
         gripSpeeds=[]
         motionCompleted=False
 
         motionCompleted = False
-        self.gripper.realTimeMove(requestedPosition=230, verbose=2)
+        self.gripper.realTimePositionMove(positionSignal=230 / 255, verbose=2)
         while not motionCompleted:
-            self.gripper.realTimeMove(requestedPosition=230, verbose=2)
+            self.gripper.realTimePositionMove(positionSignal=230 / 255, verbose=2)
             gripPositions.append(self.gripper.position(refreshStatus=False))
             gripSpeeds.append(self.gripper.speed())
             if self.gripper.objectDetection()==GOBJ_AT_POSITION:
@@ -1142,7 +1142,7 @@ class Hardware(unittest.TestCase):
             i=0
             while i < len(data):
                 t=time.monotonic()
-                self.gripper.realTimeMove(data[i],verbose=0,continuousGrip=False)
+                self.gripper.realTimePositionMove(data[i] / 255,verbose=0,continuousGrip=False)
                 #cOBJ = self.gripper.objectDetection(self.gripper._mergeHistory(),duration=0.2)
                 #self.assertNotIn(cOBJ,[GOBJ_DETECTED_WHILE_CLOSING,GOBJ_DETECTED_WHILE_OPENING],"Object detected while no object present")
                 print(time.monotonic()-t)
@@ -1194,13 +1194,13 @@ class Hardware(unittest.TestCase):
         i=0
         while i < 50:
             start = time.monotonic()
-            self.gripper.realTimeMove(150)
+            self.gripper.realTimePositionMove(150 / 255)
             end = time.monotonic()
             duration = end - start
             data["realtimemove"].append(duration)
 
             start = time.monotonic()
-            self.gripper.realTimeMove(100)
+            self.gripper.realTimePositionMove(100 / 255)
             end = time.monotonic()
             duration = end - start
             data["realtimemove"].append(duration)

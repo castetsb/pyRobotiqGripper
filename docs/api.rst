@@ -30,7 +30,10 @@ Control
 .. automethod:: pyrobotiqgripper.RobotiqGripper.close
 .. automethod:: pyrobotiqgripper.RobotiqGripper.move
 .. automethod:: pyrobotiqgripper.RobotiqGripper.move_mm
-.. automethod:: pyrobotiqgripper.RobotiqGripper.realTimeMove
+.. automethod:: pyrobotiqgripper.RobotiqGripper.moveToCurrentPosition
+.. automethod:: pyrobotiqgripper.RobotiqGripper.realTimePositionMove
+.. automethod:: pyrobotiqgripper.RobotiqGripper.realTimeSpeedMove
+
 
 Status
 ~~~~~~
@@ -39,16 +42,26 @@ Status
 .. automethod:: pyrobotiqgripper.RobotiqGripper.isStarted
 .. automethod:: pyrobotiqgripper.RobotiqGripper.is_bit_calibrated
 .. automethod:: pyrobotiqgripper.RobotiqGripper.is_mm_calibrated
+.. automethod:: pyrobotiqgripper.RobotiqGripper.positioningResolution
 .. automethod:: pyrobotiqgripper.RobotiqGripper.is_speed_calibrated
 .. automethod:: pyrobotiqgripper.RobotiqGripper.gripper_vmax_bits
 .. automethod:: pyrobotiqgripper.RobotiqGripper.gripper_vmin_bits
+.. automethod:: pyrobotiqgripper.RobotiqGripper.minSpeedMmSecond
+.. automethod:: pyrobotiqgripper.RobotiqGripper.maxSpeedMmSecond
+.. automethod:: pyrobotiqgripper.RobotiqGripper.speedResolutionBit
+.. automethod:: pyrobotiqgripper.RobotiqGripper.speedResolutionMm
 .. automethod:: pyrobotiqgripper.RobotiqGripper.positionCommand
 .. automethod:: pyrobotiqgripper.RobotiqGripper.position
 .. automethod:: pyrobotiqgripper.RobotiqGripper.position_mm
+.. automethod:: pyrobotiqgripper.RobotiqGripper.lastPositionCommand
+.. automethod:: pyrobotiqgripper.RobotiqGripper.lastMoveTime
+.. automethod:: pyrobotiqgripper.RobotiqGripper.lastMoveDirection
 .. automethod:: pyrobotiqgripper.RobotiqGripper.speed
 .. automethod:: pyrobotiqgripper.RobotiqGripper.force
 .. automethod:: pyrobotiqgripper.RobotiqGripper.objectDetection
+.. automethod:: pyrobotiqgripper.RobotiqGripper.printObjectDetection
 .. automethod:: pyrobotiqgripper.RobotiqGripper.readStatus
+.. automethod:: pyrobotiqgripper.RobotiqGripper.lastStatusReadTime
 .. automethod:: pyrobotiqgripper.RobotiqGripper.status
 .. automethod:: pyrobotiqgripper.RobotiqGripper.printStatus   
 .. automethod:: pyrobotiqgripper.RobotiqGripper.commandHistory

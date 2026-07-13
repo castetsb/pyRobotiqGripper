@@ -66,6 +66,7 @@ class RobotiqGripper( ):
                  connection_type: str = GRIPPER_MODE_RTU,
                  tcp_host: str = "127.0.0.1",
                  tcp_port: int = 54321,
+                 baudrate = BAUDRATE,
                  debug: bool = False,
                  **kwargs):
         """Create a RobotiqGripper object which can be use to control Robotiq
@@ -87,6 +88,7 @@ class RobotiqGripper( ):
                 (e.g. when using the UR RS485 URCAP). Default is "RTU".
             tcp_host (str): Host IP address for TCP connection. Default is "127.0.0.1"
             tcp_port (int): Port number for TCP connection. Default is 54321.
+            baudrate (int): Gripper communication baudrate.
             debug (bool): If True, enable debug logging for Modbus communication.
                 Default is False.
         
@@ -126,6 +128,7 @@ class RobotiqGripper( ):
         #: On Windows, COM ports are named COM1, COM2, etc. On Linux, COM ports are
         #: named /dev/ttyUSB0, /dev/ttyUSB1, etc. Default is AUTO_DETECTION.
         self.com_port=com_port
+        self.baudrate=baudrate
 
         self.device_id=device_id
         self.connection_type=connection_type
@@ -179,13 +182,13 @@ class RobotiqGripper( ):
         self._lastMoveDirection = 0
         self._lastMoveTime = None
 
-        #Force/speed baselines used by pushPullMove() to decide whether a
+        #Force/speed baselines used by pushPullPositionMove() to decide whether a
         #change is significant enough to retry the grip while an object
         #is latched. None means "not currently tracking a latch episode".
-        self._pushPullNudgeForceBaseline = None
-        self._pushPullNudgeSpeedBaseline = None
+        self._realtimeSpeedMove_NudgeForceBaseline = None
+        self._realtimeSpeedMove_NudgeSpeedBaseline = None
 
-        #Ramping force target tracked by pushPullMove(), independent of
+        #Ramping force target tracked by pushPullPositionMove(), independent of
         #_commandHistory so it keeps accumulating every tick even while a
         #send is being withheld pending the nudge threshold.
         self._pushPullForceCommand = None
@@ -220,7 +223,7 @@ class RobotiqGripper( ):
         try:
             client = ModbusSerialClient(
                 port=port,
-                baudrate=115200,
+                baudrate=self.baudrate,
                 parity='N',
                 stopbits=1,
                 bytesize=8,
@@ -304,7 +307,7 @@ class RobotiqGripper( ):
             
             return ModbusSerialClient(
                 port=self.com_port,
-                baudrate=BAUDRATE,
+                baudrate=self.baudrate,
                 parity='N',
                 stopbits=1,
                 bytesize=8,
@@ -1579,10 +1582,8 @@ class RobotiqGripper( ):
             else:
                 self._writePSF(position,speed_value,force_value)
 
-        self._processing=True
         if wait:
             self._waitComplete()
-        self._processing=False
     
     def move_mm(self,positionmm,speed=255,force=255,wait=True,readStatus=True,refreshStatus=False):
         """Move the gripper to the requested opening in millimeters.
@@ -1617,8 +1618,8 @@ class RobotiqGripper( ):
         position=int(self._mmToBit(positionmm))
         self.move(position,speed,force,wait,readStatus,refreshStatus)
 
-    def realTimeMove(self,
-                     requestedPosition,
+    def realTimePositionMove(self,
+                     positionSignal,
                      minSpeedPosDelta=5,
                      maxSpeedPosDelta=100,
                      continuousGrip=True,
@@ -1629,8 +1630,8 @@ class RobotiqGripper( ):
         """Move the gripper in real time to the requested position.
 
         Args:
-            requestedPosition (int): Target position for the gripper in bits. Must be
-                between 0 and 255, where 0 represents fully open and 255 represents fully closed.
+            positionSignal (float): Signal use to positioned the gripper in
+                range [0,1]
             minSpeedPosDelta (int, optional): Minimum position delta to apply the minimum speed.
                 Defaults to 5.
             maxSpeedPosDelta (int, optional): Position delta above which the maximum speed is applied.
@@ -1667,10 +1668,13 @@ class RobotiqGripper( ):
         if not self.isStarted(refreshStatus=False):
             raise GripperNotStartedError()
         if not self.is_speed_calibrated():
-            raise GripperCalibrationError("The gripper need to be speed calibrated before using realtime move.")
+            raise GripperCalibrationError("The gripper need to be speed calibrated before using realtime position move.")
         
         #2- Get time
         now=floor_to_ms(time.monotonic())
+
+        # Calculate the requested position from the position signal
+        requestedPosition = int(max(0,min(255,positionSignal * 255)))
         
         
         #2 Build gripper command
@@ -1739,9 +1743,9 @@ class RobotiqGripper( ):
             print("force: ",force)
             raise GripperNotStartedError()
 
-    def pushPullMove(self,
-                     pushPullMotionSignal,
-                     pushPullForceSignal=0,
+    def realTimeSpeedMove(self,
+                     speedSignal,
+                     forceSignal=0,
                      forceNudgeThreshold=20,
                      speedNudgeThreshold=20,
                      verbose=0):
@@ -1764,10 +1768,10 @@ class RobotiqGripper( ):
           which wakes the firmware on its own without needing a retry.
 
         Args:
-            pushPullMotionSignal (float): Number in the range [-1, 1]. Positive
+            speedSignal (float): Number in the range [-1, 1]. Positive
                 closes the gripper, negative opens it, 0 holds the current
                 position. Magnitude controls the commanded speed.
-            pushPullForceSignal (float, optional): Number in the range [-1, 1]
+            forceSignal (float, optional): Number in the range [-1, 1]
                 controlling grip force. Ramps the commanded force up or down
                 gradually across calls (like a trigger squeeze) rather than
                 mapping directly to a value; exactly -1 or 1 jumps straight to
@@ -1804,21 +1808,24 @@ class RobotiqGripper( ):
             #----------------------------
 
             #Conditionning of the push pull signal to be between -1 and 1
-            pushPullMotionSignal = max(-1.0, min(1.0, pushPullMotionSignal))
+            speedSignal = max(-1.0, min(1.0, speedSignal))
             
             # speedCommand = -1 Means that the gripper has to be holded at its
             # current position by stopping the gripper setting the target position
             # equal to the current position and starting the gripper again
-            speedCommand = int(min(abs (pushPullMotionSignal * 256),256) - 1)
+            speedCommand = int(min(abs (speedSignal * 256),256) - 1)
 
-            directionCommand = np.sign(pushPullMotionSignal)
+            directionCommand = np.sign(speedSignal)
 
 
             # b) Force register command value
             #----------------------------
 
             #Conditionning of the force signal to be between -1 and 1
-            pushPullForceSignal = max(-1.0, min(1.0, pushPullForceSignal))
+            
+            
+            forceSignal = max(-1.0, min(1.0, forceSignal))
+
             
             
             #calculate force value from force signal.
@@ -1828,13 +1835,14 @@ class RobotiqGripper( ):
 
             #The force variation speed depends on the pushPullForce Signal
             forceVariation = 0
-            if (pushPullForceSignal == -1) or (pushPullForceSignal == 1):
-                forceVariation = np.sign(pushPullForceSignal) * 255
+            if (forceSignal == -1) or (forceSignal == 1):
+                forceVariation = np.sign(forceSignal) * 255
             else:
-                forceVariation = pushPullForceSignal * 10
+                forceVariation = forceSignal * 5
 
-            forceCommand = int(max(0,min(255,(lastForce + forceVariation))))
+            forceCommand = max(0,min(255,(lastForce + forceVariation)))
             self._pushPullForceCommand = forceCommand
+            forceCommand = int(forceCommand)
 
             # c) Position register command value
             #----------------------------
@@ -1850,8 +1858,8 @@ class RobotiqGripper( ):
                 #episode starts fresh from whatever is being requested right
                 #now, rather than comparing against a stale value from a
                 #previous latch.
-                self._pushPullNudgeForceBaseline = forceCommand
-                self._pushPullNudgeSpeedBaseline = speedCommand
+                self._realtimeSpeedMove_NudgeForceBaseline = forceCommand
+                self._realtimeSpeedMove_NudgeSpeedBaseline = speedCommand
                 if speedCommand < 0:
                     #No motion requested
                     self.moveToCurrentPosition(0,forceCommand)
@@ -1884,12 +1892,12 @@ class RobotiqGripper( ):
                     
                     # No motion requested
                     # The gripper is stopped if force is 0 are continuously closing if force >0
-                    if self._pushPullNudgeForceBaseline is None:
-                        self._pushPullNudgeForceBaseline = forceCommand
-                    forceCommandDelta = forceCommand - self._pushPullNudgeForceBaseline
-                    if (forceCommandDelta > forceNudgeThreshold) or ((forceCommand == 255) and (self._pushPullNudgeForceBaseline!=255)):
+                    if self._realtimeSpeedMove_NudgeForceBaseline is None:
+                        self._realtimeSpeedMove_NudgeForceBaseline = forceCommand
+                    forceCommandDelta = forceCommand - self._realtimeSpeedMove_NudgeForceBaseline
+                    if (forceCommandDelta > forceNudgeThreshold) or ((forceCommand == 255) and (self._realtimeSpeedMove_NudgeForceBaseline!=255)):
                         #Reset object detection status and set new force parameter
-                        self._pushPullNudgeForceBaseline = forceCommand
+                        self._realtimeSpeedMove_NudgeForceBaseline = forceCommand
                         self.stop()
                         if directionCommand >= 0:
                             positionCommand = 255
@@ -1906,19 +1914,19 @@ class RobotiqGripper( ):
                         self.move(positionCommand,speedCommand,forceCommand,wait=False)
                         return
                     else:
-                        if self._pushPullNudgeSpeedBaseline is None:
-                            self._pushPullNudgeSpeedBaseline = speedCommand
-                        if self._pushPullNudgeForceBaseline is None:
-                            self._pushPullNudgeForceBaseline = forceCommand
+                        if self._realtimeSpeedMove_NudgeSpeedBaseline is None:
+                            self._realtimeSpeedMove_NudgeSpeedBaseline = speedCommand
+                        if self._realtimeSpeedMove_NudgeForceBaseline is None:
+                            self._realtimeSpeedMove_NudgeForceBaseline = forceCommand
 
-                        speedCommandDelta = speedCommand - self._pushPullNudgeSpeedBaseline
-                        forceCommandDelta = forceCommand - self._pushPullNudgeForceBaseline
+                        speedCommandDelta = speedCommand - self._realtimeSpeedMove_NudgeSpeedBaseline
+                        forceCommandDelta = forceCommand - self._realtimeSpeedMove_NudgeForceBaseline
 
                         if ((speedCommandDelta > speedNudgeThreshold) or (forceCommandDelta > forceNudgeThreshold)
-                                or ((forceCommand == 255) and (self._pushPullNudgeForceBaseline != 255))
-                                or ((speedCommand == 255) and (self._pushPullNudgeSpeedBaseline != 255))):
-                            self._pushPullNudgeSpeedBaseline = speedCommand
-                            self._pushPullNudgeForceBaseline = forceCommand
+                                or ((forceCommand == 255) and (self._realtimeSpeedMove_NudgeForceBaseline != 255))
+                                or ((speedCommand == 255) and (self._realtimeSpeedMove_NudgeSpeedBaseline != 255))):
+                            self._realtimeSpeedMove_NudgeSpeedBaseline = speedCommand
+                            self._realtimeSpeedMove_NudgeForceBaseline = forceCommand
                             if (directionCommand > 0):
                                 self.stop()
                                 positionCommand = 255
@@ -1937,12 +1945,12 @@ class RobotiqGripper( ):
                 if speedCommand < 0:
                     # No motion requested
                     # The gripper is stopped if force is 0 are continuously closing if force >0
-                    if self._pushPullNudgeForceBaseline is None:
-                        self._pushPullNudgeForceBaseline = forceCommand
-                    forceCommandDelta = forceCommand - self._pushPullNudgeForceBaseline
-                    if (forceCommandDelta > forceNudgeThreshold) or ((forceCommand == 255) and (self._pushPullNudgeForceBaseline!=255)):
+                    if self._realtimeSpeedMove_NudgeForceBaseline is None:
+                        self._realtimeSpeedMove_NudgeForceBaseline = forceCommand
+                    forceCommandDelta = forceCommand - self._realtimeSpeedMove_NudgeForceBaseline
+                    if (forceCommandDelta > forceNudgeThreshold) or ((forceCommand == 255) and (self._realtimeSpeedMove_NudgeForceBaseline!=255)):
                         #Reset object detection status and set new force parameter
-                        self._pushPullNudgeForceBaseline = forceCommand
+                        self._realtimeSpeedMove_NudgeForceBaseline = forceCommand
                         self.stop()
                         if directionCommand >= 0:
                             positionCommand = 255
@@ -1961,19 +1969,19 @@ class RobotiqGripper( ):
                         return
                     else:
                         
-                        if self._pushPullNudgeSpeedBaseline is None:
-                            self._pushPullNudgeSpeedBaseline = speedCommand
-                        if self._pushPullNudgeForceBaseline is None:
-                            self._pushPullNudgeForceBaseline = forceCommand
+                        if self._realtimeSpeedMove_NudgeSpeedBaseline is None:
+                            self._realtimeSpeedMove_NudgeSpeedBaseline = speedCommand
+                        if self._realtimeSpeedMove_NudgeForceBaseline is None:
+                            self._realtimeSpeedMove_NudgeForceBaseline = forceCommand
 
-                        speedCommandDelta = speedCommand - self._pushPullNudgeSpeedBaseline
-                        forceCommandDelta = forceCommand - self._pushPullNudgeForceBaseline
+                        speedCommandDelta = speedCommand - self._realtimeSpeedMove_NudgeSpeedBaseline
+                        forceCommandDelta = forceCommand - self._realtimeSpeedMove_NudgeForceBaseline
 
                         if ((speedCommandDelta > speedNudgeThreshold) or (forceCommandDelta > forceNudgeThreshold)
-                                or ((forceCommand == 255) and (self._pushPullNudgeForceBaseline != 255))
-                                or ((speedCommand == 255) and (self._pushPullNudgeSpeedBaseline != 255))):
-                            self._pushPullNudgeSpeedBaseline = speedCommand
-                            self._pushPullNudgeForceBaseline = forceCommand
+                                or ((forceCommand == 255) and (self._realtimeSpeedMove_NudgeForceBaseline != 255))
+                                or ((speedCommand == 255) and (self._realtimeSpeedMove_NudgeSpeedBaseline != 255))):
+                            self._realtimeSpeedMove_NudgeSpeedBaseline = speedCommand
+                            self._realtimeSpeedMove_NudgeForceBaseline = forceCommand
                             if (directionCommand < 0):
                                 self.stop()
                                 positionCommand = 0
@@ -1998,8 +2006,7 @@ class RobotiqGripper( ):
                     " rSPR : ",history[-1,RSP],
                     " Sc : ",speedCommand,
                     " Fc : ",forceCommand,
-                    " real_gGTO : ",self._statusHistory[-1,GGTO],
-                    " real_gOBJ : ",self._statusHistory[-1,GOBJ],
+                    " estimated_gOBJ : ",gOBJ,
 
                     )
 
@@ -2110,7 +2117,7 @@ class RobotiqGripper( ):
         """
         return (self.gripper_vmax_bits() - self.gripper_vmin_bits())/255
     
-    def speedResultionMm(self):
+    def speedResolutionMm(self):
         """Return the speed resultion in mm/s per bit. This correspond the 
         speed increase in mm/s if the speed parameter vary of 1 bit
         """
@@ -2240,6 +2247,13 @@ class RobotiqGripper( ):
             warnings.warn("Command history is empty. Last set force is unknown.",UserWarning, stacklevel=2)
             return None
         return value
+    
+    def minSpeedMmSecond(self):
+        """Return the minimum gripper speed in mm/s
+        """
+        if not self.is_speed_calibrated():
+            raise GripperCalibrationError("The gripper is not speed calibrated")
+        return self.gripper_vmin_bits() * self.positioningResolution()
 
     def maxSpeedMmSecond(self):
         """Return the maximum gripper speed in mm/s
@@ -2247,13 +2261,6 @@ class RobotiqGripper( ):
         if not self.is_speed_calibrated():
             raise GripperCalibrationError("The gripper is not speed calibrated")
         return self.gripper_vmax_bits() * self.positioningResolution()
-
-    def minSpeedMmSecond(self):
-        """Return the minimum gripper speed in mm/s
-        """
-        if not self.is_speed_calibrated():
-            raise GripperCalibrationError("The gripper is not speed calibrated")
-        return self.gripper_vmin_bits() * self.positioningResolution()
 
     def objectDetection(self,mergedHistory=None, duration=0.5, tolerance=3, refreshStatus=True,verbose=0):
         """Estimate object detection status from history data or gripper object

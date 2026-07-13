@@ -14,7 +14,7 @@ Welcome to pyRobotiqGripper Documentation
    Installation <installation>
    Gripper Connection <connection>
    Basic Usage <basic_usage>
-   Advanced Usage <advanced_usage>
+   Realtime usage <realtime>
    API Reference <api>
 
 Indices and tables
