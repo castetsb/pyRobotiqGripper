@@ -23,7 +23,7 @@ class MouseJoystick:
     Axis 1 (AXIS_Y): vertical position, 1 (top) to -1 (bottom).
     """
 
-    def __init__(self, deadzone: float = 0.10):
+    def __init__(self, deadzone: float = 0):
         """
         Args:
             deadzone (float, optional): Fraction (0-1) of the screen
@@ -68,6 +68,5 @@ class MouseJoystick:
         if axis == AXIS_X:
             return self._normalize(self.x, screen_width)
         if axis == AXIS_Y:
-            # Screen Y grows downward; flip so "up" is positive.
-            return -self._normalize(self.y, screen_height)
+            return self._normalize(self.y, screen_height)
         raise ValueError(f"MouseJoystick only supports axis 0 (X) or 1 (Y), got {axis}")

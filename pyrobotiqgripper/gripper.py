@@ -182,16 +182,21 @@ class RobotiqGripper( ):
         self._lastMoveDirection = 0
         self._lastMoveTime = None
 
-        #Force/speed baselines used by pushPullPositionMove() to decide whether a
-        #change is significant enough to retry the grip while an object
-        #is latched. None means "not currently tracking a latch episode".
-        self._realtimeSpeedMove_NudgeForceBaseline = None
-        self._realtimeSpeedMove_NudgeSpeedBaseline = None
+        self._lastObjectDetectionTime = None
 
-        #Ramping force target tracked by pushPullPositionMove(), independent of
-        #_commandHistory so it keeps accumulating every tick even while a
-        #send is being withheld pending the nudge threshold.
-        self._pushPullForceCommand = None
+        self._last_at_position_status_position = None
+
+
+        self._realtimePositionMove_NudgeBaseline = None
+        self._realTimePositionMove_ForceCommand = None
+        self._realtimePositionMove_force_mode_start_force =None
+        self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_FREEMOVE
+
+
+        self._realtimeSpeedMove_NudgeBaseline = None
+        self._realTimeSpeedMove_ForceCommand = None
+        self._realtimeSpeedMove_force_mode_start_force =None
+        self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FREEMOVE
 
         #Initialisation
         ###############
@@ -665,10 +670,17 @@ class RobotiqGripper( ):
         gripperStatusReg0=(statusRegisters[0] >> 8) & 0b11111111 #xxxxxxxx00000000
         #########################################
         #Object detection
-        if readWrite:
-            gOBJ=-1
+
+        #if readWrite:
+        #    gOBJ=-1
+        #else:
+
+        gOBJ=(gripperStatusReg0 >> 6) & 0b11 #xx000000
+        if ((gOBJ == GOBJ_DETECTED_WHILE_CLOSING) or (gOBJ == GOBJ_DETECTED_WHILE_OPENING)) and (self._lastObjectDetectionTime==0):
+            self._lastObjectDetectionTime = t
         else:
-            gOBJ=(gripperStatusReg0 >> 6) & 0b11 #xx000000
+            self._lastObjectDetectionTime = 0
+        
         #Gripper status
         gSTA=(gripperStatusReg0 >> 4) & 0b11 #00xx0000
         #Action status. echo of rGTO (go to bit)
@@ -717,6 +729,9 @@ class RobotiqGripper( ):
         #########################################
         #Actual position of the gripper
         gPO=positionReg4
+
+        if gOBJ == GOBJ_AT_POSITION:
+            self._last_at_position_status_position = gPO
         
         #########################################
         #Second Byte: Current
@@ -843,7 +858,7 @@ class RobotiqGripper( ):
 
         return estimatedPosition
     
-    def _bitPerSecond(self,speed):
+    def _convert_speedParameter_2_bitPerSecond(self,speed):
         """Return the corresponding position bits/s speed for a speed value in bit.
         
         Parameters:
@@ -856,10 +871,37 @@ class RobotiqGripper( ):
         bitPerSecond : float
             Position variation in bits/s
         """
+        if not self.is_speed_calibrated():
+            raise GripperCalibrationError("Gripper need to be calibrater in order to use use _convert_speedParameter_2_bitPerSecond function")
+
         bitPerSecond=self.gripper_vmin_bits() + (float(self.gripper_vmax_bits()-self.gripper_vmin_bits())/255)*speed
         if bitPerSecond<0:
             raise GripperValidationError("Negative bit per second value {} for speed {}. Gripper_vmax_bits: {} and Gripper_vmin_bits: {}".format(bitPerSecond,speed,self.gripper_vmax_bits(),self.gripper_vmin_bits()))
         return bitPerSecond
+    
+    def _convert_bitPerSecond_2_speedParameter(self,speed):
+        """Return the corresponding speed value in bit for a speed value in bits/s.
+        
+        Parameters:
+        -----------
+        speed : int
+            Gripper speed in bits/s
+        
+        Returns:
+        --------
+        bitPerSecond : float
+            Speed value in bit
+        """
+
+        if not self.is_speed_calibrated():
+            raise GripperCalibrationError("Gripper need to be calibrater in order to use use _convert_bitPerSecond_2_speedParameter function")
+
+
+        speedValue = (speed - self.gripper_vmin_bits()) / (float(self.gripper_vmax_bits()-self.gripper_vmin_bits())/255)
+
+        speedValue = int(max(0,min(speedValue,255)))
+
+        return speedValue
     
     def _mergeHistory(self):
         """Merge command and status history arrays based on time.
@@ -915,7 +957,7 @@ class RobotiqGripper( ):
                 direction = np.sign(prev_rPR - prev_gPO)
                 
                 # Movement
-                delta = direction * self._bitPerSecond(speed) * dt
+                delta = direction * self._convert_speedParameter_2_bitPerSecond(speed) * dt
                 new_pos = int(prev_gPO + delta)
                 
                 # Clamp to target (avoid overshoot)
@@ -950,7 +992,7 @@ class RobotiqGripper( ):
         travelTime : float
             Time needed to travel from start to end position.
         """
-        posBitPerSecond = self._bitPerSecond(speed)
+        posBitPerSecond = self._convert_speedParameter_2_bitPerSecond(speed)
         travelTime = abs(float(endPosition-startPosition))/posBitPerSecond
         return travelTime
 
@@ -1005,10 +1047,10 @@ class RobotiqGripper( ):
 
         #Object detection
 
-        history = self._mergeHistory()
+        history = self.historyNumpy()
         
         prev_time=history[-1,TIME]
-        prev_cOBJ=self.objectDetection(history,duration=objectDetectionDuration,tolerance=3,refreshStatus=False)#, verbose=verbose)
+        prev_cOBJ=self.objectDetection(refreshStatus=False)
         prev_gPO=history[-1,M_GPO]
         prev_rPR=history[-1,RPR]
         prev_rSP=history[-1,RSP]
@@ -1034,7 +1076,7 @@ class RobotiqGripper( ):
         # Check if object detected
         if prev_cOBJ in [GOBJ_DETECTED_WHILE_OPENING, GOBJ_DETECTED_WHILE_CLOSING]:
             # Object detected
-            full_grip_applied = (prev_rPR in [0, 255] and prev_rSP == 255 and prev_rFR == 255)
+            full_grip_applied = (prev_rPR in [0, 255]) and (prev_rSP == 255) and (prev_rFR == 255)
             if not full_grip_applied:
                 # Apply full grip
                 if prev_cOBJ == GOBJ_DETECTED_WHILE_CLOSING:
@@ -1618,33 +1660,185 @@ class RobotiqGripper( ):
         position=int(self._mmToBit(positionmm))
         self.move(position,speed,force,wait,readStatus,refreshStatus)
 
+    
+    def _realTimePositionMove_freeMotion(self,
+                                         controlSignal,
+                                         controlBuffer=0.05,
+                                         speedLowerControlThreshold=10,
+                                         speedUpperControlThreshold=30):
+        """
+        Args:
+            controlSignal (float): Analogic control signal in range [0,1]
+            controlBuffer (float): Dimension of the upper and lower range of the
+                control signal. Express in percentage of total control range.
+            speedLowerControlThreshold (int):
+
+            speedUpperControlThreshold (int):
+
+
+        """
+        positionCommand = None
+        speedCommand = None
+        forceCommand = None
+
+        controlBuffer = max(0,min(1,controlBuffer))
+
+        #Position command
+        #################
+        if controlSignal < controlBuffer:
+            positionCommand = 0
+        elif controlSignal <= (1 - controlBuffer):
+            positionControlFunction = get_line_function(controlBuffer,0,1-controlBuffer,255)
+            positionCommand = int(max(0,min(255,positionControlFunction(controlSignal))))
+        else:
+            positionCommand = 255
+
+        #Speed command
+        ###############
+        positionDelta = None
+        #positionDelta = abs(self._last_at_position_status_position - positionCommand)
+        positionDelta = abs(self.position(refreshStatus=False) - positionCommand)
+        
+        if controlSignal < controlBuffer:
+            speedCommand = 255
+        elif controlSignal <= (1 - controlBuffer):
+            speedControlFunction = make_curve_function(10,50)
+            speedCommand = int(max(0,min(255,speedControlFunction(positionDelta))))
+        else:
+            speedCommand = 255
+
+        #Force command
+        ##############
+        forceCommand = speedCommand
+        
+        #Motion
+        #######
+        self.move(positionCommand,speedCommand,forceCommand,wait=False)
+
+        return positionCommand, speedCommand, forceCommand
+
+    def _realtimePositionMove_forceMode(self,controlSignal,controlBuffer=0.1):
+        """
+        """
+        positionCommand = None
+        speedCommand = None
+        forceCommand = None
+
+        # Position command
+
+        if self.objectDetection(refreshStatus=False) == GOBJ_DETECTED_WHILE_CLOSING:
+            positionCommand = 255
+        else:
+            positionCommand = 0
+        
+        # Speed command
+        if self.objectDetection(refreshStatus=False) == GOBJ_DETECTED_WHILE_CLOSING:
+            if controlSignal < controlBuffer:
+                speedCommand = 0
+            else:
+                speedControlFunction=get_line_function(controlBuffer,0,1,255)
+                speedCommand = speedControlFunction(controlSignal)
+        else:
+            if controlSignal > (1-controlBuffer):
+                speedCommand = 0
+            else:
+                speedControlFunction = get_line_function(0,255,1-controlBuffer,0)
+                speedCommand = speedControlFunction(controlSignal)
+
+        
+        speedCommand = int(max(0,min(255,speedCommand)))
+
+        
+        if speedCommand <= self._realtimePositionMove_NudgeBaseline:
+            speedCommand = None
+        else:
+            self._realtimePositionMove_NudgeBaseline = speedCommand
+        
+        forceCommand = speedCommand
+
+        # Motion
+        if speedCommand is not None:
+            self.stop(refreshStatus=False)
+            self.move(positionCommand,speedCommand,forceCommand,start=True)
+
+        
+        return positionCommand, speedCommand, forceCommand
+    
+    def _realtimeSpeedMove_forceMode(self,controlSignal,controlBuffer=0.1):
+        """
+        """
+        positionCommand = None
+        speedCommand = None
+        forceCommand = None
+
+        # Position command
+        if self.objectDetection(refreshStatus=False) == GOBJ_DETECTED_WHILE_CLOSING:
+            positionCommand = 255
+        else:
+            positionCommand = 0
+        
+        # Speed command
+        if abs(controlSignal) < controlBuffer:
+            speedCommand = 0
+        else:
+            speedControlFunction=get_line_function(controlBuffer,0,1,255)
+            speedCommand = speedControlFunction(controlSignal)
+
+        speedCommand = int(max(0,min(255,speedCommand)))
+
+        if speedCommand <= self._realtimeSpeedMove_NudgeBaseline:
+            speedCommand = None
+        else:
+            self._realtimePositionMove_NudgeBaseline = speedCommand
+        
+        forceCommand = speedCommand
+
+        # Motion
+        if speedCommand is not None:
+            self.stop(refreshStatus=False)
+            self.move(positionCommand,speedCommand,forceCommand,start=True)
+
+        return positionCommand, speedCommand, forceCommand
+    
+    def realTimePositionMove_Mode(self):
+        """Return the mode of the realTimePositionMove function"""
+
+        return self._realtimePositionMove_Mode
+
+    def realTimeSpeedMove_Mode(self):
+        """Return the mode of the realTimePositionMove function"""
+
+        return self._realtimeSpeedMove_Mode
+
     def realTimePositionMove(self,
-                     positionSignal,
-                     minSpeedPosDelta=5,
-                     maxSpeedPosDelta=100,
-                     continuousGrip=True,
-                     autoLock=True,
-                     minimalMotion=2,
-                     verbose=0,
-                     objectDetectionDuration=0.5):
+                             controlSignal,
+                             controlBuffer=0.05,
+                             moveSpeed=None,#If None the speed is dynamically adjusted with the distance between actual and target position
+                             speedLowerControlThreshold=30,#Use only if sped is dynamically adjusted (ie moveSpeed is not None)
+                             speedUpperControlThreshold=150,#Use only if sped is dynamically adjusted (ie moveSpeed is not None)
+                             moveForce=None,#If None the force is set egual to the speed
+                             gripSpeed=None,#If None the joystick is use to set the gripping force after object detection.
+                             gripForce=None,#If None the joystick is use to set the gripping force after object detection.
+                             verbose=0):#expressed in percentage of control range (range between lower and upper buffer)
         """Move the gripper in real time to the requested position.
 
         Args:
-            positionSignal (float): Signal use to positioned the gripper in
-                range [0,1]
-            minSpeedPosDelta (int, optional): Minimum position delta to apply the minimum speed.
-                Defaults to 5.
-            maxSpeedPosDelta (int, optional): Position delta above which the maximum speed is applied.
-                Defaults to 100.
-            continuousGrip (bool, optional): If True, the gripper continuously tries to
-                close on the object even after detection (force > 0). Defaults to True.
-            autoLock (bool, optional): If True, the gripper automatically performs a
-                full-speed, full-force grip after object detection. Defaults to True.
-            minimalMotion (int, optional): Minimum motion in bits to perform when a motion
-                is requested. If the position delta between the current and requested
-                position is below this value, no motion is performed. Defaults to 2.
-            verbose (int, optional): Verbose level for printing. 1 prints all executed commands;
-                2 prints all commands. Defaults to 0.
+            controlSignal: Analogic control signal in range [0,1]
+            controlBuffer: Dimension of the upper and lower range of the
+                control signal. Express in percentage of total control range [0,1].
+            
+            speed: Speed parameter to be use for the motion. If None the speed
+                is dynamically adjusted with distance between current position
+                and target.
+            
+            force: Force parameter to be use for the motion. If None, the force
+                is set egual to the speed parameter.
+            speedLowerControlThreshold:
+            speedUpperControlThreshold:
+            
+        
+        Return:
+            mode: id of the mode of the gripper.
         
         Examples:
             Make a loop to control the gripper using a joystick with pygame
@@ -1662,42 +1856,173 @@ class RobotiqGripper( ):
             >>>     pygame.event.pump()
             >>>     grip.realtimePositionMove(positionSignal)
         """
-        #Check if the gripper is activated
-        if not self.isActivated(refreshStatus=False):
-            raise GripperNotActivatedError()
-        if not self.isStarted(refreshStatus=False):
-            raise GripperNotStartedError()
-        if not self.is_speed_calibrated():
-            raise GripperCalibrationError("The gripper need to be speed calibrated before using realtime position move.")
-        
-        #2- Get time
-        now=floor_to_ms(time.monotonic())
 
-        # Calculate the requested position from the position signal
-        requestedPosition = int(max(0,min(255,positionSignal * 255)))
+        #Control signal conditionning
+        controlSignal=max(0,min(controlSignal,1))
+
+        # Command
+        ##########
+
+        ## Position Command
+        positionCommand = None
         
-        
-        #2 Build gripper command
-        command=self._commandFilter(current_time=now,
-                                    current_rPR=requestedPosition,
-                                    minSpeedPosDelta=minSpeedPosDelta,
-                                    maxSpeedPosDelta=maxSpeedPosDelta,
-                                    continuousGrip=continuousGrip,
-                                    autoLock=autoLock,
-                                    minimalMotion=minimalMotion,
-                                    verbose=verbose,
-                                    objectDetectionDuration=objectDetectionDuration)
-        
-        if command["execution"]==WRITE_READ_COMMAND:
-            if command["wait"]:
-                self.move(command["rPR"],command["rSP"],command["rFR"],wait=True)
+        #Speed command
+        speedCommand = None
+
+        # Force command
+        forceCommand = None
+
+
+        #####################
+        # Mode shifting and shared variable updated
+        #####################
+
+        # 0
+        ###
+        if self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_FREEMOVE:
+            if self.objectDetection(refreshStatus=False) == GOBJ_DETECTED_WHILE_CLOSING:
+                if self.objectDetection(refreshStatus=True) == GOBJ_DETECTED_WHILE_CLOSING:
+                    self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_CLOSING
+                else:
+                    self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_FREEMOVE
+            elif self.objectDetection(refreshStatus=False) == GOBJ_DETECTED_WHILE_OPENING:
+                if self.objectDetection(refreshStatus=True) == GOBJ_DETECTED_WHILE_OPENING:
+                    self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_OPENING
+                else:
+                    self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_FREEMOVE
             else:
-                self.move(command["rPR"],command["rSP"],command["rFR"],wait=False)
+                self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_FREEMOVE
+        
+        ###########################
+        ###########################
+        
+        # 100
+        #####
+        elif self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_CLOSING:
+            if controlSignal < controlBuffer:
+                self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_CLOSING
+            else:
+                self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_CLOSING
+        
+        # 101
+        #####
+        elif self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_CLOSING:
+            if controlSignal > controlBuffer:
+                self._realtimePositionMove_force_mode_start_force = self.force()
+                self._realtimePositionMove_NudgeBaseline = self.force()
+                self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_CLOSING
+            else:
+                self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_CLOSING
+        
+        # 102
+        #####
+        elif self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_CLOSING:
+            if self.objectDetection(refreshStatus=False) == GOBJ_DETECTED_WHILE_CLOSING:
+                if controlSignal < controlBuffer:
+                    #Compare the value of the force when force mode have been activated and the current force value of the gripper
+                    if self.force() > self._realtimePositionMove_force_mode_start_force:
+                        self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_CLOSING
+                    else:
+                        self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_FREEMOVE
+                else:
+                    self._realtimePositionMove_NudgeBaseline = self.force()
+                    self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_CLOSING
+            else:
+                self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_FREEMOVE
+        
+        ###########################
+        ###########################
 
-        elif command["execution"]==READ_COMMAND:
-            self.readStatus()
+        # 200
+        #####
+        elif self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_OPENING:
+            if controlSignal > (1-controlBuffer):
+                self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_OPENING
+            else:
+                self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_OPENING
+        
+        # 201
+        #####
+        elif self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_OPENING:
+            if controlSignal < (1-controlBuffer):
+                self._realtimePositionMove_force_mode_start_force = self.force()
+                self._realtimePositionMove_NudgeBaseline = self.force()
+                self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_OPENING
+            else:
+                self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_OPENING
+        
+        # 202
+        #####
+        elif self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_OPENING:
+            if self.objectDetection(refreshStatus=False) == GOBJ_DETECTED_WHILE_OPENING:
+                if controlSignal > (1-controlBuffer):
+                    #Compare the value of the force when force mode have been activated and the current force value of the gripper
+                    if self.force() > self._realtimePositionMove_force_mode_start_force:
+                        self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_OPENING
+                    else:
+                        self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_FREEMOVE
+                else:
+                    self._realtimePositionMove_NudgeBaseline = self.force()
+                    self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_OPENING
+            else:
+                self._realtimePositionMove_Mode = REALTIME_POSITION_MOVE_MODE_FREEMOVE
         else:
-            warnings.warn("No command executed",UserWarning, stacklevel=2)
+            raise RobotiqGripperError("realtimepositionmove mode not supported")
+        
+        #############
+        # Motion logic
+        #############
+
+        # 0
+        ###
+        if self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_FREEMOVE:
+            #Reset speed and force base lines whihc are use in force control mode
+            positionCommand, speedCommand, forceCommand = self._realTimePositionMove_freeMotion(controlSignal=controlSignal,controlBuffer=controlBuffer)
+        
+        ###########################
+        ###########################
+        
+        # 100
+        #####
+        elif self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_CLOSING:
+            pass
+        # 101
+        #####
+        elif self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_CLOSING:
+            pass
+        # 102
+        #####
+        elif self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_CLOSING:
+            positionCommand, speedCommand, forceCommand = self._realtimePositionMove_forceMode(controlSignal=controlSignal,controlBuffer=2*controlBuffer)
+        
+        ###########################
+        ###########################
+
+        # 200
+        #####
+        elif self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_OPENING:
+            pass
+        # 201
+        #####
+        elif self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_OPENING:
+            pass
+        # 202
+        #####
+        elif self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_OPENING:
+            positionCommand, speedCommand, forceCommand = self._realtimePositionMove_forceMode(controlSignal=controlSignal,controlBuffer=2*controlBuffer)
+        else:
+            raise RobotiqGripperError("Realtime position move mode unknown: ",self._realtimePositionMove_Mode)
+
+        if verbose==1:
+            print("Frequency : ", int(1/(self._statusHistory[-1,TIME] - self._statusHistory[-2,TIME])),
+                " Time : ",f"{self._statusHistory[-1,TIME]:.3f}",
+                " Signal : ",f"{controlSignal:.2f}",
+                " mode : ",self._realtimePositionMove_Mode,
+                " gPO : ", self.position(False),
+                " gOBJ : ",self.objectDetection(False),
+                " P: ",positionCommand,
+                " F: ",forceCommand,
+                " S: ",speedCommand)
 
     def moveToCurrentPosition(self, speed = None, force = None):
         """Move the gripper to its current position. This has the effect to stop
@@ -1711,7 +2036,6 @@ class RobotiqGripper( ):
             force (int):
                 Gripper force parameter value to move to current position
         """
-        
         #Stop the gripper
         self.stop(readStatus=False)
 
@@ -1744,10 +2068,8 @@ class RobotiqGripper( ):
             raise GripperNotStartedError()
 
     def realTimeSpeedMove(self,
-                     speedSignal,
-                     forceSignal=0,
-                     forceNudgeThreshold=20,
-                     speedNudgeThreshold=20,
+                     controlSignal,
+                     controlBuffer=0.05,
                      verbose=0):
         """Move the gripper using a push-pull motion signal and a force signal.
 
@@ -1801,237 +2123,141 @@ class RobotiqGripper( ):
             >>>     pygame.event.pump()
             >>>     grip.realtimeSpeedMove(speedSignal,forceSignal)
         """
+        positionCommand=None
+        speedCommand=None
+        forceCommand=None
+
+        ###########################################
+        # Mode shifting and shared variable updated
+        ###########################################
+
+        # 0
+        ###
+        if self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_FREEMOVE:
+            if self.objectDetection(refreshStatus=False) in [GOBJ_DETECTED_WHILE_CLOSING,GOBJ_DETECTED_WHILE_OPENING]:
+                if self.objectDetection(refreshStatus=True) in [GOBJ_DETECTED_WHILE_CLOSING,GOBJ_DETECTED_WHILE_OPENING]:
+                    self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_OBJECT_DETECTED
+                else:
+                    self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FREEMOVE
+            else:
+                self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FREEMOVE
+        
+        # 100
+        #####
+        elif self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_OBJECT_DETECTED:
+            if abs(controlSignal) < controlBuffer:
+                self._realtimeSpeedMove_NudgeBaseline = self.force()
+                self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FORCE_DEACTIVATED
+            else:
+                self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_OBJECT_DETECTED
+        
+        # 101
+        #####
+        elif self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_FORCE_DEACTIVATED:
+            if controlSignal > controlBuffer:
+                self._realtimeSpeedMove_force_mode_start_force = self.force()
+                self._realtimeSpeedMove_NudgeBaseline = self.force()
+                self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FORCE_ACTIVATED
+            else:
+                self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FORCE_DEACTIVATED
+        
+        # 102
+        #####
+        elif self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_FORCE_ACTIVATED:
+            if self.objectDetection(refreshStatus=False) in [GOBJ_DETECTED_WHILE_CLOSING,GOBJ_DETECTED_WHILE_OPENING]:
+                if abs(controlSignal) < controlBuffer:
+                    #Compare the value of the force when force mode have been activated and the current force value of the gripper
+                    if self.force() > self._realtimeSpeedMove_force_mode_start_force:
+                        self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FORCE_DEACTIVATED
+                    else:
+                        self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FREEMOVE
+                else:
+                    self._realtimeSpeedMove_NudgeBaseline = self.force()
+                    self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FORCE_ACTIVATED
+            else:
+                #Clear object detection
+                self.stop(refreshStatus=False)
+                self.moveToCurrentPosition(0,0)
+                self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FREEMOVE
+        
+        ##############
+        # Motion logic
+        ##############
+
+        # 0
+        ###
+        if self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_FREEMOVE:
+            #Reset speed and force base lines whihc are use in force control mode
+            positionCommand, speedCommand, forceCommand = self._realTimeSpeedMove_freeMotion(controlSignal=controlSignal,controlBuffer=controlBuffer)
+        
+        ###########################
+        ###########################
+        
+        # 100
+        #####
+        elif self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_OBJECT_DETECTED:
+            pass
+        
+        # 101
+        #####
+        elif self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_FORCE_DEACTIVATED:
+            pass
+        
+        # 102
+        #####
+        elif self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_FORCE_ACTIVATED:
+            positionCommand, speedCommand, forceCommand = self._realtimeSpeedMove_forceMode(controlSignal=max(0,min(1,controlSignal)),controlBuffer=2*controlBuffer)
+        else:
+            raise RobotiqGripperError("Realtime position move mode unknown: ",self._realtimeSpeedMove_Mode)
+
+        if verbose==1:
+            print("Frequency : ", int(1/(self._statusHistory[-1,TIME] - self._statusHistory[-2,TIME])),
+                " Time : ",f"{self._statusHistory[-1,TIME]:.3f}",
+                " Signal : ",f"{controlSignal:.2f}",
+                " mode : ",self._realtimePositionMove_Mode,
+                " gPO : ", self.position(False),
+                " gOBJ : ",self.objectDetection(False),
+                " P: ",positionCommand,
+                " F: ",forceCommand,
+                " S: ",speedCommand)
+
+    def _realTimeSpeedMove_freeMotion(self,controlSignal,controlBuffer):
+        """
+        """
+        positionCommand = None
         speedCommand = None
         forceCommand = None
-        try:
-            # Get time
-            t = floor_to_ms(time.monotonic())
 
-            # retrieve object detection status
-            # We are forced to retriev the gripper status because we need to know if
-            # an object has been gripped to send the proper control command.
-            
-            
-            #gOBJ = self.objectDetection(refreshStatus=False)
-            
-            gOBJ = self.objectDetection(refreshStatus=False)
-            
-            #print("Estimated gOBJ: ",gOBJ)
-            #sprint(REGISTER_DIC["gOBJ"][gOBJ])
-            # 1- Convert input signal into register command value
-            #####################################################
+        controlSignal = max(-1,min(1,controlSignal))
 
-            # a) Speed register command value
-            #----------------------------
+        if  abs(controlSignal)< controlBuffer:
+            #Gripper request to stay at current position
+            speedCommand = 0
+            forceCommand = 0
 
-            #Conditionning of the push pull signal to be between -1 and 1
-            speedSignal = max(-1.0, min(1.0, speedSignal))
-            
-            # speedCommand = -1 Means that the gripper has to be holded at its
-            # current position by stopping the gripper setting the target position
-            # equal to the current position and starting the gripper again
-            speedCommand = int(min(abs (speedSignal * 256),256) - 1)
+            self.stop(refreshStatus=False)
+            self.moveToCurrentPosition(speedCommand,forceCommand)
 
-            directionCommand = np.sign(speedSignal)
+            positionCommand = self.position(refreshStatus=False)
 
-
-            # b) Force register command value
-            #----------------------------
-
-            #Conditionning of the force signal to be between -1 and 1
-            
-            
-            forceSignal = max(-1.0, min(1.0, forceSignal))
-
-            
-            
-            #calculate force value from force signal.
-            lastForce = self._pushPullForceCommand
-            if lastForce is None or lastForce < 0:
-                lastForce = 0
-
-            #The force variation speed depends on the pushPullForce Signal
-            forceVariation = 0
-            if (forceSignal == -1) or (forceSignal == 1):
-                forceVariation = np.sign(forceSignal) * 255
+            return positionCommand, speedCommand, forceCommand
+        else:
+            #Position
+            if controlSignal > 0:
+                positionCommand = 255
             else:
-                forceVariation = forceSignal * 5
+                positionCommand = 0
 
-            forceCommand = max(0,min(255,(lastForce + forceVariation)))
-            self._pushPullForceCommand = forceCommand
-            forceCommand = int(forceCommand)
+            #Speed
+            speedControlFunction = make_ramp_function(controlBuffer*2,1,0,255)
+            speedCommand = speedControlFunction(abs(controlSignal))
 
-            # c) Position register command value
-            #----------------------------
-            positionCommand = None
+            #Force
+            forceCommand = speedCommand
 
-            # 3-Control logic
-            #################
+            self.move(positionCommand,speedCommand,forceCommand,wait=False)
 
-            # speedCommand = -1 Means that no motion is requested
-
-            if (gOBJ == GOBJ_IN_MOTION):
-                #Not latched: reset the nudge baselines so the next latch
-                #episode starts fresh from whatever is being requested right
-                #now, rather than comparing against a stale value from a
-                #previous latch.
-                self._realtimeSpeedMove_NudgeForceBaseline = forceCommand
-                self._realtimeSpeedMove_NudgeSpeedBaseline = speedCommand
-                if speedCommand < 0:
-                    #No motion requested
-                    self.moveToCurrentPosition(0,forceCommand)
-                    positionCommand = self.position(refreshStatus=False)
-                    return
-                else:
-                    if directionCommand >= 0:
-                        positionCommand = 255
-                    else:
-                        positionCommand = 0
-                    self.move(positionCommand,speedCommand,forceCommand,wait=False)
-                    return
-
-            elif (gOBJ == GOBJ_AT_POSITION):
-                if speedCommand < 0:
-                    #No motion requested
-                    #The gripper is already stopped so we just same the force parameter
-                    positionCommand = self.position(refreshStatus=False)
-                    self.move(positionCommand,0,forceCommand,wait=False,start=True)
-                    return
-                else:
-                    if directionCommand >= 0:
-                        positionCommand = 255
-                    else:
-                        positionCommand = 0
-                    self.move(positionCommand,speedCommand,forceCommand,wait=False,start=True)
-                    return
-            elif (gOBJ == GOBJ_DETECTED_WHILE_CLOSING): #2
-                if speedCommand < 0:
-                    
-                    # No motion requested
-                    # The gripper is stopped if force is 0 are continuously closing if force >0
-                    if self._realtimeSpeedMove_NudgeForceBaseline is None:
-                        self._realtimeSpeedMove_NudgeForceBaseline = forceCommand
-                    forceCommandDelta = forceCommand - self._realtimeSpeedMove_NudgeForceBaseline
-                    if (forceCommandDelta > forceNudgeThreshold) or ((forceCommand == 255) and (self._realtimeSpeedMove_NudgeForceBaseline!=255)):
-                        #Reset object detection status and set new force parameter
-                        self._realtimeSpeedMove_NudgeForceBaseline = forceCommand
-                        self.stop()
-                        if directionCommand >= 0:
-                            positionCommand = 255
-                        else:
-                            positionCommand = 0
-
-                        self.move(positionCommand,0,forceCommand,wait=False,start=True)
-                        return
-                    else:
-                        return
-                else:
-                    if directionCommand < 0:
-                        positionCommand = 0
-                        self.move(positionCommand,speedCommand,forceCommand,wait=False)
-                        return
-                    else:
-                        if self._realtimeSpeedMove_NudgeSpeedBaseline is None:
-                            self._realtimeSpeedMove_NudgeSpeedBaseline = speedCommand
-                        if self._realtimeSpeedMove_NudgeForceBaseline is None:
-                            self._realtimeSpeedMove_NudgeForceBaseline = forceCommand
-
-                        speedCommandDelta = speedCommand - self._realtimeSpeedMove_NudgeSpeedBaseline
-                        forceCommandDelta = forceCommand - self._realtimeSpeedMove_NudgeForceBaseline
-
-                        if ((speedCommandDelta > speedNudgeThreshold) or (forceCommandDelta > forceNudgeThreshold)
-                                or ((forceCommand == 255) and (self._realtimeSpeedMove_NudgeForceBaseline != 255))
-                                or ((speedCommand == 255) and (self._realtimeSpeedMove_NudgeSpeedBaseline != 255))):
-                            self._realtimeSpeedMove_NudgeSpeedBaseline = speedCommand
-                            self._realtimeSpeedMove_NudgeForceBaseline = forceCommand
-                            if (directionCommand > 0):
-                                self.stop()
-                                positionCommand = 255
-
-                                self.move(positionCommand,speedCommand,forceCommand,wait=False,start=True)
-                                return
-                            else:
-                                positionCommand = 0
-                                self.move(positionCommand,speedCommand,forceCommand,wait=False)
-                                return
-
-                        else:
-                            return
-
-            elif (gOBJ == GOBJ_DETECTED_WHILE_OPENING):
-                if speedCommand < 0:
-                    # No motion requested
-                    # The gripper is stopped if force is 0 are continuously closing if force >0
-                    if self._realtimeSpeedMove_NudgeForceBaseline is None:
-                        self._realtimeSpeedMove_NudgeForceBaseline = forceCommand
-                    forceCommandDelta = forceCommand - self._realtimeSpeedMove_NudgeForceBaseline
-                    if (forceCommandDelta > forceNudgeThreshold) or ((forceCommand == 255) and (self._realtimeSpeedMove_NudgeForceBaseline!=255)):
-                        #Reset object detection status and set new force parameter
-                        self._realtimeSpeedMove_NudgeForceBaseline = forceCommand
-                        self.stop()
-                        if directionCommand >= 0:
-                            positionCommand = 255
-                        else:
-                            positionCommand = 0
-                        self.move(positionCommand,0,forceCommand,wait=False,start=True)
-                        return
-                    else:
-                        return
-                
-                
-                else:
-                    if directionCommand > 0:
-                        positionCommand = 255
-                        self.move(positionCommand,speedCommand,forceCommand,wait=False)
-                        return
-                    else:
-                        
-                        if self._realtimeSpeedMove_NudgeSpeedBaseline is None:
-                            self._realtimeSpeedMove_NudgeSpeedBaseline = speedCommand
-                        if self._realtimeSpeedMove_NudgeForceBaseline is None:
-                            self._realtimeSpeedMove_NudgeForceBaseline = forceCommand
-
-                        speedCommandDelta = speedCommand - self._realtimeSpeedMove_NudgeSpeedBaseline
-                        forceCommandDelta = forceCommand - self._realtimeSpeedMove_NudgeForceBaseline
-
-                        if ((speedCommandDelta > speedNudgeThreshold) or (forceCommandDelta > forceNudgeThreshold)
-                                or ((forceCommand == 255) and (self._realtimeSpeedMove_NudgeForceBaseline != 255))
-                                or ((speedCommand == 255) and (self._realtimeSpeedMove_NudgeSpeedBaseline != 255))):
-                            self._realtimeSpeedMove_NudgeSpeedBaseline = speedCommand
-                            self._realtimeSpeedMove_NudgeForceBaseline = forceCommand
-                            if (directionCommand < 0):
-                                self.stop()
-                                positionCommand = 0
-
-                                self.move(positionCommand,speedCommand,forceCommand,wait=False,start=True)
-                                return
-                            else:
-                                positionCommand = 255
-                                self.move(positionCommand,speedCommand,forceCommand,wait=False)
-                                return
-                        else:
-                            return
-        finally:
-            if verbose == 1:
-                # Print of deburg
-                history=self._mergeHistory()
-                print(" rGTO : ",history[-1,RGTO],
-                    " gOBJ :",history[-1,M_GOBJ],
-                    " rPR :",history[-1,RPR],
-                    " gPO : ",history[-1,M_GPO],
-                    " rFR : ",history[-1,RFR],
-                    " rSPR : ",history[-1,RSP],
-                    " Sc : ",speedCommand,
-                    " Fc : ",forceCommand,
-                    " estimated_gOBJ : ",gOBJ,
-
-                    )
-
-
-
-
-
-    #STATUS
+            return positionCommand, speedCommand, forceCommand
 
     def isActivated(self, refreshStatus=True):
         """Check whether the gripper is activated.
@@ -2279,105 +2505,150 @@ class RobotiqGripper( ):
             raise GripperCalibrationError("The gripper is not speed calibrated")
         return self.gripper_vmax_bits() * self.positioningResolution()
 
-    def objectDetection(self,mergedHistory=None, duration=0.5, tolerance=3, refreshStatus=True,verbose=0):
-        """Estimate object detection status from history data or gripper object
-        detection register.
+    def objectDetection(self,refreshStatus = True):
+        """Return object detection code gOBJ
+
+        Even if the refreshStatus is not requested, it will be done if the
+        status have never been retrieved.
 
         Args:
-            mergedHistory (numpy.ndarray, optional): Pre-merged history array. If None,
-                history is merged from status and command history. Passing a pre-merged
-                history can speed up the estimation if this function is called multiple
-                times in a loop. Defaults to None.
-            duration (float, optional): Stability duration threshold. Object detection is
-                considered valid only if the position is stable for longer than this
-                duration. Defaults to 0.2.
-            tolerance (int, optional): Position tolerance. The gripper is considered to be
-                at the expected position if the difference between expected and actual
-                position is less than this tolerance. Defaults to 3.
-            refreshStatus (bool, optional): Whether to refresh the gripper status to get
-                the object detection status from the gripper. Defaults to True.
+            refreshSatus (boolean):
+                Indicate if the object detection status is directly retrieved
+                from the gripper or if it is taken from the last previously
+                read status.
 
         Returns:
             int: Object detection status code.
+                - 0: Fingers in motion, no object detected
+                - 1: Fingers stopped while opening, object detected
+                - 2: Fingers stopped while closing, object detected
+                - 3: Fingers at requested position, no object detected or lost/dropped
         """
-        # If requested gOBJ is directly read from the status register.
-        # No estimation.
+
         if refreshStatus:
             self.readStatus()
-            return self._statusHistory[-1,GOBJ]
         
-        #If there is a gOBJ retrieved more recently than lastWrite command, it is not worst it to
-        if self._statusHistory[-1,TIME] > self._commandHistory[-1,TIME]:
-            return self._statusHistory[-1,GOBJ]
+        gOBJ = self._statusHistory[-1,GOBJ]
 
-        #
-        if not self.is_bit_calibrated():
-            raise GripperCalibrationError("The gripper need to be bit calibrated to be able to estimate object detection.")
-
-        if mergedHistory is None:
-            mergedHistory = self._mergeHistory()
-
-        last_gOBJ = mergedHistory[-1, M_GOBJ]
-
-        if last_gOBJ != -1:
-            # If gOBJ is explicitly available from the gripper, use that value.
-            return int(last_gOBJ)
-
-        last_rPR = mergedHistory[-1, RPR]
-        # gPO is read straight from _statusHistory rather than the merged/
-        # filtered array: it's decoded unconditionally on every real status
-        # read (never wiped like gOBJ), so it's always trustworthy here and
-        # isn't at the mercy of whichever row the merge happened to keep last.
-        last_gPO = self._statusHistory[-1, GPO]
-
-        if last_rPR == -1 or last_gPO == -1:
-            return GOBJ_IN_MOTION
-
-        now = mergedHistory[-1, TIME]
-
-        # If the target changed recently, consider motion in progress first.
-        rpr_col = mergedHistory[:, RPR]
-        rpr_diff_idx = np.flatnonzero((rpr_col != -1) & (rpr_col != last_rPR))
-        if rpr_diff_idx.size > 0 and (now - mergedHistory[rpr_diff_idx[-1], TIME] <= duration):
-            return GOBJ_IN_MOTION
-
-        # Detect object only after the gripper position has been stable long
-        # enough. lastMoveTime() is used instead of re-deriving "how long
-        # stable" from the span of the (filtered) merged-history window:
-        # that window can be silently truncated by command-only writes (e.g.
-        # moveToCurrentPosition()'s stop()), which previously made this
-        # estimate flip between IN_MOTION and AT_POSITION even while gPO/rPR
-        # never changed. lastMoveTime() only advances when gPO itself
-        # actually changes, so it isn't affected by that churn.
-        lastMoveTime = self.lastMoveTime()
-        if lastMoveTime is not None and (now - lastMoveTime) <= duration:
-            return GOBJ_IN_MOTION
-
-        expected = min(max(last_rPR, self._openbit), self._closebit)
-
-        if abs(expected - last_gPO) < tolerance:
-            return GOBJ_AT_POSITION
-        elif expected > last_gPO:
-            if verbose > 0:
-                print(REGISTER_DIC["gOBJ"][GOBJ_DETECTED_WHILE_CLOSING])
-                print(self.history())
-            return GOBJ_DETECTED_WHILE_CLOSING
-        elif expected < last_gPO:
-            if verbose > 0:
-                print(REGISTER_DIC["gOBJ"][GOBJ_DETECTED_WHILE_OPENING])
-                print(self.history())
-            return GOBJ_DETECTED_WHILE_OPENING
-
-        return GOBJ_IN_MOTION
+        if gOBJ == -1:
+            self.readStatus()
+        
+        gOBJ = self._statusHistory[-1,GOBJ]
+        
+        return gOBJ
     
-    def printObjectDetection(self,mergedHistory=None, duration=0.2, tolerance=3, refreshStatus=True):
+    def evaluateGrip(self,refreshStatus = True):
+        """Evaluate from gripper past state the status of the grip
+        Grip evaluation is only possible of gripper status has been retrieved
+        at high frequency until then (>10hz).
+        The gripper needs to be speed calibrated evaluate the grip.
+
+        Args:
+            refreshSatus (boolean):
+                Indicate if the object detection status is directly retrieved
+                from the gripper or if it is taken from the last previously
+                read status.
+
+        Returns:
+            int: Quality of grip code
+                - 0: No object detected
+                - 1: Stable grip
+                - 2: Object compressing or slipping from the hand
+                - 3: Object lost
+        """
+
+        gripEval = None
+
+        # Check if the status has been retrieved at a frequency high enough to
+        # Evaluate the grip.
+        validStatusHistoryMask = (self._statusHistory[:,0] != -1)
+
+        if np.sum(validStatusHistoryMask) == 0:
+            raise GripperStatusRetrievalFrequencyError("The status have never been retrieved. Grip evaluation is not possible.")
+        
+        if np.sum(validStatusHistoryMask) == 1:
+            gripEval = GRIP_EVALUATION_STABLE_GRIP
+            return gripEval
+        
+        validStatusHistory = self._statusHistory[validStatusHistoryMask,:]
+        statusRetrievalIntervals = validStatusHistory[1:] - validStatusHistory[:-1]
+        minRetrieveInterval = np.min(statusRetrievalIntervals)
+
+        if minRetrieveInterval > 0.1:
+            raise GripperStatusRetrievalFrequencyError("The status have never been at a frequency lower than 10Hz. Grip evaluation is not possible.")
+
+        gOBJ = self.objectDetection(refreshStatus=refreshStatus)
+
+        if (gOBJ == GOBJ_AT_POSITION) or (gOBJ == GOBJ_IN_MOTION):
+            gripEval = GRIP_EVALUATION_NO_GRIP
+        else:
+            #Get all the last row where gOBJ is identical
+            gripHistory = get_bottom_continuous_rows(self.historyNumpy,M_GOBJ)
+            pastStateRow = find_last_below_threshold(gripHistory,TIME,0.5)
+
+            if (pastStateRow is None):
+                gripEval = GRIP_EVALUATION_STABLE_GRIP
+            else:
+                lastHistory = gripHistory[pastStateRow:, :]
+                startPosition = lastHistory[0,M_GPO]
+                #Trim the table to get the last 0.5s
+                speedHistory = gripHistory[pastStateRow:, [TIME, 2]]
+                 
+                is_identical = (gripHistory[:,M_GPO] == gripHistory[:,M_GPO][0]).all()
+                speedHistory[:,1] = self._convert_speedParameter_2_bitPerSecond(speedHistory[:,1])
+                finalPosition = calculate_final_position(startPosition,speedHistory)
+                actualPosition = lastHistory[-1:M_GPO]
+
+                if abs(finalPosition - actualPosition) < 10:
+                    gripEval = GRIP_EVALUATION_STABLE_GRIP
+                else:
+                    gripEval = GRIP_EVALUATION_SLIPPING
+
+        return gripEval
+
+
+    
+    def printObjectDetection(self,refreshStatus=True):
         """Print object detection status in a human readable way
         """
-        gOBJ=self.objectDetection(mergedHistory=mergedHistory, duration=duration, tolerance=tolerance, refreshStatus=refreshStatus)
+        gOBJ=self.objectDetection(refreshStatus=refreshStatus)
 
         print(REGISTER_DIC["gOBJ"][gOBJ])
 
     def commandHistory(self):
+        """Return the gripper command history as a numpy array.
+
+        Warning:
+            This function keep reference of the commandHistory
+            source array. If you want to edit the value of the return numpy array
+            make a copy of it.
+            commandHistoryNumpy().copy()
+
+        Returns:
+            numpy array: A numpy array containing the status history.
+
+                Columns are
+
+                0 -> "time"
+                1 -> "rARD"
+                2 -> "rATR"
+                3 -> "rGTO"
+                4 -> "rACT"
+                5 -> "rPR"
+                6 -> "rSP"
+                7 -> "rFR"
+
+                The constant dictionnaries can be use to converter column id
+                into parameter name or column name into column id.
+
+                COMMAND_HISTORY_COLUMNS_ID_2_NAME
+                COMMAND_HISTORY_COLUMNS_NAME_2_ID
+        """
+
+
+        return self._commandHistory
+
+    def commandHistoryPanda(self):
         """Return the gripper command history as a pandas DataFrame.
 
         Returns:
@@ -2501,7 +2772,40 @@ class RobotiqGripper( ):
         
         print("\n" + "=" * 70 + "\n")
 
-    def statusHistory(self):
+    def statusHistoryNumpy(self):
+        """Return the gripper status history as a numpy array.
+
+        Warning:
+            This function keep reference of the statusHistory
+            source array. If you want to edit the value of the return numpy array
+            make a copy of it.
+            statusHistoryNumpy().copy()
+
+        Returns:
+            numpy array: A numpy array containing the status history.
+
+                Columns are
+
+                0 -> "time"
+                1 -> "gOBJ"
+                2 -> "gSTA"
+                3 -> "gGTO"
+                4 -> "gACT"
+                5 -> "kFLT"
+                6 -> "gFLT"
+                7 -> "gPR"
+                8 -> "gPO"
+                9 -> "gCU"
+
+                The constant dictionnaries can be use to converter column id
+                into parameter name or column name into column id.
+
+                STATUS_HISTORY_COLUMNS_ID_2_NAME
+                STATUS_HISTORY_COLUMNS_NAME_2_ID
+        """
+        return self._statusHistory
+    
+    def statusHistoryPanda(self):
         """Return the gripper status history as a pandas DataFrame.
 
         Returns:
@@ -2513,7 +2817,44 @@ class RobotiqGripper( ):
         df = pd.DataFrame(self._statusHistory, columns=columns)
         return df
     
-    def history(self):
+    def historyNumpy(self):
+        """Return the merged command and status history as a numpy array.
+        The first line of the array corresponds to the odlest command or
+        status entry, the last line corresponds to the most recent command or
+        status entry.
+
+        Returns:
+            numpy array: A numpy array containing the merged history.
+
+                Columns are
+
+                0 -> "time"
+                1 -> "rARD"
+                2 -> "rATR"
+                3 -> "rGTO"
+                4 -> "rACT"
+                5 -> "rPR"
+                6 -> "rSP"
+                7 -> "rFR"
+                8 -> "gOBJ"
+                9 -> "gSTA"
+                10 -> "gGTO"
+                11 -> "gACT"
+                12 -> "kFLT"
+                13 -> "gFLT"
+                14 -> "gPR"
+                15 -> "gPO"
+                16 -> "gCU"
+
+                The constant dictionnaries can be use to converter column id
+                into parameter name or column name into column id.
+
+                HISTORY_COLUMNS_ID_2_NAME
+                HISTORY_COLUMNS_NAME_2_ID
+        """
+        return self._mergeHistory()
+
+    def historyPanda(self):
         """Return the merged command and status history as a pandas DataFrame.
         The first line of the DataFrame corresponds to the odlest command or
         status entry, the last line corresponds to the most recent command or

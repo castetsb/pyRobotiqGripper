@@ -16,8 +16,10 @@ from typing import List, Optional
 import pygame
 
 from . import RobotiqGripper
-from .constants import AUTO_DETECTION, GRIPPER_MODE_RTU, GRIPPER_MODE_RTU_VIA_TCP
+from .constants import *
 from .mouse_joystick import *
+
+from .bipper import Bipper
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -101,6 +103,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Enable debug logging.",
     )
     common_group.add_argument(
+        "--bipper",
+        action="store_true",
+        help="Enable a bipper that provide audio force feedback.",
+    )
+
+
+    common_group.add_argument(
         "--verbose",
         type=int,
         default=0,
@@ -111,9 +120,9 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     position_group = parser.add_argument_group("Position control options")
     position_group.add_argument(
-        "--min-speed-pos-delta",
-        type=int,
-        default=5,
+        "--controlBuffer",
+        type=float,
+        default=0.05,
         help="Minimum speed position delta for real-time move (default: %(default)s)",
     )
     position_group.add_argument(
@@ -170,7 +179,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     push_pull_group.add_argument(
         "--speed-nudge-threshold",
         type=int,
-        default=20,
+        default=5,
         help="Minimum increase in requested speed (0-255) needed to retry closing/opening "
              "while an object is latched (default: %(default)s)",
     )
@@ -194,7 +203,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.joystick_id == -1:
         logging.info("Joystick ID -1 selected, using mouse position for control")
-        js = MouseJoystick(deadzone=args.deadzone)
+        js = MouseJoystick(deadzone=0)
     else:
 
         pygame.joystick.init()
@@ -234,33 +243,56 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("Autolock option : ",args.auto_lock)
     logging.info("Using control method: %s", args.control_method)
 
+    if args.bipper :
+        bipper = Bipper()
+        bipper.min_beep_rate = 1
+        bipper.max_beep_rate = 12
+        bipper.start()
+        bipper.volume = 0
+
     try:
         while True:
 
             pygame.event.pump()
             motion_value = js.get_axis(args.motion_axis)
 
+            if (args.control_method == "position") and (args.joystick_id == -1):
+                motion_value = (motion_value + 1)/2
+
             if args.control_method == "speed":
-                force_value = -js.get_axis(args.force_axis)
-                gripper.realTimeSpeedMove(
-                    motion_value,
-                    forceSignal=force_value,
-                    forceNudgeThreshold=args.force_nudge_threshold,
-                    speedNudgeThreshold=args.speed_nudge_threshold,
-                    verbose=args.verbose,
-                )
+                gripper.realTimeSpeedMove(controlSignal=motion_value,
+                                          verbose=args.verbose)
+                if args.bipper:
+                    if gripper.realTimeSpeedMove_Mode() in [REALTIME_SPEED_MOVE_MODE_OBJECT_DETECTED,REALTIME_SPEED_MOVE_MODE_FORCE_DEACTIVATED]:
+                        bipper.input_signal = gripper.force()/255
+                        bipper.audio_pitch = 400
+                        bipper.volume = 0.3
+                    elif gripper.realTimeSpeedMove_Mode() in [REALTIME_SPEED_MOVE_MODE_FORCE_ACTIVATED]:
+                        bipper.input_signal = gripper.force()/255
+                        bipper.audio_pitch = 900
+                        bipper.volume = 0.3
+                    else:
+                        bipper.volume = 0
             else:
-                gripper.realTimePositionMove(
-                    
-                    motion_value,
-                    minSpeedPosDelta=args.min_speed_pos_delta,
-                    maxSpeedPosDelta=args.max_speed_pos_delta,
-                    continuousGrip=args.continuous_grip,
-                    autoLock=args.auto_lock,
-                    minimalMotion=args.minimal_motion,
-                    verbose=args.verbose,
-                    objectDetectionDuration=args.detection_duration
-                )
+                gripper.realTimePositionMove(controlSignal=motion_value,
+                                             verbose=args.verbose)
+                
+                if args.bipper:
+                    if gripper.realTimePositionMove_Mode() in [REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_CLOSING,
+                                                              REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_OPENING,
+                                                              REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_CLOSING,
+                                                              REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_OPENING]:
+                        bipper.input_signal = gripper.force()/255
+                        bipper.audio_pitch = 400
+                        bipper.volume = 0.3
+                    elif gripper.realTimePositionMove_Mode() in [REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_CLOSING,
+                                                                REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_OPENING]:
+                        bipper.input_signal = gripper.force()/255
+                        bipper.audio_pitch = 900
+                        bipper.volume = 0.3
+                    else:
+                        bipper.volume = 0
+                
     except KeyboardInterrupt:
         logging.info("Stopping joystick control")
     finally:

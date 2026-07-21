@@ -80,3 +80,8 @@ class GripperValidationError(RobotiqGripperError):
 class UnsupportedGripperTypeError(RobotiqGripperError):
     """Raised when an unsupported gripper type is specified."""
     pass
+
+class GripperStatusRetrievalFrequencyError(RobotiqGripperError):
+    """The gripper status have been retrieve at a frequency too low to evaluate
+    its current state"""
+

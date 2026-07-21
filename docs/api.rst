@@ -64,9 +64,13 @@ Status
 .. automethod:: pyrobotiqgripper.RobotiqGripper.lastStatusReadTime
 .. automethod:: pyrobotiqgripper.RobotiqGripper.status
 .. automethod:: pyrobotiqgripper.RobotiqGripper.printStatus   
-.. automethod:: pyrobotiqgripper.RobotiqGripper.commandHistory
-.. automethod:: pyrobotiqgripper.RobotiqGripper.statusHistory
-.. automethod:: pyrobotiqgripper.RobotiqGripper.history
+.. automethod:: pyrobotiqgripper.RobotiqGripper.commandHistoryPanda
+.. automethod:: pyrobotiqgripper.RobotiqGripper.statusHistoryPanda
+.. automethod:: pyrobotiqgripper.RobotiqGripper.historyPanda
+.. automethod:: pyrobotiqgripper.RobotiqGripper.commandHistoryNumpy
+.. automethod:: pyrobotiqgripper.RobotiqGripper.statusHistoryNumpy
+.. automethod:: pyrobotiqgripper.RobotiqGripper.historyNumpy
+
 
 Constants
 ---------
