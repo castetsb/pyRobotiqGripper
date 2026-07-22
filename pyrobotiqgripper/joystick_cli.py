@@ -70,25 +70,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="TCP port for the gripper Modbus TCP gateway (default: %(default)s)",
     )
     common_group.add_argument(
-        "--motion-axis",
+        "--control-axis",
         type=int,
         default=0,
         help="Joystick axis index to read for the position/speed control input. "
              "Defaults to 3 for a joystick, or %d (AXIS_X) for mouse control." % AXIS_X,
-    )
-    common_group.add_argument(
-        "--force-axis",
-        type=int,
-        default=1,
-        help="Joystick axis index to read for the force control input. "
-             "Defaults to 4 for a joystick, or %d (AXIS_Y) for mouse control." % AXIS_Y,
-    )
-    common_group.add_argument(
-        "--deadzone",
-        type=float,
-        default=0.10,
-        help="Mouse control only: dead zone as a fraction (0-1) of each screen "
-             "dimension, centered on the middle of the screen (default: %(default)s)",
     )
     common_group.add_argument(
         "--control-method",
@@ -107,7 +93,20 @@ def main(argv: Optional[List[str]] = None) -> int:
         action="store_true",
         help="Enable a bipper that provide audio force feedback.",
     )
-
+    common_group.add_argument(
+        "--grip-speed",
+        type=int,
+        default=None,
+        help="Speed parameter use to secure a grip when an object is detected."\
+        "If used, grip_force and grip_speed have to be both set.",
+    )
+    common_group.add_argument(
+        "--grip-force",
+        type=int,
+        default=None,
+        help="Force parameter use to secure a grip when an object is detected."\
+        "If used, grip_force and grip_speed have to be both set.",
+    )
 
     common_group.add_argument(
         "--verbose",
@@ -117,79 +116,41 @@ def main(argv: Optional[List[str]] = None) -> int:
              "1 prints executed commands (real-time move) or force/speed/position "
              "after each call (push-pull).",
     )
-
-    position_group = parser.add_argument_group("Position control options")
-    position_group.add_argument(
+    common_group.add_argument(
         "--controlBuffer",
         type=float,
         default=0.05,
-        help="Minimum speed position delta for real-time move (default: %(default)s)",
-    )
-    position_group.add_argument(
-        "--max-speed-pos-delta",
-        type=int,
-        default=100,
-        help="Maximum speed position delta for real-time move (default: %(default)s)",
-    )
-    position_group.add_argument(
-        "--continuous-grip",
-        action="store_true",
-        default=True,
-        help="Enable continuous grip for real-time move (default: %(default)s)",
-    )
-    position_group.add_argument(
-        "--no-continuous-grip",
-        action="store_false",
-        dest="continuous_grip",
-        help="Disable continuous grip for real-time move",
-    )
-    position_group.add_argument(
-        "--auto-lock",
-        action="store_true",
-        default=True,
-        help="Enable auto lock for real-time move (default: %(default)s)",
-    )
-    position_group.add_argument(
-        "--no-auto-lock",
-        action="store_false",
-        dest="auto_lock",
-        help="Disable auto lock for real-time move",
-    )
-    position_group.add_argument(
-        "--minimal-motion",
-        type=int,
-        default=2,
-        help="Minimal motion for real-time move (default: %(default)s)",
-    )
-    position_group.add_argument(
-        "--detection-duration",
-        type=float,
-        default=0.5,
-        help="Duration used to detect if an object is inside the gripper.",
+        help="Portion of control signal use as deadzone. The deadzone is"\
+        "at the bottom and at the top of the control range for the position"\
+        "method and at the center of the control range for the speed method."\
+        " (default: %(default)s). ",
     )
 
-    push_pull_group = parser.add_argument_group("Push-pull control options")
-    push_pull_group.add_argument(
-        "--force-nudge-threshold",
+    position_group = parser.add_argument_group("Position control options")
+
+    position_group.add_argument(
+        "--speedLowerControlThreshold",
         type=int,
-        default=20,
-        help="Minimum increase in requested force (0-255) needed to retry closing/opening "
-             "while an object is latched (default: %(default)s)",
+        default=10,
+        help="In position control method the speed is function of the "\
+        "difference between current position and target position. "\
+        "The function is ramp that start at speedLowerControlThreshold and "\
+        "finish at speedUpperControlThreshold"
     )
-    push_pull_group.add_argument(
-        "--speed-nudge-threshold",
+    position_group.add_argument(
+        "--speedUpperControlThreshold",
         type=int,
-        default=5,
-        help="Minimum increase in requested speed (0-255) needed to retry closing/opening "
-             "while an object is latched (default: %(default)s)",
+        default=30,
+        help="In position control method the speed is function of the "\
+        "difference between current position and target position. "\
+        "The function is ramp that start at speedLowerControlThreshold and "\
+        "finish at speedUpperControlThreshold"
     )
 
     args = parser.parse_args(argv)
 
-    if args.motion_axis is None:
-        args.motion_axis = AXIS_X if args.joystick_id == -1 else 3
-    if args.force_axis is None:
-        args.force_axis = AXIS_Y if args.joystick_id == -1 else 4
+    if args.control_axis is None:
+        args.control_axis = AXIS_X if args.joystick_id == -1 else 3
 
     logging.basicConfig(
         level=logging.DEBUG if args.debug else logging.INFO,
@@ -239,8 +200,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     gripper.calibrate_speed()
     gripper.open()
 
-    if args.auto_lock :
-        print("Autolock option : ",args.auto_lock)
     logging.info("Using control method: %s", args.control_method)
 
     if args.bipper :
@@ -254,13 +213,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         while True:
 
             pygame.event.pump()
-            motion_value = js.get_axis(args.motion_axis)
+            control_value = js.get_axis(args.control_axis)
 
             if (args.control_method == "position") and (args.joystick_id == -1):
-                motion_value = (motion_value + 1)/2
+                control_value = (control_value + 1)/2
 
             if args.control_method == "speed":
-                gripper.realTimeSpeedMove(controlSignal=motion_value,
+                gripper.realTimeSpeedMove(controlSignal=control_value,
                                           verbose=args.verbose)
                 if args.bipper:
                     if gripper.realTimeSpeedMove_Mode() in [REALTIME_SPEED_MOVE_MODE_OBJECT_DETECTED,REALTIME_SPEED_MOVE_MODE_FORCE_DEACTIVATED]:
@@ -274,7 +233,12 @@ def main(argv: Optional[List[str]] = None) -> int:
                     else:
                         bipper.volume = 0
             else:
-                gripper.realTimePositionMove(controlSignal=motion_value,
+                gripper.realTimePositionMove(controlSignal=control_value,
+                                             controlBuffer=args.controlBuffer,
+                                             speedLowerControlThreshold=args.speedLowerControlThreshold,
+                                             speedUpperControlThreshold=args.speedUpperControlThreshold,
+                                             gripSpeed=args.grip_speed,
+                                             gripForce=args.grip_force,
                                              verbose=args.verbose)
                 
                 if args.bipper:
