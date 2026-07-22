@@ -152,15 +152,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         action="store_true",
         help="Open a live gripper state visualization window (requires the "
              "optional PyQt5 and PyQtChart packages). Displayed signals are "
-             "selectable from the window itself.",
-    )
-    common_group.add_argument(
-        "--visual-tool-duration",
-        type=float,
-        default=2.0,
-        help="Initial timeline duration in seconds shown by the "
-             "visualization window (default: %(default)s). Also adjustable "
-             "live from the window.",
+             "selectable from the window itself; the timeline window is "
+             "fixed at 5 seconds.",
     )
 
     args = parser.parse_args(argv)
@@ -232,7 +225,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         except ImportError as exc:
             logging.error("Cannot start the visualization tool: %s", exc)
             return 1
-        visualizer = GripperVisualizer(gripper, duration=args.visual_tool_duration)
+        visualizer = GripperVisualizer(gripper)
         visualizer.start()
 
     try:

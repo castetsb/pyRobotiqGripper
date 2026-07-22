@@ -364,7 +364,8 @@ GRIPPER_MODE_RTU_VIA_TCP: Final[str] = "RTU_VIA_TCP"
 
 GRIPPER_MODE_RTU: Final[str] = "RTU"
 
-MAX_HISTORY = 200 #This give history data for 2s at 100hz
+MAX_HISTORY = 500 #Command/status history buffer size. Gives ~5s of history
+#at a typical 100Hz control loop.
 
 GSTA_NOT_ACTIVATED = 0
 GSTA_ACTIVATION_IN_PROGRESS = 1

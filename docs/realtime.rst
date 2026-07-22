@@ -108,11 +108,32 @@ the distance to the target position. This allows for a smooth and responsive
 control of the gripper.
 
 This function takes a position signal [0,1] as input
-and sends a position, speed and force command to the gripper.
-As it is difficult to manually maintain a fixed position of the gripper it may
-be difficult to control the gripper with precision with this method. It is easy
-to face a situation where the joystick oscillates around a position and
-generates gripper jerky motion.
+and sends a position, speed and force command to the gripper. It should work
+well with the signal of a trigger controller.
+
+The speed and force are adjusted with the distance between the actual gripper
+position and the requested position. The more distant is the target, the faster
+the gripper will move.
+
+..code-block:: python
+
+    realTimePositionMove(self,
+                             controlSignal,
+                             controlBuffer=0.05,
+                             speedLowerControlThreshold=10,
+                             speedUpperControlThreshold=30,
+                             gripSpeed=None,
+                             gripForce=None,
+                             verbose=0)
+
+The function offer the capability to manully set the force with the
+controlSignal. Once an object is detected, the function switch from position
+control to force control to let the operator set the force. The operator can
+then exite the force mode to release the object and go back to the position
+control mode.
+
+If a gripSpeed and gripForce is set the manual force setting mode is disabled
+and the gripper secure the object with those parmeters once an object is detected.
 
 2- Realtime control with speed and force signals
 ------------------------------------------------
@@ -155,18 +176,31 @@ Example of realtime control loop with realTimeSpeedMove function.
         forceSignal = js.get_axis(1)
 
         # Feed the realTimeSpeedMove function with joystick signal
-        gripper.realTimeSpeedMove(speedSignal,forceSignal)
+        gripper.realTimeSpeedMove(speedSignal)
 
 This function takes a speed signal [-1,1] and a force
 signal [-1,1] as input and sends a position, speed and force command to the
-gripper.
+gripper. It should work well with the signal of a gamePad like joystick.
 
-This method allows greater control precision. The operator pushes the speed
-joystick out of the neutral position one way or another to move the gripper,
-and when the joystick is released the gripper stays in its current position.
-The force joystick gives the possibility to adjust the force applied by the
-gripper.
+The operator pushes the speed joystick out of the neutral position one way or
+another to move the gripper, and when the joystick is released the gripper stays
+in its current position.
 
+.. code-block:: python
+
+    realTimeSpeedMove(self,
+                     controlSignal,
+                     controlBuffer=0.05,
+                     gripSpeed=None,
+                     gripForce=None,
+                     verbose=0)
+
+In a similar way as the realTimePositionMove function, the realTImeSpeedMove
+function switch controlSignal from speed control to force control to let the
+operator manually fixe the grip force.
+
+If a gripSpeed and gripForce is set the manual force setting mode is disabled
+and the gripper secure the object with those parmeters once an object is detected.
 
 .. _joystick-cli-feature:
 
@@ -202,6 +236,11 @@ You can check the help for details about available options:
 
     pyrobotiqgripper-joystick --help
 
+There are some nice option like:
+
+- --bipper that provide an audio feedback of the grip force
+- --visual-tool that provide a live visualisation of gripper command and status
+
 Here below is an example where the application is launched with mouse control.
 The gripper communication is done via Modbus RTU over TCP.
 The communication control loop uses speed control (i.e. implements realTimeSpeedMove)
@@ -209,3 +248,7 @@ The communication control loop uses speed control (i.e. implements realTimeSpeed
 .. code-block:: bash
 
     pyrobotiqgripper-joystick --connection-type "RTU_VIA_TCP" --tcp-host 10.0.0.153 --tcp-port 2000 --joystick-id -1 --verbose 1 --control-method speed
+
+.. note::
+
+    --connection-type "RTU" is recommanded to have a fast communication.

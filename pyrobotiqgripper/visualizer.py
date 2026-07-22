@@ -42,10 +42,8 @@ try:
     from PyQt5.QtWidgets import (
         QApplication,
         QCheckBox,
-        QDoubleSpinBox,
         QGroupBox,
         QHBoxLayout,
-        QLabel,
         QMainWindow,
         QScrollArea,
         QSplitter,
@@ -60,7 +58,6 @@ except ImportError as exc:
 
 from .constants import (
     COMMAND_HISTORY_COLUMNS_NAME_2_ID,
-    MAX_HISTORY,
     STATUS_HISTORY_COLUMNS_NAME_2_ID,
     TIME,
 )
@@ -80,6 +77,11 @@ DEFAULT_BOUNDED_SIGNALS: List[str] = ["gPO", "rSP", "rFR"]
 #: Signals checked by default on the state chart when none are given.
 DEFAULT_STATE_SIGNALS: List[str] = ["gOBJ"]
 
+#: Fixed timeline window, in seconds, shown on both charts. Matches
+#: :data:`~pyrobotiqgripper.constants.MAX_HISTORY` (~5s at a typical 100Hz
+#: control loop), the most history the gripper itself ever retains.
+TIMELINE_DURATION_S: float = 5.0
+
 
 class GripperVisualizer:
     """Background window plotting a gripper's live history.
@@ -93,13 +95,6 @@ class GripperVisualizer:
             ``commandHistory()`` and ``statusHistoryNumpy()`` methods are
             called; the gripper is never written to or read live from Modbus
             by this class.
-        duration (float, optional): Initial timeline window, in seconds,
-            shown on both charts. Adjustable live from the window. Defaults
-            to ``2.0``, matching the gripper's default history buffer size
-            (:data:`~pyrobotiqgripper.constants.MAX_HISTORY` samples, about
-            2 seconds at the typical 100 Hz control loop rate). Requesting a
-            longer duration is allowed but only shows whatever history is
-            actually retained by the gripper object.
         bounded_signals (Sequence[str], optional): History column names
             initially checked on the 0-255 chart. Must be a subset of
             :data:`BOUNDED_SIGNALS`. Defaults to
@@ -113,6 +108,13 @@ class GripperVisualizer:
             Defaults to ``100``.
         window_title (str, optional): Title of the visualization window.
             Defaults to ``"Gripper Live State"``.
+
+    Note:
+        The timeline window shown on both charts is fixed at
+        :data:`TIMELINE_DURATION_S` (5 seconds), matching the gripper's own
+        history buffer (:data:`~pyrobotiqgripper.constants.MAX_HISTORY`
+        samples at the typical 100 Hz control loop rate) and is not
+        adjustable from the window.
 
     Warning:
         Reading the gripper's history buffers concurrently with whichever
@@ -139,13 +141,11 @@ class GripperVisualizer:
 
     def __init__(self,
                  gripper,
-                 duration: float = 2.0,
                  bounded_signals: Optional[Sequence[str]] = None,
                  state_signals: Optional[Sequence[str]] = None,
                  refresh_interval_ms: int = 100,
                  window_title: str = "Gripper Live State"):
         self._gripper = gripper
-        self._duration = duration
         self._bounded_signals = (
             list(bounded_signals) if bounded_signals is not None else list(DEFAULT_BOUNDED_SIGNALS)
         )
@@ -211,7 +211,6 @@ class GripperVisualizer:
         app = QApplication.instance() or QApplication([])
         window = _GripperVisualizerWindow(
             self._gripper,
-            duration=self._duration,
             bounded_signals=self._bounded_signals,
             state_signals=self._state_signals,
             window_title=self._window_title,
@@ -250,13 +249,12 @@ class GripperVisualizer:
 
 
 class _GripperVisualizerWindow(QMainWindow):
-    """Qt window holding the two charts and their signal/duration controls.
+    """Qt window holding the two charts and their signal controls.
 
     Not meant to be instantiated directly; use :class:`GripperVisualizer`.
 
     Args:
         gripper: The RobotiqGripper instance to read history from.
-        duration (float): Initial timeline window, in seconds.
         bounded_signals (Sequence[str]): History column names initially
             checked on the bounded chart.
         state_signals (Sequence[str]): History column names initially
@@ -266,13 +264,12 @@ class _GripperVisualizerWindow(QMainWindow):
 
     def __init__(self,
                  gripper,
-                 duration: float,
                  bounded_signals: Sequence[str],
                  state_signals: Sequence[str],
                  window_title: str):
         super().__init__()
         self._gripper = gripper
-        self._duration = duration
+        self._duration = TIMELINE_DURATION_S
 
         self.setWindowTitle(window_title)
         self.resize(1000, 700)
@@ -295,7 +292,7 @@ class _GripperVisualizerWindow(QMainWindow):
         splitter.addWidget(bounded_view)
         splitter.addWidget(state_view)
 
-        side_panel = self._build_side_panel(duration, bounded_signals, state_signals)
+        side_panel = self._build_side_panel(bounded_signals, state_signals)
 
         central_layout = QHBoxLayout()
         central_layout.addWidget(splitter, 1)
@@ -369,13 +366,11 @@ class _GripperVisualizerWindow(QMainWindow):
         series_by_name[name] = series
 
     def _build_side_panel(self,
-                           duration: float,
                            bounded_signals: Sequence[str],
                            state_signals: Sequence[str]) -> QScrollArea:
-        """Build the scrollable control panel (duration spinbox + checkboxes).
+        """Build the scrollable control panel (signal checkboxes).
 
         Args:
-            duration (float): Initial value of the duration spinbox.
             bounded_signals (Sequence[str]): Signals initially checked for
                 the bounded chart.
             state_signals (Sequence[str]): Signals initially checked for the
@@ -385,25 +380,6 @@ class _GripperVisualizerWindow(QMainWindow):
             QScrollArea: The scrollable panel widget, ready to be placed in
             the window layout.
         """
-        self._duration_spin = QDoubleSpinBox()
-        self._duration_spin.setRange(0.1, 300.0)
-        self._duration_spin.setSingleStep(0.5)
-        self._duration_spin.setValue(duration)
-        self._duration_spin.setSuffix(" s")
-        self._duration_spin.setToolTip(
-            "Timeline window shown on both charts. Limited in practice by the "
-            "gripper's own history buffer "
-            f"({MAX_HISTORY} samples, ~2 s at a typical 100 Hz control rate)."
-        )
-        self._duration_spin.valueChanged.connect(self._on_duration_changed)
-
-        duration_row = QHBoxLayout()
-        duration_row.addWidget(QLabel("Timeline duration:"))
-        duration_row.addWidget(self._duration_spin)
-        duration_row.addStretch(1)
-        duration_widget = QWidget()
-        duration_widget.setLayout(duration_row)
-
         bounded_box = self._build_checkbox_group(
             "Position / Speed / Force (0-255)", BOUNDED_SIGNALS, bounded_signals, self._bounded_series
         )
@@ -412,7 +388,6 @@ class _GripperVisualizerWindow(QMainWindow):
         )
 
         panel_layout = QVBoxLayout()
-        panel_layout.addWidget(duration_widget)
         panel_layout.addWidget(bounded_box)
         panel_layout.addWidget(state_box)
         panel_layout.addStretch(1)
@@ -454,14 +429,6 @@ class _GripperVisualizerWindow(QMainWindow):
             layout.addWidget(checkbox)
         group.setLayout(layout)
         return group
-
-    def _on_duration_changed(self, value: float) -> None:
-        """Handle the duration spinbox being changed by the user.
-
-        Args:
-            value (float): New timeline duration, in seconds.
-        """
-        self._duration = value
 
     def refresh(self) -> None:
         """Redraw both charts from the gripper's latest command and status history.
