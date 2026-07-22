@@ -28,11 +28,19 @@ Control
 
 .. automethod:: pyrobotiqgripper.RobotiqGripper.open
 .. automethod:: pyrobotiqgripper.RobotiqGripper.close
+.. automethod:: pyrobotiqgripper.RobotiqGripper.open_mm
+.. automethod:: pyrobotiqgripper.RobotiqGripper.close_mm
 .. automethod:: pyrobotiqgripper.RobotiqGripper.move
 .. automethod:: pyrobotiqgripper.RobotiqGripper.move_mm
 .. automethod:: pyrobotiqgripper.RobotiqGripper.moveToCurrentPosition
+
+Realtime Control
+~~~~~~~~~~~~~~~~
+
 .. automethod:: pyrobotiqgripper.RobotiqGripper.realTimePositionMove
+.. automethod:: pyrobotiqgripper.RobotiqGripper.realTimePositionMove_Mode
 .. automethod:: pyrobotiqgripper.RobotiqGripper.realTimeSpeedMove
+.. automethod:: pyrobotiqgripper.RobotiqGripper.realTimeSpeedMove_Mode
 
 
 Status
@@ -53,24 +61,96 @@ Status
 .. automethod:: pyrobotiqgripper.RobotiqGripper.positionCommand
 .. automethod:: pyrobotiqgripper.RobotiqGripper.position
 .. automethod:: pyrobotiqgripper.RobotiqGripper.position_mm
-.. automethod:: pyrobotiqgripper.RobotiqGripper.lastPositionCommand
 .. automethod:: pyrobotiqgripper.RobotiqGripper.lastMoveTime
 .. automethod:: pyrobotiqgripper.RobotiqGripper.lastMoveDirection
 .. automethod:: pyrobotiqgripper.RobotiqGripper.speed
 .. automethod:: pyrobotiqgripper.RobotiqGripper.force
 .. automethod:: pyrobotiqgripper.RobotiqGripper.objectDetection
 .. automethod:: pyrobotiqgripper.RobotiqGripper.printObjectDetection
+.. automethod:: pyrobotiqgripper.RobotiqGripper.evaluateGrip
 .. automethod:: pyrobotiqgripper.RobotiqGripper.readStatus
 .. automethod:: pyrobotiqgripper.RobotiqGripper.lastStatusReadTime
 .. automethod:: pyrobotiqgripper.RobotiqGripper.status
-.. automethod:: pyrobotiqgripper.RobotiqGripper.printStatus   
+.. automethod:: pyrobotiqgripper.RobotiqGripper.printStatus
 .. automethod:: pyrobotiqgripper.RobotiqGripper.commandHistoryPanda
 .. automethod:: pyrobotiqgripper.RobotiqGripper.statusHistoryPanda
 .. automethod:: pyrobotiqgripper.RobotiqGripper.historyPanda
-.. automethod:: pyrobotiqgripper.RobotiqGripper.commandHistoryNumpy
+.. automethod:: pyrobotiqgripper.RobotiqGripper.commandHistory
 .. automethod:: pyrobotiqgripper.RobotiqGripper.statusHistoryNumpy
 .. automethod:: pyrobotiqgripper.RobotiqGripper.historyNumpy
 
+
+Additional Tools
+----------------
+
+These tools are not required to control a gripper: they support experimenting
+with and debugging the realtime control features (see
+:doc:`Realtime usage <realtime>`).
+
+Mouse Joystick
+~~~~~~~~~~~~~~
+
+.. autoclass:: pyrobotiqgripper.mouse_joystick.MouseJoystick
+   :members:
+   :show-inheritance:
+
+.. data:: pyrobotiqgripper.mouse_joystick.AXIS_X
+   :annotation:
+
+   Axis index for the horizontal mouse position, for use with
+   :meth:`~pyrobotiqgripper.mouse_joystick.MouseJoystick.get_axis`.
+
+.. data:: pyrobotiqgripper.mouse_joystick.AXIS_Y
+   :annotation:
+
+   Axis index for the vertical mouse position, for use with
+   :meth:`~pyrobotiqgripper.mouse_joystick.MouseJoystick.get_axis`.
+
+Gripper Visualizer
+~~~~~~~~~~~~~~~~~~
+
+Requires the optional ``PyQt5`` and ``PyQtChart`` packages
+(``pip install PyQt5 PyQtChart``).
+
+.. autoclass:: pyrobotiqgripper.visualizer.GripperVisualizer
+   :members:
+   :show-inheritance:
+
+.. data:: pyrobotiqgripper.visualizer.BOUNDED_SIGNALS
+   :annotation:
+
+   History column names selectable on the 0-255 bounded chart
+   (``gPO``, ``rPR``, ``rSP``, ``rFR``, ``gPR``, ``gCU``).
+
+.. data:: pyrobotiqgripper.visualizer.DEFAULT_BOUNDED_SIGNALS
+   :annotation:
+
+   Signals checked by default on the bounded chart when none are given:
+   actual position, commanded speed and commanded force.
+
+.. data:: pyrobotiqgripper.visualizer.STATE_SIGNALS
+   :annotation:
+
+   History column names selectable on the state chart, carrying small
+   enumerated / flag register values (``gOBJ``, ``gSTA``, ``gGTO``, ``gACT``,
+   ``kFLT``, ``gFLT``, ``rARD``, ``rATR``, ``rGTO``, ``rACT``).
+
+.. data:: pyrobotiqgripper.visualizer.DEFAULT_STATE_SIGNALS
+   :annotation:
+
+   Signals checked by default on the state chart when none are given:
+   object detection.
+
+Joystick CLI
+~~~~~~~~~~~~
+
+Console script (``pyrobotiqgripper-joystick``) used to drive a gripper with a
+joystick or mouse from the command line. See
+:ref:`the Joystick CLI usage guide <joystick-cli-feature>` for installation
+and examples; run ``pyrobotiqgripper-joystick --help`` for the full list of
+options.
+
+.. autofunction:: pyrobotiqgripper.joystick_cli.main
 
 Constants
 ---------

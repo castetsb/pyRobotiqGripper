@@ -34,6 +34,9 @@ all = [
     "pygame-ce>=2.5.2",
     "pynput>=1.7.6",
     "pyautogui>=0.9.54",
+    "PyQt5>=5.15",
+    "PyQtChart>=5.15",
+    "sounddevice>=0.4.6",
 ]
 
 [dependency-groups]

@@ -1671,11 +1671,10 @@ class RobotiqGripper( ):
             controlSignal (float): Analogic control signal in range [0,1]
             controlBuffer (float): Dimension of the upper and lower range of the
                 control signal. Express in percentage of total control range.
-            speedLowerControlThreshold (int):
-
-            speedUpperControlThreshold (int):
-
-
+            speedLowerControlThreshold (int): Position delta (in bits) below which
+                the commanded speed is 0.
+            speedUpperControlThreshold (int): Position delta (in bits) above which
+                the commanded speed is saturated at 255.
         """
         positionCommand = None
         speedCommand = None
@@ -1702,7 +1701,7 @@ class RobotiqGripper( ):
         if controlSignal < controlBuffer:
             speedCommand = 255
         elif controlSignal <= (1 - controlBuffer):
-            speedControlFunction = make_curve_function(10,50)
+            speedControlFunction = make_curve_function(speedLowerControlThreshold,speedUpperControlThreshold)
             speedCommand = int(max(0,min(255,speedControlFunction(positionDelta))))
         else:
             speedCommand = 255
@@ -1713,13 +1712,20 @@ class RobotiqGripper( ):
         
         #Motion
         #######
-        if self.objectDetection(refreshStatus=False) in [GOBJ_DETECTED_WHILE_CLOSING,GOBJ_DETECTED_WHILE_OPENING]:
+        if self.objectDetection(refreshStatus=False) == GOBJ_DETECTED_WHILE_CLOSING:
             # If previous object status indicate that an object was detected.
             # The move is done with high force and speed to ease the release of
             # the gripper.
+            positionCommand = max(0,self.position(refreshStatus=False)-15)
             speedCommand=255
             forceCommand=255
             self.move(positionCommand,speedCommand,forceCommand,wait=True)
+        elif self.objectDetection(refreshStatus=False) == GOBJ_DETECTED_WHILE_OPENING:
+            positionCommand = min(255,self.position(refreshStatus=False)+15)
+            speedCommand=255
+            forceCommand=255
+            self.move(positionCommand,speedCommand,forceCommand,wait=True)
+        
         else:
             self.move(positionCommand,speedCommand,forceCommand,wait=False)
 
@@ -1797,7 +1803,7 @@ class RobotiqGripper( ):
         if speedCommand <= self._realtimeSpeedMove_NudgeBaseline:
             speedCommand = None
         else:
-            self._realtimePositionMove_NudgeBaseline = speedCommand
+            self._realtimeSpeedMove_NudgeBaseline = speedCommand
         
         forceCommand = speedCommand
 
@@ -1814,7 +1820,7 @@ class RobotiqGripper( ):
         return self._realtimePositionMove_Mode
 
     def realTimeSpeedMove_Mode(self):
-        """Return the mode of the realTimePositionMove function"""
+        """Return the mode of the realTimeSpeedMove function"""
 
         return self._realtimeSpeedMove_Mode
 
@@ -1836,7 +1842,7 @@ class RobotiqGripper( ):
             positionCommand= 255
             speedCommand = speed
             forceCommand = force
-            isSecured = (self.lastPositionCommand() == positionCommand) and (self.speed()==speedCommand) and (self.force()==forceCommand)
+            isSecured = (self.positionCommand() == positionCommand) and (self.speed()==speedCommand) and (self.force()==forceCommand)
             if not isSecured:
                 self.stop()
                 self.move(positionCommand,speedCommand,forceCommand,wait=True,start=True)
@@ -1844,7 +1850,7 @@ class RobotiqGripper( ):
             positionCommand= 0
             speedCommand = speed
             forceCommand = force
-            isSecured = (self.lastPositionCommand() == positionCommand) and (self.speed()==speedCommand) and (self.force()==forceCommand)
+            isSecured = (self.positionCommand() == positionCommand) and (self.speed()==speedCommand) and (self.force()==forceCommand)
             if not isSecured:
                 self.stop()
                 self.move(positionCommand,speedCommand,forceCommand,wait=True,start=True)
@@ -1858,12 +1864,15 @@ class RobotiqGripper( ):
     def realTimePositionMove(self,
                              controlSignal,
                              controlBuffer=0.05,
-                             speedLowerControlThreshold=10,#Use only if sped is dynamically adjusted (ie moveSpeed is not None)
-                             speedUpperControlThreshold=30,#Use only if sped is dynamically adjusted (ie moveSpeed is not None)
-                             gripSpeed=None,#If None the joystick is use to set the gripping force after object detection.
-                             gripForce=None,#If None the joystick is use to set the gripping force after object detection.
-                             verbose=0):#expressed in percentage of control range (range between lower and upper buffer)
+                             speedLowerControlThreshold=10,
+                             speedUpperControlThreshold=30,
+                             gripSpeed=None,
+                             gripForce=None,
+                             verbose=0):
         """Move the gripper in real time to the requested position.
+
+        Meant to be called at high frequency (e.g. 100 Hz) in a non-blocking
+        control loop for remote operation application.
 
         Args:
             controlSignal: Analogic position control signal in range [0,1]
@@ -1882,11 +1891,8 @@ class RobotiqGripper( ):
                 detected. If used, gripForce and gripSpeed have to be both set.
             gripForce: Force parameter use to secure a grip when an object is
                 detected. If used, gripForce and gripSpeed have to be both set.
-            
-        
-        Return:
-            mode: id of the mode of the gripper.
-        
+            verbose (int, optional): Verbose level for debug.
+
         Examples:
             Make a loop to control the gripper using a joystick with pygame
 
@@ -1901,7 +1907,7 @@ class RobotiqGripper( ):
             >>> while True:
             >>>     positionSignal = js.get_axis(0)
             >>>     pygame.event.pump()
-            >>>     grip.realtimePositionMove(positionSignal)
+            >>>     grip.realTimePositionMove(positionSignal)
         """
         controlledGripForce=False
         if (gripForce is None) and (gripSpeed is None):
@@ -2104,6 +2110,7 @@ class RobotiqGripper( ):
         
         elif self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_SECURE:
             positionCommand, speedCommand, forceCommand = self._realTimePositionMove_secureGrip(controlSignal=controlSignal,controlBuffer=controlBuffer,speed=gripSpeed,force=gripForce)
+        
         else:
             raise RobotiqGripperError("Realtime position move mode unknown: ",self._realtimePositionMove_Mode)
 
@@ -2160,10 +2167,45 @@ class RobotiqGripper( ):
             print("speed: ",speed)
             print("force: ",force)
             raise GripperNotStartedError()
+    
+    def _realTimeSpeedMove_secureGrip(self,controlSignal,controlBuffer,speed=255,force=255):
+        """Secure the grip on the object after object detection.
+        """
+        positionCommand= None
+        speedCommand = None
+        forceCommand = None
+
+        requestFurtherClosing = (self.objectDetection(refreshStatus=False) == GOBJ_DETECTED_WHILE_CLOSING) and (controlSignal>controlBuffer)
+        requestFurtherOpening = (self.objectDetection(refreshStatus=False) == GOBJ_DETECTED_WHILE_OPENING) and (controlSignal<-controlBuffer)
+
+        if requestFurtherClosing:
+            positionCommand= 255
+            speedCommand = speed
+            forceCommand = force
+            isSecured = (self.positionCommand() == positionCommand) and (self.speed()==speedCommand) and (self.force()==forceCommand)
+            if not isSecured:
+                self.stop()
+                self.move(positionCommand,speedCommand,forceCommand,wait=True,start=True)
+        elif requestFurtherOpening:
+            positionCommand= 0
+            speedCommand = speed
+            forceCommand = force
+            isSecured = (self.positionCommand() == positionCommand) and (self.speed()==speedCommand) and (self.force()==forceCommand)
+            if not isSecured:
+                self.stop()
+                self.move(positionCommand,speedCommand,forceCommand,wait=True,start=True)
+        else:
+            positionCommand=None
+            forceCommand=None
+            speedCommand=None
+        
+        return positionCommand,forceCommand,speedCommand
 
     def realTimeSpeedMove(self,
                      controlSignal,
                      controlBuffer=0.05,
+                     gripSpeed=None,
+                     gripForce=None,
                      verbose=0):
         """Move the gripper with a speed signal.
 
@@ -2172,12 +2214,16 @@ class RobotiqGripper( ):
 
         Args:
             controlSignal (float): Analogic signal in the range [-1, 1] use to
-                control gripper speped. Positive closes the gripper, negative
+                control gripper speed. Positive closes the gripper, negative
                 opens it, 0 holds the current position. Magnitude controls the
                 commanded speed.
-            controlBuffer (float): ConttrolSignal deadzone express in percentage
+            controlBuffer (float): controlSignal deadzone express in percentage
                 of the control range. The deadzone is positionned at the center
                 of the control range.
+            gripSpeed: Speed parameter use to secure a grip when an object is
+                detected. If used, gripForce and gripSpeed have to be both set.
+            gripForce: Force parameter use to secure a grip when an object is
+                detected. If used, gripForce and gripSpeed have to be both set.
             verbose (int, optional): Verbose level for debug.
 
         Examples:
@@ -2194,8 +2240,18 @@ class RobotiqGripper( ):
             >>> while True:
             >>>     speedSignal = js.get_axis(0)
             >>>     pygame.event.pump()
-            >>>     grip.realtimeSpeedMove(speedSignal)
+            >>>     grip.realTimeSpeedMove(speedSignal)
         """
+        controlledGripForce=False
+        if (gripForce is None) and (gripSpeed is None):
+            controlledGripForce=True
+        elif (gripForce is not None) and (gripSpeed is not None):
+            gripSpeed = int(max(0,min(255,gripSpeed)))
+            gripForce = int(max(0,min(255,gripForce)))
+            controlledGripForce=False
+        else:
+            raise RobotiqGripperError("gripSpeed and gripForce must be both None OR both with a value in the range ")
+        
         positionCommand=None
         speedCommand=None
         forceCommand=None
@@ -2207,14 +2263,22 @@ class RobotiqGripper( ):
         # 0
         ###
         if self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_FREEMOVE:
-            if self.objectDetection(refreshStatus=False) in [GOBJ_DETECTED_WHILE_CLOSING,GOBJ_DETECTED_WHILE_OPENING]:
-                if self.objectDetection(refreshStatus=True) in [GOBJ_DETECTED_WHILE_CLOSING,GOBJ_DETECTED_WHILE_OPENING]:
-                    self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_OBJECT_DETECTED
+            if controlledGripForce:
+                if self.objectDetection(refreshStatus=False) in [GOBJ_DETECTED_WHILE_CLOSING,GOBJ_DETECTED_WHILE_OPENING]:
+                    if self.objectDetection(refreshStatus=True) in [GOBJ_DETECTED_WHILE_CLOSING,GOBJ_DETECTED_WHILE_OPENING]:
+                        self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_OBJECT_DETECTED
+                    else:
+                        self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FREEMOVE
                 else:
                     self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FREEMOVE
             else:
-                self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FREEMOVE
-        
+                if self.objectDetection(refreshStatus=False) in [GOBJ_DETECTED_WHILE_CLOSING,GOBJ_DETECTED_WHILE_OPENING]:
+                    if self.objectDetection(refreshStatus=True) in [GOBJ_DETECTED_WHILE_CLOSING,GOBJ_DETECTED_WHILE_OPENING]:
+                        self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_SECURE
+                    else:
+                        self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FREEMOVE
+                else:
+                    self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FREEMOVE
         # 100
         #####
         elif self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_OBJECT_DETECTED:
@@ -2252,7 +2316,21 @@ class RobotiqGripper( ):
                 self.stop(refreshStatus=False)
                 self.moveToCurrentPosition(0,0)
                 self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FREEMOVE
-        
+        # 300
+        #####
+        elif self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_SECURE:
+            if self.objectDetection(refreshStatus=False) in [GOBJ_DETECTED_WHILE_CLOSING,GOBJ_DETECTED_WHILE_OPENING]:
+                furtherGripIn = (self.objectDetection(refreshStatus=False) == GOBJ_DETECTED_WHILE_CLOSING) and (controlSignal>controlBuffer)
+                furtherGripOut = (self.objectDetection(refreshStatus=False) == GOBJ_DETECTED_WHILE_OPENING) and (controlSignal<-controlBuffer)
+                if furtherGripIn or furtherGripOut:
+                    self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_SECURE
+                else:
+                    self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FREEMOVE
+            else:
+                self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FREEMOVE
+        else:
+            raise RobotiqGripperError("realtimepositionmove mode not supported")
+
         ##############
         # Motion logic
         ##############
@@ -2280,6 +2358,12 @@ class RobotiqGripper( ):
         #####
         elif self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_FORCE_ACTIVATED:
             positionCommand, speedCommand, forceCommand = self._realtimeSpeedMove_forceMode(controlSignal=max(0,min(1,controlSignal)),controlBuffer=2*controlBuffer)
+    
+        # 300
+        #####
+        elif self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_SECURE:
+            positionCommand, speedCommand, forceCommand = self._realTimeSpeedMove_secureGrip(controlSignal=controlSignal,controlBuffer=controlBuffer,speed=gripSpeed,force=gripForce)
+        
         else:
             raise RobotiqGripperError("Realtime position move mode unknown: ",self._realtimeSpeedMove_Mode)
 
@@ -2287,12 +2371,14 @@ class RobotiqGripper( ):
             print("Frequency : ", int(1/(self._statusHistory[-1,TIME] - self._statusHistory[-2,TIME])),
                 " Time : ",f"{self._statusHistory[-1,TIME]:.3f}",
                 " Signal : ",f"{controlSignal:.2f}",
-                " mode : ",self._realtimePositionMove_Mode,
+                " mode : ",self._realtimeSpeedMove_Mode,
                 " gPO : ", self.position(False),
                 " gOBJ : ",self.objectDetection(False),
                 " P: ",positionCommand,
                 " F: ",forceCommand,
                 " S: ",speedCommand)
+
+
 
     def _realTimeSpeedMove_freeMotion(self,controlSignal,controlBuffer):
         """
@@ -2303,7 +2389,21 @@ class RobotiqGripper( ):
 
         controlSignal = max(-1,min(1,controlSignal))
 
-        if  abs(controlSignal)< controlBuffer:
+        if self.objectDetection(refreshStatus=False) == GOBJ_DETECTED_WHILE_CLOSING:
+            # If previous object status indicate that an object was detected.
+            # The move is done with high force and speed to ease the release of
+            # the gripper.
+            positionCommand = max(0,self.position(refreshStatus=False)-15)
+            speedCommand=255
+            forceCommand=255
+            self.move(positionCommand,speedCommand,forceCommand,wait=True)
+        elif self.objectDetection(refreshStatus=False) == GOBJ_DETECTED_WHILE_OPENING:
+            positionCommand = min(255,self.position(refreshStatus=False)+15)
+            speedCommand=255
+            forceCommand=255
+            self.move(positionCommand,speedCommand,forceCommand,wait=True)
+
+        elif  abs(controlSignal)< controlBuffer:
             #Gripper request to stay at current position
             speedCommand = 0
             forceCommand = 0
@@ -2312,8 +2412,6 @@ class RobotiqGripper( ):
             self.moveToCurrentPosition(speedCommand,forceCommand)
 
             positionCommand = self.position(refreshStatus=False)
-
-            return positionCommand, speedCommand, forceCommand
         else:
             #Position
             if controlSignal > 0:
@@ -2330,7 +2428,7 @@ class RobotiqGripper( ):
 
             self.move(positionCommand,speedCommand,forceCommand,wait=False)
 
-            return positionCommand, speedCommand, forceCommand
+        return positionCommand, speedCommand, forceCommand
 
     def isActivated(self, refreshStatus=True):
         """Check whether the gripper is activated.
@@ -2484,7 +2582,7 @@ class RobotiqGripper( ):
         
         return self._closemm
     
-    def lastPositionCommand(self):
+    def positionCommand(self):
         """Return the last commanded position value.
 
         Returns:
@@ -2695,7 +2793,7 @@ class RobotiqGripper( ):
             This function keep reference of the commandHistory
             source array. If you want to edit the value of the return numpy array
             make a copy of it.
-            commandHistoryNumpy().copy()
+            commandHistory().copy()
 
         Returns:
             numpy array: A numpy array containing the status history.

@@ -147,6 +147,22 @@ def main(argv: Optional[List[str]] = None) -> int:
         "finish at speedUpperControlThreshold"
     )
 
+    common_group.add_argument(
+        "--visual-tool",
+        action="store_true",
+        help="Open a live gripper state visualization window (requires the "
+             "optional PyQt5 and PyQtChart packages). Displayed signals are "
+             "selectable from the window itself.",
+    )
+    common_group.add_argument(
+        "--visual-tool-duration",
+        type=float,
+        default=2.0,
+        help="Initial timeline duration in seconds shown by the "
+             "visualization window (default: %(default)s). Also adjustable "
+             "live from the window.",
+    )
+
     args = parser.parse_args(argv)
 
     if args.control_axis is None:
@@ -209,6 +225,16 @@ def main(argv: Optional[List[str]] = None) -> int:
         bipper.start()
         bipper.volume = 0
 
+    visualizer = None
+    if args.visual_tool:
+        try:
+            from .visualizer import GripperVisualizer
+        except ImportError as exc:
+            logging.error("Cannot start the visualization tool: %s", exc)
+            return 1
+        visualizer = GripperVisualizer(gripper, duration=args.visual_tool_duration)
+        visualizer.start()
+
     try:
         while True:
 
@@ -220,6 +246,9 @@ def main(argv: Optional[List[str]] = None) -> int:
 
             if args.control_method == "speed":
                 gripper.realTimeSpeedMove(controlSignal=control_value,
+                                          controlBuffer=args.controlBuffer,
+                                          gripSpeed=args.grip_speed,
+                                          gripForce=args.grip_force,
                                           verbose=args.verbose)
                 if args.bipper:
                     if gripper.realTimeSpeedMove_Mode() in [REALTIME_SPEED_MOVE_MODE_OBJECT_DETECTED,REALTIME_SPEED_MOVE_MODE_FORCE_DEACTIVATED]:
@@ -260,6 +289,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     except KeyboardInterrupt:
         logging.info("Stopping joystick control")
     finally:
+        if visualizer is not None:
+            visualizer.stop()
         try:
             gripper.disconnect()
         except Exception:

@@ -168,6 +168,8 @@ The force joystick gives the possibility to adjust the force applied by the
 gripper.
 
 
+.. _joystick-cli-feature:
+
 Joystick CLI Feature
 --------------------
 
