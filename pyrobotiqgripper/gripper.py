@@ -1413,7 +1413,7 @@ class RobotiqGripper( ):
         
         self._is_bit_calibrated =True
 
-    def calibrate_speed(self, minSpeedClosingTime: Optional[float]=None, maxSpeedClosingTime: Optional[float]=None):
+    def calibrate_speed(self, minSpeedClosingTime=None, maxSpeedClosingTime=None):
         """Calibrate gripper speed to estimate gripper position over time.
 
         If no parameters are provided, the gripper will perform a full-speed

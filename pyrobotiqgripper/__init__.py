@@ -10,13 +10,31 @@ This module provides documentation in two formats:
     <https://pyrobotiqgripper.readthedocs.io/en/latest/>.
 """
 
-# Package metadata
-__author__ = "Benoit CASTETS"
-__email__ = "opensourceeng@robotiq.com"
-__license__ = "Apache License, Version 2.0"
-__url__ = "https://github.com/castetsb/pyRobotiqGripper"
-__version__ = "3.3.1"
+from email.utils import parseaddr
+from importlib.metadata import PackageNotFoundError, metadata as _pkg_metadata
+
+# The distribution name, needed to look up our own installed metadata below.
 __project__ = 'pyrobotiqgripper'
+
+# All other metadata is defined once, in pyproject.toml; read it back from
+# the installed package metadata instead of duplicating it here.
+try:
+    _metadata = _pkg_metadata(__project__)
+    __version__ = _metadata["Version"]
+    __author__ = _metadata["Author"]
+    __email__ = parseaddr(_metadata["Author-email"])[1]
+    __url__ = next(
+        (url.split(", ", 1)[1] for url in _metadata.get_all("Project-URL", [])
+         if url.split(", ", 1)[0].strip().lower() == "homepage"),
+        None,
+    )
+    __license__ = next(
+        (c.rsplit("::", 1)[1].strip() for c in _metadata.get_all("Classifier", [])
+         if c.startswith("License ::")),
+        None,
+    )
+except PackageNotFoundError:
+    __version__ = __author__ = __email__ = __url__ = __license__ = "unknown"
 
 # Main class
 from .gripper import RobotiqGripper

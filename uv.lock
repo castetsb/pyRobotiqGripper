@@ -1611,7 +1611,8 @@ name = "pyqt5"
 version = "5.15.11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyqt5-qt5" },
+    { name = "pyqt5-qt5", version = "5.15.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' or sys_platform == 'win32'" },
+    { name = "pyqt5-qt5", version = "5.15.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11' and sys_platform != 'win32'" },
     { name = "pyqt5-sip" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0e/07/c9ed0bd428df6f87183fca565a79fee19fa7c88c7f00a7f011ab4379e77a/PyQt5-5.15.11.tar.gz", hash = "sha256:fda45743ebb4a27b4b1a51c6d8ef455c4c1b5d610c90d2934c7802b5c1557c52", size = 3216775, upload-time = "2024-07-19T08:39:57.756Z" }
@@ -1625,8 +1626,33 @@ wheels = [
 
 [[package]]
 name = "pyqt5-qt5"
+version = "5.15.2"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14' and sys_platform == 'win32'",
+    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'win32'",
+    "python_full_version == '3.11.*' and sys_platform == 'win32'",
+    "python_full_version < '3.11'",
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/62/09/99a222b0360616250fb2e6003a54e43a2a06b0774f0f8d5daafb86a2c375/PyQt5_Qt5-5.15.2-py3-none-macosx_10_13_intel.whl", hash = "sha256:76980cd3d7ae87e3c7a33bfebfaee84448fd650bad6840471d6cae199b56e154", size = 40546019, upload-time = "2021-03-10T13:52:47.763Z" },
+    { url = "https://files.pythonhosted.org/packages/83/d4/241a6a518d0bcf0a9fcdcbad5edfed18d43e884317eab8d5230a2b27e206/PyQt5_Qt5-5.15.2-py3-none-manylinux2014_x86_64.whl", hash = "sha256:1988f364ec8caf87a6ee5d5a3a5210d57539988bf8e84714c7d60972692e2f4a", size = 59921716, upload-time = "2021-03-10T13:57:39.485Z" },
+    { url = "https://files.pythonhosted.org/packages/1c/7e/ce7c66a541a105fa98b41d6405fe84940564695e29fc7dccf6d9e8c5f898/PyQt5_Qt5-5.15.2-py3-none-win32.whl", hash = "sha256:9cc7a768b1921f4b982ebc00a318ccb38578e44e45316c7a4a850e953e1dd327", size = 43447358, upload-time = "2021-03-10T14:01:17.827Z" },
+    { url = "https://files.pythonhosted.org/packages/37/97/5d3b222b924fa2ed4c2488925155cd0b03fd5d09ee1cfcf7c553c11c9f66/PyQt5_Qt5-5.15.2-py3-none-win_amd64.whl", hash = "sha256:750b78e4dba6bdf1607febedc08738e318ea09e9b10aea9ff0d73073f11f6962", size = 50075158, upload-time = "2021-03-10T14:05:20.868Z" },
+]
+
+[[package]]
+name = "pyqt5-qt5"
 version = "5.15.19"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14' and sys_platform == 'emscripten'",
+    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten'",
+    "python_full_version == '3.11.*' and sys_platform == 'emscripten'",
+    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.11.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/06/af/c0e00d353cad261ee9ccd5f6039b7ef4e09a1cb9a22c6a4b233854f6fa30/pyqt5_qt5-5.15.19-py3-none-macosx_10_13_x86_64.whl", hash = "sha256:cac6b78e4805848c25979a0622660251070781b6b4f810688a960cb44d1ae5a2", size = 39777655, upload-time = "2026-05-21T09:12:43.94Z" },
     { url = "https://files.pythonhosted.org/packages/1c/d0/fd4876b90bbadaa92444ff452ab78d9ba839014a6d303e77d29c0c591631/pyqt5_qt5-5.15.19-py3-none-macosx_11_0_arm64.whl", hash = "sha256:66fa299dcdea1f430edbd6f6ca3dcb20430f19c508d13e3aa851d19034b7be7e", size = 36838788, upload-time = "2026-05-21T09:12:59.334Z" },
@@ -1673,7 +1699,8 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pyqt5" },
     { name = "pyqt5-sip" },
-    { name = "pyqtchart-qt5" },
+    { name = "pyqtchart-qt5", version = "5.15.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' or sys_platform == 'win32'" },
+    { name = "pyqtchart-qt5", version = "5.15.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11' and sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f0/b9/c9548f0f5cab6640f4ea9e598a6a48e6d6a59ca23dad6004f90d25dc799a/PyQtChart-5.15.7.tar.gz", hash = "sha256:bc9f1d26c725e820b0fff8db6e906e8b286128a14b3a98c59a0cd0c3d9924095", size = 48482, upload-time = "2024-07-19T08:41:43.705Z" }
 wheels = [
@@ -1686,8 +1713,33 @@ wheels = [
 
 [[package]]
 name = "pyqtchart-qt5"
+version = "5.15.2"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14' and sys_platform == 'win32'",
+    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'win32'",
+    "python_full_version == '3.11.*' and sys_platform == 'win32'",
+    "python_full_version < '3.11'",
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b1/54/7e7a4e427ea9aef9b946f3925aa4e2c3eac361a522afb6d02755ab408157/PyQtChart_Qt5-5.15.2-py3-none-macosx_10_13_intel.whl", hash = "sha256:f13973a01b312dc2e35ca40cd1dfd6720fefafb46073ad4790390f48c937dbc4", size = 724298, upload-time = "2021-03-10T14:46:54.172Z" },
+    { url = "https://files.pythonhosted.org/packages/24/b2/f2d34a4fcb2312fd3e9b80e92c742bdb18b87be1f84ae0c1e0dbcb716198/PyQtChart_Qt5-5.15.2-py3-none-manylinux2014_x86_64.whl", hash = "sha256:2528a1e04f7eb05709a38c9086e5e284dd3bb6d37f3a4f73a1e9d16d8f84789c", size = 925933, upload-time = "2021-03-10T14:47:00.288Z" },
+    { url = "https://files.pythonhosted.org/packages/b4/f5/0899238d8ae3baf6ca4e093eefd592a7fe480b61dcfb75c422b40c2fd814/PyQtChart_Qt5-5.15.2-py3-none-win32.whl", hash = "sha256:4b8f9cb056e37ab75393d9bcae650de269e00ce88e3267281d6358cd0b0e14cc", size = 569242, upload-time = "2021-03-10T14:47:04.626Z" },
+    { url = "https://files.pythonhosted.org/packages/04/40/f88cc89d4f79efab6f03e413031b318d828fc548ee681ad44b41f644ec0b/PyQtChart_Qt5-5.15.2-py3-none-win_amd64.whl", hash = "sha256:eb17156e78aebde61a7016749dd0af76a092543d39cccb1df2dee9db9f888327", size = 680589, upload-time = "2021-03-10T14:47:08.737Z" },
+]
+
+[[package]]
+name = "pyqtchart-qt5"
 version = "5.15.19"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14' and sys_platform == 'emscripten'",
+    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten'",
+    "python_full_version == '3.11.*' and sys_platform == 'emscripten'",
+    "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.11.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/53/1c/4fdaef7fb73713bfa57c0b8710778d17dd4cf797486c9c7d2bb3c8d0fd33/pyqtchart_qt5-5.15.19-py3-none-macosx_10_13_x86_64.whl", hash = "sha256:ec5689877ff1a00387b35cfa300c6862c4f8abd23cd6909104f3d8cc181698c0", size = 710532, upload-time = "2026-05-21T09:13:19.858Z" },
     { url = "https://files.pythonhosted.org/packages/fd/c0/bcd5282d4e1b17525d21bce4678579d478a634104ee085c48312c05cd5dd/pyqtchart_qt5-5.15.19-py3-none-macosx_11_0_arm64.whl", hash = "sha256:b2d4559f26fa4014fb52544e8e654913ae144f73c2ca45e810e82eb4daab1b9a", size = 648443, upload-time = "2026-05-21T09:13:22.696Z" },
@@ -1702,7 +1754,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/cb/04/2ba023d5f771b645f
 
 [[package]]
 name = "pyrobotiqgripper"
-version = "3.3.1"
+version = "3.3.2"
 source = { editable = "." }
 dependencies = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -1719,7 +1771,9 @@ all = [
     { name = "pygame-ce" },
     { name = "pynput" },
     { name = "pyqt5" },
+    { name = "pyqt5-qt5", version = "5.15.2", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
     { name = "pyqtchart" },
+    { name = "pyqtchart-qt5", version = "5.15.2", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
     { name = "sounddevice" },
 ]
 docs = [
@@ -1751,7 +1805,9 @@ requires-dist = [
     { name = "pymodbus", specifier = ">=3.12.1" },
     { name = "pynput", marker = "extra == 'all'", specifier = ">=1.7.6" },
     { name = "pyqt5", marker = "extra == 'all'", specifier = ">=5.15" },
+    { name = "pyqt5-qt5", marker = "sys_platform == 'win32' and extra == 'all'", specifier = "==5.15.2" },
     { name = "pyqtchart", marker = "extra == 'all'", specifier = ">=5.15" },
+    { name = "pyqtchart-qt5", marker = "sys_platform == 'win32' and extra == 'all'", specifier = "==5.15.2" },
     { name = "pyserial", specifier = ">=3.5" },
     { name = "sounddevice", marker = "extra == 'all'", specifier = ">=0.4.6" },
     { name = "sphinx", marker = "extra == 'docs'" },

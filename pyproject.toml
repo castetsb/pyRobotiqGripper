@@ -1,7 +1,7 @@
 
 [project]
 name = "pyrobotiqgripper"
-version = "3.3.1"
+version = "3.3.2"
 authors = [{name="Benoit CASTETS", email = "opensourceeng@gmail.com"}]
 description = "Python Driver for Robotiq Grippers"
 readme = "README.rst"
@@ -37,6 +37,12 @@ all = [
     "PyQt5>=5.15",
     "PyQtChart>=5.15",
     "sounddevice>=0.4.6",
+    # PyQt5-Qt5/PyQtChart-Qt5 (the bundled Qt binaries) stopped publishing
+    # Windows wheels after 5.15.2 (later releases are Linux/macOS only), so
+    # pin to the last Windows-compatible build there; other platforms are
+    # free to resolve newer.
+    "PyQt5-Qt5==5.15.2 ; sys_platform == 'win32'",
+    "PyQtChart-Qt5==5.15.2 ; sys_platform == 'win32'",
 ]
 
 [dependency-groups]

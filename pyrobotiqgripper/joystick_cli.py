@@ -280,7 +280,6 @@ def main(argv: Optional[List[str]] = None) -> int:
                         bipper.volume = 0
             else:
                 positionCommand = int(max(0,min(255,control_value*255)))
-                print(positionCommand)
                 speedCommmand = args.grip_speed
                 if speedCommmand is None:
                     speedCommmand = 255
