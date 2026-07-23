@@ -12,6 +12,13 @@ as well.
 Using uv (recommended)
 -----------------------
 
+If you don't already have a pyproject.toml in you project folder, use UV to
+create it.
+
+.. code-block:: bash
+
+    uv init
+
 Install pyrobotiqgripper with minimal dependencies.
 
 .. code-block:: bash

@@ -151,9 +151,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--visual-tool",
         action="store_true",
         help="Open a live gripper state visualization window (requires the "
-             "optional PyQt5 and PyQtChart packages). Displayed signals are "
-             "selectable from the window itself; the timeline window is "
-             "fixed at 5 seconds.",
+             "optional PySide6 package). Displayed signals are selectable "
+             "from the window itself; the timeline window is fixed at 5 "
+             "seconds.",
     )
 
     args = parser.parse_args(argv)

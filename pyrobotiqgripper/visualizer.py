@@ -23,8 +23,7 @@ new command is actually sent, so they are plotted held flat at their last
 known value out to the current time rather than stopping wherever the last
 command happened to be logged.
 
-Requires the optional ``PyQt5`` and ``PyQtChart`` packages
-(``pip install PyQt5 PyQtChart``).
+Requires the optional ``PySide6`` package (``pip install PySide6``).
 """
 
 from __future__ import annotations
@@ -36,10 +35,10 @@ from typing import Dict, List, Optional, Sequence
 import numpy as np
 
 try:
-    from PyQt5.QtChart import QChart, QChartView, QLineSeries, QValueAxis
-    from PyQt5.QtCore import QPointF, Qt, QTimer
-    from PyQt5.QtGui import QPainter
-    from PyQt5.QtWidgets import (
+    from PySide6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis
+    from PySide6.QtCore import QPointF, Qt, QTimer
+    from PySide6.QtGui import QPainter
+    from PySide6.QtWidgets import (
         QApplication,
         QCheckBox,
         QGroupBox,
@@ -52,8 +51,8 @@ try:
     )
 except ImportError as exc:
     raise ImportError(
-        "GripperVisualizer requires the optional PyQt5 and PyQtChart packages. "
-        "Install them with `pip install PyQt5 PyQtChart`."
+        "GripperVisualizer requires the optional PySide6 package. "
+        "Install it with `pip install PySide6`."
     ) from exc
 
 from .constants import (
@@ -227,7 +226,7 @@ class GripperVisualizer:
         # Qt objects created on this thread must also be torn down on this
         # thread. Left to Python's garbage collector, they could otherwise
         # be finalized later from an unrelated thread (e.g. at interpreter
-        # shutdown), which reliably segfaults PyQt/PyQtChart.
+        # shutdown), which reliably segfaults PySide6's native bindings.
         poll_timer.stop()
         window.close()
         del poll_timer, window

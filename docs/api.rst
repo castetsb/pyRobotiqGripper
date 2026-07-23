@@ -109,8 +109,8 @@ Mouse Joystick
 Gripper Visualizer
 ~~~~~~~~~~~~~~~~~~
 
-Requires the optional ``PyQt5`` and ``PyQtChart`` packages, included in the
-``all`` extra (``uv add "pyrobotiqgripper[all]"``).
+Requires the optional ``PySide6`` package, included in the ``all`` extra
+(``uv add "pyrobotiqgripper[all]"``).
 
 .. autoclass:: pyrobotiqgripper.visualizer.GripperVisualizer
    :members:
