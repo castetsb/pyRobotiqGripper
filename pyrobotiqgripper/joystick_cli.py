@@ -78,7 +78,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     common_group.add_argument(
         "--control-method",
-        choices=["position", "speed"],
+        choices=["position-raw","position", "speed"],
         default="position",
         help="Control method to use: 'position' to control the gripper in" \
         "position or 'speed' to control the gripper from its speed (default: %(default)s)",
@@ -234,7 +234,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             pygame.event.pump()
             control_value = js.get_axis(args.control_axis)
 
-            if (args.control_method == "position") and (args.joystick_id == -1):
+            if (args.control_method in ["position","position-raw"]) and (args.joystick_id == -1):
                 control_value = (control_value + 1)/2
 
             if args.control_method == "speed":
@@ -254,7 +254,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                         bipper.volume = 0.3
                     else:
                         bipper.volume = 0
-            else:
+            elif args.control_method == "position":
                 gripper.realTimePositionMove(controlSignal=control_value,
                                              controlBuffer=args.controlBuffer,
                                              speedLowerControlThreshold=args.speedLowerControlThreshold,
@@ -278,6 +278,16 @@ def main(argv: Optional[List[str]] = None) -> int:
                         bipper.volume = 0.3
                     else:
                         bipper.volume = 0
+            else:
+                positionCommand = int(max(0,min(255,control_value*255)))
+                print(positionCommand)
+                speedCommmand = args.grip_speed
+                if speedCommmand is None:
+                    speedCommmand = 255
+                forceCommand = args.grip_force
+                if forceCommand is None:
+                    forceCommand = 255
+                gripper.move(positionCommand,speedCommmand,forceCommand,wait=False,readStatus=False)
                 
     except KeyboardInterrupt:
         logging.info("Stopping joystick control")
