@@ -109,8 +109,8 @@ Mouse Joystick
 Gripper Visualizer
 ~~~~~~~~~~~~~~~~~~
 
-Requires the optional ``PyQt5`` and ``PyQtChart`` packages
-(``pip install PyQt5 PyQtChart``).
+Requires the optional ``PyQt5`` and ``PyQtChart`` packages, included in the
+``all`` extra (``uv add "pyrobotiqgripper[all]"``).
 
 .. autoclass:: pyrobotiqgripper.visualizer.GripperVisualizer
    :members:
@@ -140,6 +140,21 @@ Requires the optional ``PyQt5`` and ``PyQtChart`` packages
 
    Signals checked by default on the state chart when none are given:
    object detection.
+
+Bipper
+~~~~~~
+
+Requires the optional ``sounddevice`` package, included in the ``all`` extra
+(``uv add "pyrobotiqgripper[all]"``).
+
+Plays a continuous tone whose beep rate speeds up as
+:attr:`~pyrobotiqgripper.bipper.Bipper.input_signal` increases towards
+``1.0``. Used by the Joystick CLI's ``--bipper`` option to give an audio cue
+of grip force during realtime control.
+
+.. autoclass:: pyrobotiqgripper.bipper.Bipper
+   :members:
+   :show-inheritance:
 
 Joystick CLI
 ~~~~~~~~~~~~
