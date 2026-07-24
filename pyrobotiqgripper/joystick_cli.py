@@ -11,15 +11,37 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
+import sys
+import threading
+import time
 from typing import List, Optional
 
 import pygame
+from pynput import keyboard
 
 from . import RobotiqGripper
 from .constants import *
 from .mouse_joystick import *
 
 from .bipper import Bipper
+
+
+def _print_shutdown_notice() -> None:
+    """Print a one-off notice that shutdown may take a while.
+
+    A single synchronous print, not a background thread: the shutdown delay
+    is suspected to come from GIL contention between background threads
+    (visualizer, mouse listener) during teardown, so adding yet another
+    concurrently-running thread here risks making that worse rather than
+    giving useful feedback (as observed: the countdown thread itself never
+    got a chance to print).
+    """
+    print(
+        "\nStopping... closing the visualization tool can take a while. "
+        "Please wait.",
+        flush=True,
+    )
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -228,8 +250,26 @@ def main(argv: Optional[List[str]] = None) -> int:
         visualizer = GripperVisualizer(gripper)
         visualizer.start()
 
+    # Esc is the primary way to stop: checked as a plain flag at the top of
+    # every loop iteration, independent of OS signal delivery. Ctrl+C remains
+    # a fallback (caught below), but on Windows it's only ever acted on
+    # between bytecode instructions -- if the main thread is stuck inside a
+    # single blocking call (e.g. real Modbus/serial I/O) when it's pressed,
+    # delivery waits until that call returns.
+    quit_requested = threading.Event()
+
+    def _on_key_press(key):
+        if key == keyboard.Key.esc:
+            quit_requested.set()
+            return False  # stop the listener
+
+    keyboard_listener = keyboard.Listener(on_press=_on_key_press)
+    keyboard_listener.start()
+
+    logging.info("Press Esc to stop (Ctrl+C also works as a fallback)")
+
     try:
-        while True:
+        while not quit_requested.is_set():
 
             pygame.event.pump()
             control_value = js.get_axis(args.control_axis)
@@ -286,18 +326,59 @@ def main(argv: Optional[List[str]] = None) -> int:
                 forceCommand = args.grip_force
                 if forceCommand is None:
                     forceCommand = 255
-                gripper.move(positionCommand,speedCommmand,forceCommand,wait=False,readStatus=False)
+                gripper.move(positionCommand,speedCommmand,forceCommand,wait=False,readStatus=True)
                 
     except KeyboardInterrupt:
-        logging.info("Stopping joystick control")
+        pass
     finally:
+        logging.info(
+            "Stopping joystick control (%s)",
+            "Esc pressed" if quit_requested.is_set() else "Ctrl+C",
+        )
         if visualizer is not None:
+            _print_shutdown_notice()
+
+        t_shutdown_start = time.monotonic()
+
+        # Release OS-level hooks first and as early as possible: left
+        # running, their callbacks compete for the GIL with whatever the
+        # slower teardown below is doing, making input feel laggy system-wide
+        # for as long as that takes.
+        t0 = time.monotonic()
+        keyboard_listener.stop()
+        logging.info("Keyboard listener stopped in %.2fs", time.monotonic() - t0)
+
+        if args.joystick_id == -1:
+            t0 = time.monotonic()
+            js.stop()
+            logging.info("Mouse listener stopped in %.2fs", time.monotonic() - t0)
+
+        if visualizer is not None:
+            t0 = time.monotonic()
             visualizer.stop()
+            logging.info("Visualizer stopped in %.2fs", time.monotonic() - t0)
+
+        t0 = time.monotonic()
         try:
             gripper.disconnect()
         except Exception:
             # Some transports may not support explicit disconnect.
             pass
+        logging.info("Gripper disconnected in %.2fs", time.monotonic() - t0)
+
+        logging.info("Total shutdown time: %.2fs", time.monotonic() - t_shutdown_start)
+
+    if visualizer is not None:
+        # PySide6's QApplication must live on the main thread. GripperVisualizer
+        # runs it on a background thread instead, to keep this thread free for
+        # the control loop above, which works fine at runtime but reliably
+        # segfaults during Python's normal interpreter shutdown (regardless of
+        # teardown order). Everything that matters (gripper disconnect, bipper
+        # stop) has already run above, so skip that shutdown sequence entirely.
+        logging.info("Exiting via os._exit(0) to skip PySide6's shutdown segfault")
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(0)
 
     return 0
 

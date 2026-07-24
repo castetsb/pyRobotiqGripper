@@ -38,6 +38,17 @@ class MouseJoystick:
         self.listener = mouse.Listener(on_move=self._on_move)
         self.listener.start()
 
+    def stop(self) -> None:
+        """Stop the background listener and release the OS-level mouse hook.
+
+        Call this before the process exits: a live low-level mouse hook
+        (installed by the listener) has its callback run on this listener
+        thread, competing for the GIL with anything else happening during
+        shutdown; leaving it running until the process fully terminates can
+        make the whole system's mouse input feel laggy in the meantime.
+        """
+        self.listener.stop()
+
     def _on_move(self, x: float, y: float) -> None:
         self.x = x
         self.y = y

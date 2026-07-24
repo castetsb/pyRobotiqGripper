@@ -128,6 +128,19 @@ class GripperVisualizer:
         after :meth:`stop` raises :class:`RuntimeError`; create a new
         ``GripperVisualizer`` instance instead.
 
+    Warning:
+        PySide6 requires ``QApplication`` to live on a process' main thread.
+        This class runs it on a background thread instead (so the thread
+        driving the gripper stays free), which works correctly while
+        running, but reliably segfaults during Python's normal interpreter
+        shutdown once a ``GripperVisualizer`` has been started, regardless
+        of :meth:`stop` having already run cleanly. This is a Qt/PySide6
+        limitation, not something :meth:`stop` can work around. If your
+        script calls :meth:`start`, end it with ``os._exit(0)`` (after
+        flushing stdout/stderr and any other cleanup) instead of a normal
+        return, to skip that crash-prone shutdown sequence entirely -- see
+        how :func:`pyrobotiqgripper.joystick_cli.main` does it.
+
     Examples:
         >>> import pyrobotiqgripper as rq
         >>> from pyrobotiqgripper.visualizer import GripperVisualizer
