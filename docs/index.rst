@@ -16,6 +16,7 @@ Welcome to pyRobotiqGripper Documentation
    Basic Usage <basic_usage>
    Realtime usage <realtime>
    API Reference <api>
+   Contributing <contributing>
 
 Indices and tables
 ==================
