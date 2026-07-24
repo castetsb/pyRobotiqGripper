@@ -4,125 +4,82 @@
 
 ## RobotiqGripper
 
-```{autoclass} pyrobotiqgripper.RobotiqGripper
-:show-inheritance:
-:noindex:
+```{eval-rst}
+.. autoclass:: pyrobotiqgripper.RobotiqGripper
+   :show-inheritance:
+   :noindex:
 ```
 
 ### Setup
 
-```{automethod} pyrobotiqgripper.RobotiqGripper.connect
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.disconnect
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.reset
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.activate
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.start
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.stop
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.calibrate_bit
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.calibrate_speed
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.calibrate_mm
+```{eval-rst}
+.. automethod:: pyrobotiqgripper.RobotiqGripper.connect
+.. automethod:: pyrobotiqgripper.RobotiqGripper.disconnect
+.. automethod:: pyrobotiqgripper.RobotiqGripper.reset
+.. automethod:: pyrobotiqgripper.RobotiqGripper.activate
+.. automethod:: pyrobotiqgripper.RobotiqGripper.start
+.. automethod:: pyrobotiqgripper.RobotiqGripper.stop
+.. automethod:: pyrobotiqgripper.RobotiqGripper.calibrate_bit
+.. automethod:: pyrobotiqgripper.RobotiqGripper.calibrate_speed
+.. automethod:: pyrobotiqgripper.RobotiqGripper.calibrate_mm
 ```
 
 ### Control
 
-```{automethod} pyrobotiqgripper.RobotiqGripper.open
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.close
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.open_mm
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.close_mm
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.move
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.move_mm
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.moveToCurrentPosition
+```{eval-rst}
+.. automethod:: pyrobotiqgripper.RobotiqGripper.open
+.. automethod:: pyrobotiqgripper.RobotiqGripper.close
+.. automethod:: pyrobotiqgripper.RobotiqGripper.open_mm
+.. automethod:: pyrobotiqgripper.RobotiqGripper.close_mm
+.. automethod:: pyrobotiqgripper.RobotiqGripper.move
+.. automethod:: pyrobotiqgripper.RobotiqGripper.move_mm
+.. automethod:: pyrobotiqgripper.RobotiqGripper.moveToCurrentPosition
 ```
 
 ### Realtime Control
 
-```{automethod} pyrobotiqgripper.RobotiqGripper.realTimePositionMove
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.realTimePositionMove_Mode
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.realTimeSpeedMove
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.realTimeSpeedMove_Mode
+```{eval-rst}
+.. automethod:: pyrobotiqgripper.RobotiqGripper.realTimePositionMove
+.. automethod:: pyrobotiqgripper.RobotiqGripper.realTimePositionMove_Mode
+.. automethod:: pyrobotiqgripper.RobotiqGripper.realTimeSpeedMove
+.. automethod:: pyrobotiqgripper.RobotiqGripper.realTimeSpeedMove_Mode
 ```
 
 ### Status
 
-```{automethod} pyrobotiqgripper.RobotiqGripper.isActivated
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.isStarted
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.is_bit_calibrated
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.is_mm_calibrated
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.positioningResolution
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.is_speed_calibrated
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.gripper_vmax_bits
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.gripper_vmin_bits
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.minSpeedMmSecond
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.maxSpeedMmSecond
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.speedResolutionBit
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.speedResolutionMm
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.positionCommand
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.position
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.position_mm
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.lastMoveTime
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.lastMoveDirection
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.speed
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.force
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.objectDetection
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.printObjectDetection
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.evaluateGrip
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.readStatus
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.lastStatusReadTime
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.status
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.printStatus
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.commandHistoryPanda
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.statusHistoryPanda
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.historyPanda
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.commandHistory
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.statusHistoryNumpy
-```
-```{automethod} pyrobotiqgripper.RobotiqGripper.historyNumpy
+```{eval-rst}
+.. automethod:: pyrobotiqgripper.RobotiqGripper.isActivated
+.. automethod:: pyrobotiqgripper.RobotiqGripper.isStarted
+.. automethod:: pyrobotiqgripper.RobotiqGripper.is_bit_calibrated
+.. automethod:: pyrobotiqgripper.RobotiqGripper.is_mm_calibrated
+.. automethod:: pyrobotiqgripper.RobotiqGripper.positioningResolution
+.. automethod:: pyrobotiqgripper.RobotiqGripper.is_speed_calibrated
+.. automethod:: pyrobotiqgripper.RobotiqGripper.gripper_vmax_bits
+.. automethod:: pyrobotiqgripper.RobotiqGripper.gripper_vmin_bits
+.. automethod:: pyrobotiqgripper.RobotiqGripper.minSpeedMmSecond
+.. automethod:: pyrobotiqgripper.RobotiqGripper.maxSpeedMmSecond
+.. automethod:: pyrobotiqgripper.RobotiqGripper.speedResolutionBit
+.. automethod:: pyrobotiqgripper.RobotiqGripper.speedResolutionMm
+.. automethod:: pyrobotiqgripper.RobotiqGripper.positionCommand
+.. automethod:: pyrobotiqgripper.RobotiqGripper.position
+.. automethod:: pyrobotiqgripper.RobotiqGripper.position_mm
+.. automethod:: pyrobotiqgripper.RobotiqGripper.lastMoveTime
+.. automethod:: pyrobotiqgripper.RobotiqGripper.lastMoveDirection
+.. automethod:: pyrobotiqgripper.RobotiqGripper.speed
+.. automethod:: pyrobotiqgripper.RobotiqGripper.force
+.. automethod:: pyrobotiqgripper.RobotiqGripper.objectDetection
+.. automethod:: pyrobotiqgripper.RobotiqGripper.printObjectDetection
+.. automethod:: pyrobotiqgripper.RobotiqGripper.evaluateGrip
+.. automethod:: pyrobotiqgripper.RobotiqGripper.readStatus
+.. automethod:: pyrobotiqgripper.RobotiqGripper.lastStatusReadTime
+.. automethod:: pyrobotiqgripper.RobotiqGripper.status
+.. automethod:: pyrobotiqgripper.RobotiqGripper.printStatus
+.. automethod:: pyrobotiqgripper.RobotiqGripper.commandHistoryPanda
+.. automethod:: pyrobotiqgripper.RobotiqGripper.statusHistoryPanda
+.. automethod:: pyrobotiqgripper.RobotiqGripper.historyPanda
+.. automethod:: pyrobotiqgripper.RobotiqGripper.commandHistory
+.. automethod:: pyrobotiqgripper.RobotiqGripper.statusHistoryNumpy
+.. automethod:: pyrobotiqgripper.RobotiqGripper.historyNumpy
 ```
 
 ## Additional Tools
@@ -133,9 +90,10 @@ with and debugging the realtime control features (see
 
 ### Mouse Joystick
 
-```{autoclass} pyrobotiqgripper.mouse_joystick.MouseJoystick
-:members:
-:show-inheritance:
+```{eval-rst}
+.. autoclass:: pyrobotiqgripper.mouse_joystick.MouseJoystick
+   :members:
+   :show-inheritance:
 ```
 
 ```{data} pyrobotiqgripper.mouse_joystick.AXIS_X
@@ -157,9 +115,10 @@ Axis index for the vertical mouse position, for use with
 Requires the optional `PySide6` package, included in the `all` extra
 (`uv add "pyrobotiqgripper[all]"`).
 
-```{autoclass} pyrobotiqgripper.visualizer.GripperVisualizer
-:members:
-:show-inheritance:
+```{eval-rst}
+.. autoclass:: pyrobotiqgripper.visualizer.GripperVisualizer
+   :members:
+   :show-inheritance:
 ```
 
 ```{data} pyrobotiqgripper.visualizer.BOUNDED_SIGNALS
@@ -201,9 +160,10 @@ Plays a continuous tone whose beep rate speeds up as
 `1.0`. Used by the Joystick CLI's `--bipper` option to give an audio cue
 of grip force during realtime control.
 
-```{autoclass} pyrobotiqgripper.bipper.Bipper
-:members:
-:show-inheritance:
+```{eval-rst}
+.. autoclass:: pyrobotiqgripper.bipper.Bipper
+   :members:
+   :show-inheritance:
 ```
 
 ### Joystick CLI
@@ -214,7 +174,8 @@ joystick or mouse from the command line. See
 and examples; run `pyrobotiqgripper-joystick --help` for the full list of
 options.
 
-```{autofunction} pyrobotiqgripper.joystick_cli.main
+```{eval-rst}
+.. autofunction:: pyrobotiqgripper.joystick_cli.main
 ```
 
 ## Constants
