@@ -1,10 +1,10 @@
 
 [project]
 name = "pyrobotiqgripper"
-version = "3.3.5"
+version = "3.3.6"
 authors = [{name="Benoit CASTETS", email = "opensourceeng@gmail.com"}]
 description = "Python Driver for Robotiq Grippers"
-readme = "README.rst"
+readme = "README.md"
 requires-python = ">=3.10.0"
 license = {file = "LICENSE"}
 classifiers = [
@@ -27,6 +27,7 @@ docs = [
   "sphinx",
   "sphinx-rtd-theme",
   "sphinxcontrib-youtube",
+  "myst-parser",
 ]
 
 all = [

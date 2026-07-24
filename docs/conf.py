@@ -35,11 +35,15 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.viewcode',
     'sphinx.ext.autodoc',
-    'sphinx.ext.autosummary',
     'sphinx.ext.duration',
     'sphinx.ext.napoleon',  # Support Google/NumPy docstring styles
     "sphinxcontrib.youtube",
+    "myst_parser",
 ]
+
+source_suffix = {
+    '.md': 'markdown',
+}
 
 # Autodoc configuration
 autodoc_default_options = {
