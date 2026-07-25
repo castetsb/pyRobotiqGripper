@@ -2709,16 +2709,16 @@ class RobotiqGripper( ):
             self.readStatus()
         
         gOBJ = self._statusHistory[-1,GOBJ]
-
-        self.readStatus()
-        
-        gOBJ = self._statusHistory[-1,GOBJ]
         
         return gOBJ
+
+
+
+
     
     def evaluateGrip(self,refreshStatus = True):
         """Evaluate from gripper past state the status of the grip
-        Grip evaluation is only possible of gripper status has been retrieved
+        Grip evaluation is only possible if gripper status has been retrieved
         at high frequency until then (>10hz).
         The gripper needs to be speed calibrated evaluate the grip.
 
