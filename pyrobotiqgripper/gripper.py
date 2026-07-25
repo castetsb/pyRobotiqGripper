@@ -2116,7 +2116,11 @@ class RobotiqGripper( ):
 
         if verbose==1:
             if None not in [positionCommand,speedCommand,forceCommand]:
-                print("Frequency : ", int(1/(self._statusHistory[-1,TIME] - self._statusHistory[-2,TIME])),
+                deltaTime = self._statusHistory[-1,TIME] - self._statusHistory[-2,TIME]
+                frequency = None
+                if deltaTime > 0 :
+                    frequency = int(1/deltaTime)
+                print("Frequency : ", frequency,
                     " Time : ",f"{self._statusHistory[-1,TIME]:.3f}",
                     " Signal : ",f"{controlSignal:.2f}",
                     " mode : ",self._realtimePositionMove_Mode,
@@ -2368,7 +2372,11 @@ class RobotiqGripper( ):
             raise RobotiqGripperError("Realtime position move mode unknown: ",self._realtimeSpeedMove_Mode)
 
         if verbose==1:
-            print("Frequency : ", int(1/(self._statusHistory[-1,TIME] - self._statusHistory[-2,TIME])),
+            deltaTime = self._statusHistory[-1,TIME] - self._statusHistory[-2,TIME]
+            frequency = None
+            if deltaTime >0:
+                frequency = int(1/(self._statusHistory[-1,TIME] - self._statusHistory[-2,TIME]))
+            print("Frequency : ", frequency,
                 " Time : ",f"{self._statusHistory[-1,TIME]:.3f}",
                 " Signal : ",f"{controlSignal:.2f}",
                 " mode : ",self._realtimeSpeedMove_Mode,
@@ -2408,8 +2416,9 @@ class RobotiqGripper( ):
             speedCommand = 0
             forceCommand = 0
 
-            self.stop(refreshStatus=False)
-            self.moveToCurrentPosition(speedCommand,forceCommand)
+            if self.objectDetection(refreshStatus=True)!=GOBJ_AT_POSITION:
+                self.stop(refreshStatus=False)
+                self.moveToCurrentPosition(speedCommand,forceCommand)
 
             positionCommand = self.position(refreshStatus=False)
         else:
@@ -2421,7 +2430,7 @@ class RobotiqGripper( ):
 
             #Speed
             speedControlFunction = make_ramp_function(controlBuffer*2,1,0,255)
-            speedCommand = speedControlFunction(abs(controlSignal))
+            speedCommand = int(max(0,min(255,speedControlFunction(abs(controlSignal)))))
 
             #Force
             forceCommand = speedCommand
@@ -2701,8 +2710,7 @@ class RobotiqGripper( ):
         
         gOBJ = self._statusHistory[-1,GOBJ]
 
-        if gOBJ == -1:
-            self.readStatus()
+        self.readStatus()
         
         gOBJ = self._statusHistory[-1,GOBJ]
         

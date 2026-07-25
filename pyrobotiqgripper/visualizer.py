@@ -71,7 +71,7 @@ STATE_SIGNALS: List[str] = [
 
 #: Signals checked by default on the bounded chart when none are given: actual
 #: position, commanded speed and commanded force.
-DEFAULT_BOUNDED_SIGNALS: List[str] = ["gPO", "rSP", "rFR"]
+DEFAULT_BOUNDED_SIGNALS: List[str] = ["gPO", "rPR", "rSP", "rFR"]
 
 #: Signals checked by default on the state chart when none are given.
 DEFAULT_STATE_SIGNALS: List[str] = ["gOBJ"]
@@ -343,6 +343,10 @@ class _GripperVisualizerWindow(QMainWindow):
         axis_x = QValueAxis()
         axis_x.setTitleText("Time (s)")
         axis_x.setRange(-self._duration, 0)
+        axis_x.setTickType(QValueAxis.TicksDynamic)
+        axis_x.setTickAnchor(0)
+        axis_x.setTickInterval(0.5)
+        axis_x.setMinorTickCount(4)  # 0.5s major ticks split into 0.1s minor ticks
         chart.addAxis(axis_x, Qt.AlignBottom)
 
         axis_y = QValueAxis()

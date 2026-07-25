@@ -153,20 +153,20 @@ def main(argv: Optional[List[str]] = None) -> int:
     position_group.add_argument(
         "--speedLowerControlThreshold",
         type=int,
-        default=10,
+        default=20,
         help="In position control method the speed is function of the "\
         "difference between current position and target position. "\
         "The function is ramp that start at speedLowerControlThreshold and "\
-        "finish at speedUpperControlThreshold"
+        "finish at speedUpperControlThreshold (default: %(default)s)."
     )
     position_group.add_argument(
         "--speedUpperControlThreshold",
         type=int,
-        default=30,
+        default=100,
         help="In position control method the speed is function of the "\
         "difference between current position and target position. "\
         "The function is ramp that start at speedLowerControlThreshold and "\
-        "finish at speedUpperControlThreshold"
+        "finish at speedUpperControlThreshold (default: %(default)s)."
     )
 
     common_group.add_argument(
