@@ -2712,7 +2712,39 @@ class RobotiqGripper( ):
         
         return gOBJ
 
+    def estimatedObjectDetection(self):
+        """Object detection estimated from gripper status history. This is an
+        alternative to the reading of the object detection status of the
+        gripper (gOBJ).
+        gOBJ is set to GOBJ_IN_MOTION (0) when a command with a different
+        position target is sent. In realtime control many commands are sent to
+        the gripper so it may be difficult to use the object detection status
+        of the gripper (gOBJ).
+        """
+        # We can consider that an object is detected if all the following
+        # conditions are meet:
+        # (we look at gripper history from t0 (lastest status) toward the
+        # oldest history.
+        # -At t0: rPR!=gPO, direction of move request is calculated from rPR
+        # and gPO delta
+        # -At t-1: (rPR!=gPO) and (direction(t-1) = direction(t0)) and abs((gPO(t0)-gPO(t-1))/(t0 - t-1))<vitesse_min
+        # -At t-2: (rPR!=gPO) and (direction(t-2) = direction(t0)) and abs((gPO(t-1)-gPO(t-2))/(t-1 - t-0))<vitesse_min      
 
+        #Special case:
+        #1
+        # The maximum and minimum gripper position are not 255 and 0.
+        # When the gripper is at its extrem position the current position
+        # is not the target position. This could be persived as a detected
+        # object but it is not the case.
+
+        # If gPO is close to extrem position we consider that the griper is at
+        # its finial position and no object is gripper
+
+        #2
+        # Sometime the gripper can stay stuck at its extrem position. It is
+        # better to go out of extrem position with full speed and full force.
+        # I would like to be able to detect case where the gripper is stuck
+        # in its extrem position.
 
 
     
