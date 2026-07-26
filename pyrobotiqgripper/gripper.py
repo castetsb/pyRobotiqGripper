@@ -2079,11 +2079,11 @@ class RobotiqGripper( ):
         # 100
         #####
         elif self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_CLOSING:
-            pass
+            self.readStatus() #Not needed but worst doing a status refresh
         # 101
         #####
         elif self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_CLOSING:
-            pass
+            self.readStatus() #Not needed but worst doing a status refresh
         # 102
         #####
         elif self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_CLOSING:
@@ -2095,11 +2095,11 @@ class RobotiqGripper( ):
         # 200
         #####
         elif self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_OPENING:
-            pass
+            self.readStatus() #Not needed but worst doing a status refresh
         # 201
         #####
         elif self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_OPENING:
-            pass
+            self.readStatus() #Not needed but worst doing a status refresh
         # 202
         #####
         elif self._realtimePositionMove_Mode == REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_OPENING:
@@ -2222,8 +2222,8 @@ class RobotiqGripper( ):
                 opens it, 0 holds the current position. Magnitude controls the
                 commanded speed.
             controlBuffer (float): controlSignal deadzone express in percentage
-                of the control range. The deadzone is positionned at the center
-                of the control range.
+                of the control range (Joystick position range between -1 and 1).
+                The deadzone is positionned at the center of the control range.
             gripSpeed: Speed parameter use to secure a grip when an object is
                 detected. If used, gripForce and gripSpeed have to be both set.
             gripForce: Force parameter use to secure a grip when an object is
@@ -2286,7 +2286,7 @@ class RobotiqGripper( ):
         # 100
         #####
         elif self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_OBJECT_DETECTED:
-            if abs(controlSignal) < controlBuffer:
+            if abs(controlSignal) < controlBuffer*2:
                 self._realtimeSpeedMove_NudgeBaseline = self.force()
                 self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FORCE_DEACTIVATED
             else:
@@ -2295,7 +2295,7 @@ class RobotiqGripper( ):
         # 101
         #####
         elif self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_FORCE_DEACTIVATED:
-            if controlSignal > controlBuffer:
+            if controlSignal > controlBuffer*2:
                 self._realtimeSpeedMove_force_mode_start_force = self.force()
                 self._realtimeSpeedMove_NudgeBaseline = self.force()
                 self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FORCE_ACTIVATED
@@ -2306,7 +2306,7 @@ class RobotiqGripper( ):
         #####
         elif self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_FORCE_ACTIVATED:
             if self.objectDetection(refreshStatus=False) in [GOBJ_DETECTED_WHILE_CLOSING,GOBJ_DETECTED_WHILE_OPENING]:
-                if abs(controlSignal) < controlBuffer:
+                if abs(controlSignal) < controlBuffer*2:
                     #Compare the value of the force when force mode have been activated and the current force value of the gripper
                     if self.force() > self._realtimeSpeedMove_force_mode_start_force:
                         self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FORCE_DEACTIVATED
@@ -2324,8 +2324,8 @@ class RobotiqGripper( ):
         #####
         elif self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_SECURE:
             if self.objectDetection(refreshStatus=False) in [GOBJ_DETECTED_WHILE_CLOSING,GOBJ_DETECTED_WHILE_OPENING]:
-                furtherGripIn = (self.objectDetection(refreshStatus=False) == GOBJ_DETECTED_WHILE_CLOSING) and (controlSignal>controlBuffer)
-                furtherGripOut = (self.objectDetection(refreshStatus=False) == GOBJ_DETECTED_WHILE_OPENING) and (controlSignal<-controlBuffer)
+                furtherGripIn = (self.objectDetection(refreshStatus=False) == GOBJ_DETECTED_WHILE_CLOSING) and (controlSignal>controlBuffer*2)
+                furtherGripOut = (self.objectDetection(refreshStatus=False) == GOBJ_DETECTED_WHILE_OPENING) and (controlSignal<-controlBuffer*2)
                 if furtherGripIn or furtherGripOut:
                     self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_SECURE
                 else:
@@ -2351,17 +2351,17 @@ class RobotiqGripper( ):
         # 100
         #####
         elif self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_OBJECT_DETECTED:
-            pass
+            self.readStatus() #Not needed but worst doing a status refresh
         
         # 101
         #####
         elif self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_FORCE_DEACTIVATED:
-            pass
+            self.readStatus() #Not needed but worst doing a status refresh
         
         # 102
         #####
         elif self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_FORCE_ACTIVATED:
-            positionCommand, speedCommand, forceCommand = self._realtimeSpeedMove_forceMode(controlSignal=max(0,min(1,controlSignal)),controlBuffer=2*controlBuffer)
+            positionCommand, speedCommand, forceCommand = self._realtimeSpeedMove_forceMode(controlSignal=max(0,min(1,controlSignal)),controlBuffer=controlBuffer)
     
         # 300
         #####
@@ -2388,7 +2388,7 @@ class RobotiqGripper( ):
 
 
 
-    def _realTimeSpeedMove_freeMotion(self,controlSignal,controlBuffer):
+    def _realTimeSpeedMove_freeMotion(self,controlSignal,controlBuffer=0.1):
         """
         """
         positionCommand = None
@@ -2411,7 +2411,7 @@ class RobotiqGripper( ):
             forceCommand=255
             self.move(positionCommand,speedCommand,forceCommand,wait=True)
 
-        elif  abs(controlSignal)< controlBuffer:
+        elif  abs(controlSignal)< controlBuffer*2:
             #Gripper request to stay at current position
             speedCommand = 0
             forceCommand = 0
@@ -2429,7 +2429,7 @@ class RobotiqGripper( ):
                 positionCommand = 0
 
             #Speed
-            speedControlFunction = make_ramp_function(controlBuffer*2,1,0,255)
+            speedControlFunction = make_ramp_function(controlBuffer*2*2,1,0,255)
             speedCommand = int(max(0,min(255,speedControlFunction(abs(controlSignal)))))
 
             #Force
@@ -2711,7 +2711,7 @@ class RobotiqGripper( ):
         gOBJ = self._statusHistory[-1,GOBJ]
         
         return gOBJ
-
+    '''
     def estimatedObjectDetection(self):
         """Object detection estimated from gripper status history. This is an
         alternative to the reading of the object detection status of the
@@ -2747,6 +2747,39 @@ class RobotiqGripper( ):
         # in its extrem position.
 
 
+        eOBJ = None
+        positionTolerance = 3
+        investigationTimeDelta = 0.2
+
+        #Check status
+        if not self.is_bit_calibrated():
+            raise GripperCalibrationError("Bit calibration is required to use" \
+            "theestiamteObjectDetectionFunction")
+        if not self.is_speed_calibrated():
+            raise GripperCalibrationError("Speed calibration is required to use" \
+            "theestiamteObjectDetectionFunction")
+
+        isAtExtremOpenPosition = self.position(refreshStatus=False) < (self._openbit + positionTolerance)
+        isAtExtremClosePosition = self.position(refreshStatus=False) > (self._closebit - positionTolerance)
+
+        if isAtExtremClosePosition or isAtExtremOpenPosition:
+            # Check if the gripper is requested to go out of it extrem position
+            # Check if the gripper take too much time to go out of its extrem position
+            ## Search for
+            t=self.statusHistoryNumpy()[-1,TIME]
+            investigationStartTime_index = find_last_below_threshold(self.statusHistoryNumpy(),TIME,t- investigationTimeDelta)
+            
+            eOBJ = EOBJ_AT_POSITION
+            #Check the case where the gripper is stuck in its extrem position
+        else:
+            #t0 investigation
+            positionDelta = self.positionCommand() - self.position(refreshStatus=False)
+            if positionDelta == 0:
+                eOBJ = EOBJ_AT_POSITION
+            else:
+                #Was it possible to reach the position ?
+
+    '''
     
     def evaluateGrip(self,refreshStatus = True):
         """Evaluate from gripper past state the status of the grip
