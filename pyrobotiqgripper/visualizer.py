@@ -8,11 +8,11 @@ This module renders two scrolling line charts built from a
 * A "state" chart for small enumerated / flag registers (object detection,
   activation status, faults, ...).
 
-The window runs on its own background thread with its own Qt event loop, so
-it can be dropped into an existing control loop (e.g. the joystick CLI)
-without interfering with it, the same way
-:class:`~pyrobotiqgripper.bipper.Bipper` runs its own audio thread. It never
-talks to the gripper itself: it only polls
+The window runs on a shared background Qt thread (see
+:mod:`pyrobotiqgripper.qt_app_host`), so it can be dropped into an existing
+control loop (e.g. the joystick CLI) without interfering with it, the same
+way :class:`~pyrobotiqgripper.bipper.Bipper` runs its own audio thread. It
+never talks to the gripper itself: it only polls
 :meth:`~pyrobotiqgripper.gripper.RobotiqGripper.commandHistory` (write-side
 registers: ``rARD``, ``rATR``, ``rGTO``, ``rACT``, ``rPR``, ``rSP``, ``rFR``)
 and :meth:`~pyrobotiqgripper.gripper.RobotiqGripper.statusHistoryNumpy`
@@ -29,7 +29,6 @@ Requires the optional ``PySide6`` package (``pip install PySide6``).
 from __future__ import annotations
 
 import gc
-import threading
 from typing import Dict, List, Optional, Sequence
 
 import numpy as np
@@ -39,7 +38,6 @@ try:
     from PySide6.QtCore import QPointF, Qt, QTimer
     from PySide6.QtGui import QPainter
     from PySide6.QtWidgets import (
-        QApplication,
         QCheckBox,
         QGroupBox,
         QHBoxLayout,
@@ -60,6 +58,7 @@ from .constants import (
     STATUS_HISTORY_COLUMNS_NAME_2_ID,
     TIME,
 )
+from .qt_app_host import get_qt_app_host
 
 #: History column names whose raw register value is naturally in [0, 255].
 BOUNDED_SIGNALS: List[str] = ["gPO", "rPR", "rSP", "rFR", "gPR", "gCU"]
@@ -85,9 +84,10 @@ TIMELINE_DURATION_S: float = 5.0
 class GripperVisualizer:
     """Background window plotting a gripper's live history.
 
-    The window is created and driven entirely on a dedicated background
-    thread, started and stopped explicitly with :meth:`start` and
-    :meth:`stop`. Closing the window from the UI also stops the thread.
+    The window is created and driven on a shared background Qt thread (see
+    :mod:`pyrobotiqgripper.qt_app_host`), started and stopped explicitly with
+    :meth:`start` and :meth:`stop`. Closing the window from the UI also tears
+    it down.
 
     Args:
         gripper: The RobotiqGripper instance to read history from. Only its
@@ -122,24 +122,18 @@ class GripperVisualizer:
         trade-off: at worst a single redraw reads a partially updated row.
 
     Warning:
-        An instance only supports a single :meth:`start`/:meth:`stop` cycle:
-        Qt does not support re-creating a QApplication after a previous one
-        has been destroyed in the same process. Calling :meth:`start` again
-        after :meth:`stop` raises :class:`RuntimeError`; create a new
-        ``GripperVisualizer`` instance instead.
-
-    Warning:
         PySide6 requires ``QApplication`` to live on a process' main thread.
-        This class runs it on a background thread instead (so the thread
-        driving the gripper stays free), which works correctly while
-        running, but reliably segfaults during Python's normal interpreter
-        shutdown once a ``GripperVisualizer`` has been started, regardless
-        of :meth:`stop` having already run cleanly. This is a Qt/PySide6
-        limitation, not something :meth:`stop` can work around. If your
-        script calls :meth:`start`, end it with ``os._exit(0)`` (after
-        flushing stdout/stderr and any other cleanup) instead of a normal
-        return, to skip that crash-prone shutdown sequence entirely -- see
-        how :func:`pyrobotiqgripper.joystick_cli.main` does it.
+        This class (via :mod:`pyrobotiqgripper.qt_app_host`) runs it on a
+        shared background thread instead (so the thread driving the gripper
+        stays free), which works correctly while running, but reliably
+        segfaults during Python's normal interpreter shutdown once that
+        shared host has been started, regardless of :meth:`stop` having
+        already run cleanly. This is a Qt/PySide6 limitation, not something
+        :meth:`stop` can work around. If your script calls :meth:`start`, end
+        it with ``os._exit(0)`` (after flushing stdout/stderr and any other
+        cleanup) instead of a normal return, to skip that crash-prone
+        shutdown sequence entirely -- see how
+        :func:`pyrobotiqgripper.joystick_cli.main` does it.
 
     Examples:
         >>> import pyrobotiqgripper as rq
@@ -167,95 +161,82 @@ class GripperVisualizer:
         self._refresh_interval_ms = refresh_interval_ms
         self._window_title = window_title
 
-        self._thread: Optional[threading.Thread] = None
-        self._stop_event = threading.Event()
-        self._ready_event = threading.Event()
-        self._stopped_once = False
+        self._window: Optional["_GripperVisualizerWindow"] = None
+        self._poll_timer: Optional[QTimer] = None
 
     def start(self) -> None:
-        """Start the visualization window on a background thread.
+        """Start the visualization window on the shared Qt background thread.
 
         Does nothing if the window is already running.
-
-        Raises:
-            RuntimeError: If this instance was already started and stopped
-                once before. Qt does not support re-creating a QApplication
-                after a previous one has been destroyed in the same process,
-                so a given GripperVisualizer instance only supports a single
-                start/stop cycle. Create a new instance for a second run.
         """
-        if self._thread is not None:
+        if self._window is not None:
             return
-        if self._stopped_once:
-            raise RuntimeError(
-                "This GripperVisualizer instance was already stopped once and "
-                "cannot be restarted (Qt does not support re-creating a "
-                "QApplication in the same process). Create a new instance instead."
+
+        def _build() -> None:
+            window = _GripperVisualizerWindow(
+                self._gripper,
+                bounded_signals=self._bounded_signals,
+                state_signals=self._state_signals,
+                window_title=self._window_title,
             )
-        self._stop_event.clear()
-        self._ready_event.clear()
-        self._thread = threading.Thread(target=self._run, name="GripperVisualizer", daemon=True)
-        self._thread.start()
-        self._ready_event.wait(timeout=5.0)
+            window.showMaximized()
+
+            poll_timer = QTimer()
+            poll_timer.timeout.connect(self._poll)
+            poll_timer.start(self._refresh_interval_ms)
+
+            self._window = window
+            self._poll_timer = poll_timer
+
+        get_qt_app_host().run_on_gui_thread(_build)
 
     def stop(self) -> None:
-        """Request the window to close and wait for its thread to exit.
+        """Close the window and stop its poll timer.
 
-        Does nothing if the window is not running.
+        Does nothing if the window is not running. Only this visualizer's
+        own window/timer are torn down; the shared Qt event loop keeps
+        running for any other visualizer using it (see
+        :mod:`pyrobotiqgripper.qt_app_host`).
         """
-        if self._thread is None:
+        if self._window is None:
             return
-        self._stop_event.set()
-        self._thread.join(timeout=5.0)
-        self._thread = None
-        self._stopped_once = True
+
+        def _teardown() -> None:
+            if self._poll_timer is not None:
+                self._poll_timer.stop()
+            if self._window is not None:
+                self._window.close()
+            # Qt objects created on this thread must also be torn down on
+            # this thread. Left to Python's garbage collector, they could
+            # otherwise be finalized later from an unrelated thread (e.g. at
+            # interpreter shutdown), which reliably segfaults PySide6's
+            # native bindings.
+            self._window = None
+            self._poll_timer = None
+            gc.collect()
+
+        get_qt_app_host().run_on_gui_thread(_teardown)
 
     def is_running(self) -> bool:
-        """Return whether the visualization thread is currently running.
+        """Return whether the visualization window is currently running.
 
         Returns:
-            bool: True if the background thread is alive.
+            bool: True if the window is currently open.
         """
-        return self._thread is not None and self._thread.is_alive()
+        return self._window is not None
 
-    def _run(self) -> None:
-        """Background thread entry point: build the window and run its Qt event loop."""
-        app = QApplication.instance() or QApplication([])
-        window = _GripperVisualizerWindow(
-            self._gripper,
-            bounded_signals=self._bounded_signals,
-            state_signals=self._state_signals,
-            window_title=self._window_title,
-        )
-        window.show()
-
-        poll_timer = QTimer()
-        poll_timer.timeout.connect(lambda: self._poll(app, window))
-        poll_timer.start(self._refresh_interval_ms)
-
-        self._ready_event.set()
-        app.exec_()
-
-        # Qt objects created on this thread must also be torn down on this
-        # thread. Left to Python's garbage collector, they could otherwise
-        # be finalized later from an unrelated thread (e.g. at interpreter
-        # shutdown), which reliably segfaults PySide6's native bindings.
-        poll_timer.stop()
-        window.close()
-        del poll_timer, window
-        app.processEvents()
-        del app
-        gc.collect()
-
-    def _poll(self, app: "QApplication", window: "_GripperVisualizerWindow") -> None:
-        """Timer callback run on the Qt thread: refresh the plot or quit.
-
-        Args:
-            app: The QApplication running the window's event loop.
-            window: The visualization window to refresh.
-        """
-        if self._stop_event.is_set() or not window.isVisible():
-            app.quit()
+    def _poll(self) -> None:
+        """Timer callback run on the shared Qt thread: refresh the plot, or
+        tear down if the window was closed from the UI."""
+        window = self._window
+        if window is None:
+            return
+        if not window.isVisible():
+            if self._poll_timer is not None:
+                self._poll_timer.stop()
+            window.close()
+            self._window = None
+            self._poll_timer = None
             return
         window.refresh()
 
