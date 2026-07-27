@@ -2549,8 +2549,7 @@ class RobotiqGripper( ):
         """Estimates the object detection and stuck state of the gripper.
 
         Analyses the history buffer using a dual-window architecture and incorporates
-        advanced slip/squeeze tracking to maintain object presence detection when 
-        the gripper slowly creeps forward into the object.
+        advanced slip/squeeze tracking alongside speed-proportional dynamic deadband scaling.
 
         Args:
             window_time (float, optional): Short window for evaluation of axis immobility 
@@ -2560,7 +2559,7 @@ class RobotiqGripper( ):
             epsilon (int, optional): Position deadband in bits. Defaults to 2.
 
         Returns:
-            int: One of the EOBJ constants representing the current system state.
+            int: The calculated system state id based on external configuration maps.
         """
         if not self.is_speed_calibrated():
             return EOBJ_CALCULATION_IMPOSSIBLE
@@ -2590,8 +2589,6 @@ class RobotiqGripper( ):
             return EOBJ_CALCULATION_IMPOSSIBLE
             
         current_time = valid_times[-1]
-        
-        # Measure from index 0 to get a single float representation of history depth
         total_elapsed_history = current_time - valid_times[0]
         
         # Guard against the maximum required history depth
@@ -2627,18 +2624,21 @@ class RobotiqGripper( ):
         dt = np.where(dt == 0, 1e-6, dt)
         velocity = np.abs(np.diff(gPO_win)) / dt
         
-        # --- [NEW] Dynamic Tracking Error Deadband ---
-        # Calculate how fast the target request itself is moving in bits/second
-        target_velocity = np.abs(np.diff(gPR_win)) / dt
-        target_is_moving_slowly = np.any(target_velocity > 0)
+        # --- Speed-Proportional Dynamic Tracking Deadband Scaling ---
+        # 1. Calculate the actual mean velocity of the target profile (gPR) in bits/second
+        target_velocity_profile = np.abs(np.diff(gPR_win)) / dt
+        mean_target_velocity = np.mean(target_velocity_profile)
         
-        # If the target is moving, pad epsilon slightly to absorb normal mechanical lag
-        dynamic_epsilon = epsilon + 1 if target_is_moving_slowly else epsilon
-        # ---------------------------------------------
+        # 2. Convert speed into a dynamic bit buffer: (bits/second) * (seconds) = bits
+        expected_lag_buffer = int(np.ceil(mean_target_velocity * window_time))
+        
+        # 3. Add the speed-proportional buffer to your baseline threshold
+        dynamic_epsilon = epsilon + expected_lag_buffer
+        # -------------------------------------------------------------
         
         raw_error = gPR_win[1:] - gPO_win[1:]
         
-        # Evaluate directional demand inside small window using the dynamic epsilon
+        # Evaluate directional demand inside small window using the speed-proportional dynamic epsilon
         all_positive = np.all(raw_error > dynamic_epsilon)   # Loop wants to CLOSE
         all_negative = np.all(raw_error < -dynamic_epsilon)  # Loop wants to OPEN
         is_consistently_demanding = all_positive or all_negative
@@ -2711,6 +2711,7 @@ class RobotiqGripper( ):
 
         # Default fallback: Axis is actively clearing error tracking normally
         return EOBJ_IN_MOTION
+
 
     
     def evaluateGrip(self,refreshStatus = True):

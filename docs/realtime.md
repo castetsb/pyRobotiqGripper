@@ -1,5 +1,8 @@
 # Realtime control
 
+```{youtube} 37321zn1-Vo
+```
+
 There are use cases where you may want to control the gripper in realtime,
 like doing remote control of a robotic system (teleoperation, teaching
 Physical AI, ...)
@@ -55,9 +58,6 @@ to reverse the signal so that the signal range goes from [0,1] to [-1,1]
 ```
 
 ## 1- Realtime control with position signal
-
-```{youtube} 55NyOWzFGxA
-```
 
 ```{note}
 The above video is about the first prototype of the realTimePositionMove
