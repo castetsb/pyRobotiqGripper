@@ -1625,10 +1625,10 @@ class RobotiqGripper( ):
             positionCommand = 0
         
         # Speed command
-        if abs(controlSignal) < controlBuffer:
+        if abs(controlSignal) < 2*controlBuffer:
             speedCommand = 0
         else:
-            speedControlFunction=get_line_function(controlBuffer,0,1,255)
+            speedControlFunction=get_line_function(2*controlBuffer,0,1,255)
             speedCommand = speedControlFunction(controlSignal)
 
         speedCommand = int(max(0,min(255,speedCommand)))
@@ -1644,6 +1644,8 @@ class RobotiqGripper( ):
         if speedCommand is not None:
             self.stop(refreshStatus=False)
             self.move(positionCommand,speedCommand,forceCommand,wait=True,start=True)
+        else:
+            self.readStatus()
 
         return positionCommand, speedCommand, forceCommand
     
@@ -2119,7 +2121,7 @@ class RobotiqGripper( ):
         # 100
         #####
         elif self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_OBJECT_DETECTED:
-            if abs(controlSignal) < controlBuffer*2:
+            if abs(controlSignal) < controlBuffer:
                 self._realtimeSpeedMove_NudgeBaseline = self.force()
                 self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FORCE_DEACTIVATED
             else:
@@ -2128,7 +2130,7 @@ class RobotiqGripper( ):
         # 101
         #####
         elif self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_FORCE_DEACTIVATED:
-            if controlSignal > controlBuffer*2:
+            if controlSignal > controlBuffer:
                 self._realtimeSpeedMove_force_mode_start_force = self.force()
                 self._realtimeSpeedMove_NudgeBaseline = self.force()
                 self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FORCE_ACTIVATED
@@ -2139,7 +2141,7 @@ class RobotiqGripper( ):
         #####
         elif self._realtimeSpeedMove_Mode == REALTIME_SPEED_MOVE_MODE_FORCE_ACTIVATED:
             if self.objectDetection(refreshStatus=False) in [GOBJ_DETECTED_WHILE_CLOSING,GOBJ_DETECTED_WHILE_OPENING]:
-                if abs(controlSignal) < controlBuffer*2:
+                if abs(controlSignal) < controlBuffer:
                     #Compare the value of the force when force mode have been activated and the current force value of the gripper
                     if self.force() > self._realtimeSpeedMove_force_mode_start_force:
                         self._realtimeSpeedMove_Mode = REALTIME_SPEED_MOVE_MODE_FORCE_DEACTIVATED
@@ -2244,7 +2246,7 @@ class RobotiqGripper( ):
             forceCommand=255
             self.move(positionCommand,speedCommand,forceCommand,wait=True)
 
-        elif  abs(controlSignal)< controlBuffer*2:
+        elif  abs(controlSignal)< controlBuffer:
             #Gripper request to stay at current position
             speedCommand = 0
             forceCommand = 0

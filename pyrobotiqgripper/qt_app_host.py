@@ -3,7 +3,7 @@
 Qt only supports a single ``QApplication`` per process, driven by a single
 thread. Every optional PySide6-based visualizer in this package (e.g.
 :class:`~pyrobotiqgripper.visualizer.GripperVisualizer`,
-:class:`~pyrobotiqgripper.mouse_joystick.MouseJoystickVisualizer`) needs a Qt
+:class:`~pyrobotiqgripper.joystick_visual_tool.JoystickVisualTool`) needs a Qt
 event loop running somewhere other than the thread driving the gripper, but
 each spinning up its own ``QApplication``/thread would conflict the moment
 more than one is used in the same process. This module lazily starts exactly

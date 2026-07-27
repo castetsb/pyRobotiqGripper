@@ -110,6 +110,19 @@ Axis index for the vertical mouse position, for use with
 {meth}`~pyrobotiqgripper.mouse_joystick.MouseJoystick.get_axis`.
 ```
 
+### Joystick Visual Tool
+
+Requires the optional `PySide6` package, included in the `all` extra
+(`uv add "pyrobotiqgripper[all]"`). Generic over any joystick-like object
+exposing `get_axis(axis)` -- {class}`~pyrobotiqgripper.mouse_joystick.MouseJoystick`
+or a real `pygame.joystick.Joystick`.
+
+```{eval-rst}
+.. autoclass:: pyrobotiqgripper.joystick_visual_tool.JoystickVisualTool
+   :members:
+   :show-inheritance:
+```
+
 ### Gripper Visualizer
 
 Requires the optional `PySide6` package, included in the `all` extra

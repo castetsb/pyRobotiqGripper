@@ -25,6 +25,7 @@ from .constants import *
 from .mouse_joystick import *
 
 from .bipper import Bipper
+from .joystick_visual_tool import ClampedAxisJoystick, JoystickVisualTool
 
 
 def _print_shutdown_notice() -> None:
@@ -141,11 +142,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     common_group.add_argument(
         "--controlBuffer",
         type=float,
-        default=0.05,
+        default=None,
         help="Portion of control signal use as deadzone. The deadzone is"\
         "at the bottom and at the top of the control range for the position"\
         "method and at the center of the control range for the speed method."\
-        " (default: %(default)s). ",
+        " (default: 0.05 for --control-method position/position-raw, "\
+        "0.1 for --control-method speed). ",
     )
 
     position_group = parser.add_argument_group("Position control options")
@@ -178,14 +180,14 @@ def main(argv: Optional[List[str]] = None) -> int:
              "seconds.",
     )
     common_group.add_argument(
-        "--mouse-visual-tool",
+        "--joystick-visualizer",
         action="store_true",
         help="Open a live overlay bar (requires the optional PySide6 "
-             "package) spanning the top of the screen, tracking the mouse's "
-             "live X position with a marker. While using --control-method "
-             "position, colored control zones (deadzone / force-ramp range) "
-             "are also shown once an object has been detected. Only valid "
-             "with --joystick-id -1.",
+             "package) spanning the top of the screen, tracking the live "
+             "control signal (--control-axis) with a marker, for either a "
+             "mouse (--joystick-id -1) or a real joystick. Colored control "
+             "zones (deadzone / force-ramp range) are also shown once an "
+             "object has been detected.",
     )
 
     args = parser.parse_args(argv)
@@ -193,9 +195,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.control_axis is None:
         args.control_axis = AXIS_X if args.joystick_id == -1 else 3
 
-    if args.mouse_visual_tool and args.joystick_id != -1:
-        print("--mouse-visual-tool requires --joystick-id -1", file=sys.stderr)
-        return 1
+    if args.controlBuffer is None:
+        args.controlBuffer = 0.05 if args.control_method == "speed" else 0.05
 
     logging.basicConfig(
         level=logging.DEBUG if args.debug else logging.INFO,
@@ -206,6 +207,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     pygame.init()
 
     js=None
+    mouse_output_range = "unsigned"  # only meaningful (and only ever read) when joystick_id == -1
 
     if args.joystick_id == -1:
         logging.info("Joystick ID -1 selected, using mouse position for control")
@@ -265,17 +267,32 @@ def main(argv: Optional[List[str]] = None) -> int:
         visualizer = GripperVisualizer(gripper)
         visualizer.start()
 
-    mouse_visualizer = None
-    mouse_screen_width = None
-    if args.mouse_visual_tool:
+    joystick_visualizer = None
+    if args.joystick_visualizer:
+        if isinstance(js, MouseJoystick):
+            # MouseJoystick already reshapes its own get_axis() to match
+            # mouse_output_range, so the visualizer can read it directly.
+            visualizer_joystick = js
+            visualizer_output_range = mouse_output_range
+        elif args.control_method in ("position", "position-raw"):
+            # A real joystick's axis is natively signed [-1, 1] (pygame has
+            # no "unsigned" mode), but realTimePositionMove clamps it to
+            # [0, 1] internally (discarding the negative half). Wrap it so
+            # the visualizer's marker/zones reflect that same clamp.
+            visualizer_joystick = ClampedAxisJoystick(js)
+            visualizer_output_range = "unsigned"
+        else:
+            visualizer_joystick = js
+            visualizer_output_range = "signed"
+
         try:
-            mouse_visualizer = MouseJoystickVisualizer()
+            joystick_visualizer = JoystickVisualTool(
+                visualizer_joystick, axis=args.control_axis, output_range=visualizer_output_range
+            )
         except ImportError as exc:
-            logging.error("Cannot start the mouse visualization tool: %s", exc)
+            logging.error("Cannot start the joystick visualizer: %s", exc)
             return 1
-        mouse_visualizer.start()
-        import pyautogui
-        mouse_screen_width, _ = pyautogui.size()
+        joystick_visualizer.start()
 
     last_position_move_mode = None
 
@@ -303,15 +320,37 @@ def main(argv: Optional[List[str]] = None) -> int:
             pygame.event.pump()
             control_value = js.get_axis(args.control_axis)
 
-            if mouse_visualizer is not None:
-                mouse_visualizer.set_marker_position(js.x / mouse_screen_width)
-
             if args.control_method == "speed":
                 gripper.realTimeSpeedMove(controlSignal=control_value,
                                           controlBuffer=args.controlBuffer,
                                           gripSpeed=args.grip_speed,
                                           gripForce=args.grip_force,
                                           verbose=args.verbose)
+                if joystick_visualizer is not None:
+                    position_move_mode = gripper.realTimeSpeedMove_Mode()
+                    if position_move_mode != last_position_move_mode:
+                        last_position_move_mode = position_move_mode
+                        joystick_visualizer.clear_control_zones()
+                        cb = args.controlBuffer
+                        # realTimeSpeedMove's controlSignal is in [-1, 1]. The
+                        # thresholds below mirror gripper.py's own state
+                        # machine: FREEMOVE/OBJECT_DETECTED switch out of the
+                        # deadzone at abs(controlSignal) >= 2*cb (see
+                        # _realTimeSpeedMove_freeMotion and the mode-shift
+                        # check in realTimeSpeedMove), while the force-mode
+                        # ramp (_realtimeSpeedMove_forceMode) runs from cb to
+                        # 1 on the positive side only (negative signal is
+                        # clamped to 0, i.e. dead).
+                        if position_move_mode == REALTIME_SPEED_MOVE_MODE_FREEMOVE:
+                             joystick_visualizer.add_control_zone(-cb, cb, "cyan")
+                        elif position_move_mode == REALTIME_SPEED_MOVE_MODE_OBJECT_DETECTED:
+                            joystick_visualizer.add_control_zone(-cb, cb, (255,215,215))
+                        elif position_move_mode in [REALTIME_SPEED_MOVE_MODE_FORCE_DEACTIVATED,REALTIME_SPEED_MOVE_MODE_FORCE_ACTIVATED]:
+                            joystick_visualizer.add_control_zone(-1, cb, "cyan")
+                            joystick_visualizer.add_control_zone(cb, 2*cb, "green")
+                        else:
+                            raise ValueError("This mode is not currently managed by the joystick visualizer: ",position_move_mode)
+                        
                 if args.bipper:
                     if gripper.realTimeSpeedMove_Mode() in [REALTIME_SPEED_MOVE_MODE_OBJECT_DETECTED,REALTIME_SPEED_MOVE_MODE_FORCE_DEACTIVATED]:
                         bipper.input_signal = gripper.force()/255
@@ -332,29 +371,29 @@ def main(argv: Optional[List[str]] = None) -> int:
                                              gripForce=args.grip_force,
                                              verbose=args.verbose)
 
-                if mouse_visualizer is not None:
+                if joystick_visualizer is not None:
                     position_move_mode = gripper.realTimePositionMove_Mode()
                     if position_move_mode != last_position_move_mode:
                         last_position_move_mode = position_move_mode
-                        mouse_visualizer.clear_control_zones()
+                        joystick_visualizer.clear_control_zones()
                         cb = args.controlBuffer
                         if position_move_mode in [REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_CLOSING,
                                                    REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_CLOSING]:
-                            mouse_visualizer.add_control_zone(0.0, cb, "cyan")
-                            mouse_visualizer.add_control_zone(cb, 2 * cb, "green")
+                            joystick_visualizer.add_control_zone(0.0, cb, "cyan")
+                            joystick_visualizer.add_control_zone(cb, 2 * cb, "green")
                         elif position_move_mode in [REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_OPENING,
                                                      REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_OPENING]:
-                            mouse_visualizer.add_control_zone(1 - cb, 1.0, "cyan")
-                            mouse_visualizer.add_control_zone(1 - 2 * cb, 1 - cb, "green")
+                            joystick_visualizer.add_control_zone(1 - cb, 1.0, "cyan")
+                            joystick_visualizer.add_control_zone(1 - 2 * cb, 1 - cb, "green")
                         elif position_move_mode in [REALTIME_POSITION_MOVE_MODE_FREEMOVE]:
-                            mouse_visualizer.add_control_zone(0.0, cb, "cyan")
-                            mouse_visualizer.add_control_zone(1 - cb, 1.0, "cyan")
+                            joystick_visualizer.add_control_zone(0.0, cb, "cyan")
+                            joystick_visualizer.add_control_zone(1 - cb, 1.0, "cyan")
                         elif position_move_mode == REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_CLOSING:
-                            mouse_visualizer.add_control_zone(0.0, cb, (255,215,215))
+                            joystick_visualizer.add_control_zone(0.0, cb, (255,215,215))
                         elif position_move_mode == REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_OPENING:
-                            mouse_visualizer.add_control_zone(1 - cb, 1.0, (255,215,215))
+                            joystick_visualizer.add_control_zone(1 - cb, 1.0, (255,215,215))
                         else:
-                            raise ValueError("This mode is not current managed by the mouse visualizer : ",position_move_mode)
+                            raise ValueError("This mode is not currently managed by the joystick visualizer: ",position_move_mode)
 
 
                 if args.bipper:
@@ -389,7 +428,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             "Stopping joystick control (%s)",
             "Esc pressed" if quit_requested.is_set() else "Ctrl+C",
         )
-        if visualizer is not None or mouse_visualizer is not None:
+        if visualizer is not None or joystick_visualizer is not None:
             _print_shutdown_notice()
 
         t_shutdown_start = time.monotonic()
@@ -407,17 +446,17 @@ def main(argv: Optional[List[str]] = None) -> int:
             js.stop()
             logging.info("Mouse listener stopped in %.2fs", time.monotonic() - t0)
 
-        if mouse_visualizer is not None:
+        if joystick_visualizer is not None:
             t0 = time.monotonic()
-            mouse_visualizer.stop()
-            logging.info("Mouse visualizer stopped in %.2fs", time.monotonic() - t0)
+            joystick_visualizer.stop()
+            logging.info("Joystick visualizer stopped in %.2fs", time.monotonic() - t0)
 
         if visualizer is not None:
             t0 = time.monotonic()
             visualizer.stop()
             logging.info("Visualizer stopped in %.2fs", time.monotonic() - t0)
 
-        if visualizer is not None or mouse_visualizer is not None:
+        if visualizer is not None or joystick_visualizer is not None:
             t0 = time.monotonic()
             from .qt_app_host import get_qt_app_host
             get_qt_app_host().shutdown()
@@ -433,7 +472,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         logging.info("Total shutdown time: %.2fs", time.monotonic() - t_shutdown_start)
 
-    if visualizer is not None or mouse_visualizer is not None:
+    if visualizer is not None or joystick_visualizer is not None:
         # PySide6's QApplication must live on the main thread. The shared
         # qt_app_host runs it on a background thread instead, to keep this
         # thread free for the control loop above, which works fine at

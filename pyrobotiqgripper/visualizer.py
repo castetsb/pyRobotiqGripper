@@ -334,7 +334,7 @@ class _GripperVisualizerWindow(QMainWindow):
         sees every key press in the process before any focused child widget
         does. Only reacts while this window is the active one, so it stays
         inert if some other top-level window (e.g. a
-        :class:`~pyrobotiqgripper.mouse_joystick.MouseJoystickVisualizer`
+        :class:`~pyrobotiqgripper.joystick_visual_tool.JoystickVisualTool`
         overlay, though that one never takes focus) happens to share the
         same Qt event loop.
         """
