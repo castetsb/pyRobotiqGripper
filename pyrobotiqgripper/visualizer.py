@@ -286,7 +286,7 @@ class _GripperVisualizerWindow(QMainWindow):
             self._build_chart("Position / Speed / Force (0-255)", y_range=(0, 255), y_tick_interval=25)
         )
         state_chart, state_view, self._state_axis_x, self._state_axis_y, self._state_series = (
-            self._build_chart("Status flags", y_range=(-1, 16), y_tick_interval=1)
+            self._build_chart("Status flags", y_range=(-1, 10), y_tick_interval=1)
         )
         self._bounded_chart = bounded_chart
         self._state_chart = state_chart
@@ -579,9 +579,7 @@ class _GripperVisualizerWindow(QMainWindow):
         self._state_axis_x.setRange(-self._duration, 0)
 
         self._refresh_group(self._bounded_series, command_history, status_history, t_now)
-        self._refresh_group(
-            self._state_series, command_history, status_history, t_now, autoscale_axis=self._state_axis_y
-        )
+        self._refresh_group(self._state_series, command_history, status_history, t_now)
 
     @staticmethod
     def _sorted_valid(raw_history: np.ndarray) -> np.ndarray:
@@ -603,8 +601,7 @@ class _GripperVisualizerWindow(QMainWindow):
                         series_by_name: Dict[str, QLineSeries],
                         command_history: np.ndarray,
                         status_history: np.ndarray,
-                        t_now: float,
-                        autoscale_axis: Optional[QValueAxis] = None) -> None:
+                        t_now: float) -> None:
         """Update every visible series in a chart group.
 
         Args:
@@ -617,13 +614,7 @@ class _GripperVisualizerWindow(QMainWindow):
             t_now (float): Reference time (seconds) mapped to ``x=0``; the
                 more recent of the command and status histories' last
                 timestamps.
-            autoscale_axis (QValueAxis, optional): If given, this axis' range
-                is rescaled to fit the visible series' min/max value with a
-                10% padding. Left untouched (fixed range) if omitted.
         """
-        visible_min = None
-        visible_max = None
-
         for name, series in series_by_name.items():
             if not series.isVisible():
                 continue
@@ -636,15 +627,6 @@ class _GripperVisualizerWindow(QMainWindow):
                 points = self._build_status_points(status_history, column, t_now)
 
             series.replace(points)
-
-            if points:
-                values = [p.y() for p in points]
-                visible_min = min(values) if visible_min is None else min(visible_min, *values)
-                visible_max = max(values) if visible_max is None else max(visible_max, *values)
-
-        if autoscale_axis is not None and visible_min is not None:
-            padding = max(1.0, (visible_max - visible_min) * 0.1)
-            autoscale_axis.setRange(visible_min - padding, visible_max + padding)
 
     def _build_command_points(self,
                                command_history: np.ndarray,

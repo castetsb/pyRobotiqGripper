@@ -28,6 +28,7 @@ docs = [
   "sphinx-rtd-theme",
   "sphinxcontrib-youtube",
   "myst-parser",
+  "sphinx-autobuild",
 ]
 
 all = [

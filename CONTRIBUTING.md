@@ -67,3 +67,16 @@ your changes before opening a pull request:
 
 After editing a file, rerun the `sphinx-build` command from step 2 and
 refresh the page; there is no need to restart the HTTP server.
+
+### Live-reloading while editing
+
+Instead of steps 2-3 above, `sphinx-autobuild` (included in the `docs`
+extra) watches `docs/` and the package source, rebuilds on every save, and
+auto-refreshes the page open in your browser:
+
+```bash
+uv run --extra docs sphinx-autobuild docs docs/_build/html
+```
+
+Then browse to <http://localhost:8000/> (the port it prints). Stop it with
+Ctrl+C.

@@ -1650,7 +1650,19 @@ class RobotiqGripper( ):
         return positionCommand, speedCommand, forceCommand
     
     def realTimePositionMove_Mode(self):
-        """Return the mode of the realTimePositionMove function"""
+        """Return the mode of the realTimePositionMove function
+        
+        Return:
+            control_mode (int): Control mode code. See constants for details.
+                REALTIME_POSITION_MOVE_MODE_FREEMOVE = 0
+                REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_CLOSING = 100
+                REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_CLOSING = 101
+                REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_CLOSING = 102
+                REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_OPENING = 200
+                REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_OPENING = 201
+                REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_OPENING = 202
+        
+        """
 
         return self._realtimePositionMove_Mode
 
@@ -2713,79 +2725,6 @@ class RobotiqGripper( ):
 
         # Default fallback: Axis is actively clearing error tracking normally
         return EOBJ_IN_MOTION
-
-
-    
-    def evaluateGrip(self,refreshStatus = True):
-        """Evaluate from gripper past state the status of the grip
-        Grip evaluation is only possible if gripper status has been retrieved
-        at high frequency until then (>10hz).
-        The gripper needs to be speed calibrated evaluate the grip.
-
-        Args:
-            refreshSatus (boolean):
-                Indicate if the object detection status is directly retrieved
-                from the gripper or if it is taken from the last previously
-                read status.
-
-        Returns:
-            int: Quality of grip code
-                - 0: No object detected
-                - 1: Stable grip
-                - 2: Object compressing or slipping from the hand
-                - 3: Object lost
-        """
-
-        gripEval = None
-
-        # Check if the status has been retrieved at a frequency high enough to
-        # Evaluate the grip.
-        validStatusHistoryMask = (self._statusHistory[:,0] != -1)
-
-        if np.sum(validStatusHistoryMask) == 0:
-            raise GripperStatusRetrievalFrequencyError("The status have never been retrieved. Grip evaluation is not possible.")
-        
-        if np.sum(validStatusHistoryMask) == 1:
-            gripEval = GRIP_EVALUATION_STABLE_GRIP
-            return gripEval
-        
-        validStatusHistory = self._statusHistory[validStatusHistoryMask,:]
-        statusRetrievalIntervals = validStatusHistory[1:] - validStatusHistory[:-1]
-        minRetrieveInterval = np.min(statusRetrievalIntervals)
-
-        if minRetrieveInterval > 0.1:
-            raise GripperStatusRetrievalFrequencyError("The status have never been at a frequency lower than 10Hz. Grip evaluation is not possible.")
-
-        gOBJ = self.objectDetection(refreshStatus=refreshStatus)
-
-        if (gOBJ == GOBJ_AT_POSITION) or (gOBJ == GOBJ_IN_MOTION):
-            gripEval = GRIP_EVALUATION_NO_GRIP
-        else:
-            #Get all the last row where gOBJ is identical
-            gripHistory = get_bottom_continuous_rows(self.historyNumpy,M_GOBJ)
-            pastStateRow = find_last_below_threshold(gripHistory,TIME,0.5)
-
-            if (pastStateRow is None):
-                gripEval = GRIP_EVALUATION_STABLE_GRIP
-            else:
-                lastHistory = gripHistory[pastStateRow:, :]
-                startPosition = lastHistory[0,M_GPO]
-                #Trim the table to get the last 0.5s
-                speedHistory = gripHistory[pastStateRow:, [TIME, 2]]
-                 
-                is_identical = (gripHistory[:,M_GPO] == gripHistory[:,M_GPO][0]).all()
-                speedHistory[:,1] = self._convert_speedParameter_2_bitPerSecond(speedHistory[:,1])
-                finalPosition = calculate_final_position(startPosition,speedHistory)
-                actualPosition = lastHistory[-1:M_GPO]
-
-                if abs(finalPosition - actualPosition) < 10:
-                    gripEval = GRIP_EVALUATION_STABLE_GRIP
-                else:
-                    gripEval = GRIP_EVALUATION_SLIPPING
-
-        return gripEval
-
-
     
     def printObjectDetection(self,refreshStatus=True):
         """Print object detection status in a human readable way

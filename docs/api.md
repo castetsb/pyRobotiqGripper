@@ -193,102 +193,168 @@ options.
 
 ## Constants
 
-```{currentmodule} pyrobotiqgripper
+Every constant below is documented at its definition in
+`pyrobotiqgripper/constants.py`; this page just pulls those docstrings in,
+grouped by topic.
+
+```{currentmodule} pyrobotiqgripper.constants
 ```
 
-```{data} BAUDRATE
-:annotation:
+### Communication settings
 
-Default baudrate of the gripper use by Robotiq gripper.
+```{eval-rst}
+.. autodata:: BAUDRATE
+.. autodata:: BYTESIZE
+.. autodata:: PARITY
+.. autodata:: STOPBITS
+.. autodata:: TIMEOUT
+.. autodata:: AUTO_DETECTION
+.. autodata:: GRIPPER_MODE_RTU
+.. autodata:: GRIPPER_MODE_RTU_VIA_TCP
+.. autodata:: COM_TIME
 ```
 
-```{data} BYTESIZE
-:annotation:
+### History buffer
 
-Byte size use by Robotiq gripper
+```{eval-rst}
+.. autodata:: MAX_HISTORY
 ```
 
-```{data} PARITY
-:annotation:
+### Gripper status register values (gSTA / gGTO / gOBJ / gACT)
 
-Parity use by Robotiq gripper
+```{eval-rst}
+.. autodata:: GSTA_NOT_ACTIVATED
+.. autodata:: GSTA_ACTIVATION_IN_PROGRESS
+.. autodata:: GSTA_ACTIVATED
+.. autodata:: GGTO_STOPPED_OR_ACTIVATING
+.. autodata:: GGTO_GO_TO_REQUESTED_POSITION
+.. autodata:: GOBJ_IN_MOTION
+.. autodata:: GOBJ_DETECTED_WHILE_OPENING
+.. autodata:: GOBJ_DETECTED_WHILE_CLOSING
+.. autodata:: GOBJ_AT_POSITION
+.. autodata:: GACT_RESET
+.. autodata:: GACT_ACTIVATE
 ```
 
-```{data} STOPBITS
-:annotation:
+### Gripper command register values (rGTO / rACT)
 
-Stop bits used by Robotiq gripper
+```{eval-rst}
+.. autodata:: RGTO_STOP
+.. autodata:: RGTO_GO_TO_REQUESTED_POSITION
+.. autodata:: RACT_DESACTIVATE
+.. autodata:: RACT_ACTIVATE
 ```
 
-```{data} TIMEOUT
-:annotation:
+### Estimated object detection (eOBJ) values
 
-Default timeout use for communication with Robotiq gripper
+Computed by the gripper from position/speed history (not a raw Modbus
+register) and stored in the `eOBJ` history column.
+
+```{eval-rst}
+.. autodata:: EOBJ_IN_MOTION
+.. autodata:: EOBJ_AT_POSITION
+.. autodata:: EOBJ_DETECTED_WHILE_OPENING
+.. autodata:: EOBJ_DETECTED_WHILE_OPENING_STUCK_ON_RELEASE
+.. autodata:: EOBJ_STUCK_AT_FULL_OPENING
+.. autodata:: EOBJ_DETECTED_WHILE_OPENING_SLIPPING
+.. autodata:: EOBJ_DETECTED_WHILE_CLOSING
+.. autodata:: EOBJ_DETECTED_WHILE_CLOSING_STUCK_ON_RELEASE
+.. autodata:: EOBJ_STUCK_AT_FULL_CLOSING
+.. autodata:: EOBJ_DETECTED_WHILE_CLOSING_SLIPPING
+.. autodata:: EOBJ_CALCULATION_IMPOSSIBLE
 ```
 
-```{data} AUTO_DETECTION
-:annotation:
+### Realtime position move modes
 
-Automatically detect the USB port on which the gripper connected.
+State values of {meth}`~pyrobotiqgripper.RobotiqGripper.realTimePositionMove_Mode`.
+
+```{eval-rst}
+.. autodata:: REALTIME_POSITION_MOVE_MODE_FREEMOVE
+.. autodata:: REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_CLOSING
+.. autodata:: REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_CLOSING
+.. autodata:: REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_CLOSING
+.. autodata:: REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_OPENING
+.. autodata:: REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_OPENING
+.. autodata:: REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_OPENING
+.. autodata:: REALTIME_POSITION_MOVE_MODE_SECURE
+.. autodata:: REALTIME_POSITION_IN_LOWER_BUFFER
+.. autodata:: REALTIME_POSITION_IN_ACTIVATION_BUFFER
+.. autodata:: REALTIME_POSITION_IN_UPPER_BUFFER
+.. autodata:: REALTIME_POSITION_POSITION_DELTA_REFERENCE_LAST_AT_POSITION
+.. autodata:: REALTIME_POSITION_POSITION_DELTA_REFERENCE_CURRENT_POSITION
 ```
 
-```{data} GRIPPER_MODE_RTU_VIA_TCP
-:annotation:
+### Realtime speed move modes
 
-Set communication to be RTU via TCP
+State values of {meth}`~pyrobotiqgripper.RobotiqGripper.realTimeSpeedMove_Mode`.
+
+```{eval-rst}
+.. autodata:: REALTIME_SPEED_MOVE_MODE_FREEMOVE
+.. autodata:: REALTIME_SPEED_MOVE_MODE_OBJECT_DETECTED
+.. autodata:: REALTIME_SPEED_MOVE_MODE_FORCE_DEACTIVATED
+.. autodata:: REALTIME_SPEED_MOVE_MODE_FORCE_ACTIVATED
+.. autodata:: REALTIME_SPEED_MOVE_MODE_SECURE
 ```
 
-```{data} GRIPPER_MODE_RTU
-:annotation:
+### History table column indices
 
-Set communication to be RTU
+Column indices into the numpy arrays returned by
+{meth}`~pyrobotiqgripper.RobotiqGripper.commandHistory`,
+{meth}`~pyrobotiqgripper.RobotiqGripper.statusHistoryNumpy`, and
+{meth}`~pyrobotiqgripper.RobotiqGripper.historyNumpy` (command and status
+merged).
+
+```{eval-rst}
+.. autodata:: TIME
+.. autodata:: RARD
+.. autodata:: RATR
+.. autodata:: RGTO
+.. autodata:: RACT
+.. autodata:: RPR
+.. autodata:: RSP
+.. autodata:: RFR
+.. autodata:: GOBJ
+.. autodata:: GSTA
+.. autodata:: GGTO
+.. autodata:: GACT
+.. autodata:: KFLT
+.. autodata:: GFLT
+.. autodata:: GPR
+.. autodata:: GPO
+.. autodata:: GCU
+.. autodata:: EOBJ
+.. autodata:: M_GOBJ
+.. autodata:: M_GSTA
+.. autodata:: M_GGTO
+.. autodata:: M_GACT
+.. autodata:: M_KFLT
+.. autodata:: M_GFLT
+.. autodata:: M_GPR
+.. autodata:: M_GPO
+.. autodata:: M_GCU
+.. autodata:: M_EOBJ
 ```
 
-```{data} REGISTER_DIC
-:annotation:
+### Column name / index lookup dictionaries
 
-Dictionary containing all input and output registers for the Robotiq gripper.
+```{eval-rst}
+.. autodata:: COMMAND_HISTORY_COLUMNS_ID_2_NAME
+   :annotation:
+.. autodata:: COMMAND_HISTORY_COLUMNS_NAME_2_ID
+   :annotation:
+.. autodata:: STATUS_HISTORY_COLUMNS_ID_2_NAME
+   :annotation:
+.. autodata:: STATUS_HISTORY_COLUMNS_NAME_2_ID
+   :annotation:
+.. autodata:: HISTORY_COLUMNS_ID_2_NAME
+   :annotation:
+.. autodata:: HISTORY_COLUMNS_NAME_2_ID
+   :annotation:
+```
 
-Each top-level key represents a register group:
+### Register reference
 
-Input registers (`g` / `k` prefix):
-- gOBJ : Object detection status
-  - 0: Fingers in motion, no object detected
-  - 1: Fingers stopped while opening, object detected
-  - 2: Fingers stopped while closing, object detected
-  - 3: Fingers at requested position, no object detected or lost/dropped
-- gSTA : Gripper status
-  - 0: Reset / automatic release
-  - 1: Activation in progress
-  - 3: Activation completed
-- gGTO : Go-to status
-  - 0: Stopped / performing activation or release
-  - 1: Go to position requested
-- gACT : Activation status
-  - 0: Gripper reset
-  - 1: Gripper activation
-- kFLT : Controller fault codes (0–255)
-- gFLT : Gripper fault codes (0–255, specific faults for indices 0, 5, 7–15)
-- gPR  : Echo of requested positions (0–255)
-- gPO  : Actual positions read from encoders (0–255)
-- gCU  : Instantaneous current from motor drive (0–255, in mA)
-
-Output registers (`r` prefix):
-- rARD : Automatic release status
-  - 0: Closing auto-release
-  - 1: Opening auto-release
-- rATR : Automatic release type
-  - 0: Normal
-  - 1: Emergency auto-release
-- rGTO : Go-to command status
-  - 0: Stop
-  - 1: Go to requested position
-- rACT : Activation command
-  - 0: Deactivate gripper
-  - 1: Activate gripper (must stay on until routine completes)
-- rPR  : Target positions for gripper fingers (0–255)
-- rSP  : Speed of gripper movement (0–255)
-- rFR  : Final gripping force (0–255)
-
-This dictionary is mapping integer codes to human-readable descriptions for every register.
+```{eval-rst}
+.. autodata:: REGISTER_DIC
+   :annotation:
 ```
