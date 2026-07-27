@@ -35,9 +35,10 @@ import numpy as np
 
 try:
     from PySide6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis
-    from PySide6.QtCore import QPointF, Qt, QTimer
-    from PySide6.QtGui import QPainter
+    from PySide6.QtCore import QEvent, QPointF, Qt, QTimer
+    from PySide6.QtGui import QColor, QPainter
     from PySide6.QtWidgets import (
+        QApplication,
         QCheckBox,
         QGroupBox,
         QHBoxLayout,
@@ -65,7 +66,7 @@ BOUNDED_SIGNALS: List[str] = ["gPO", "rPR", "rSP", "rFR", "gPR", "gCU"]
 
 #: History column names carrying small enumerated / flag register values.
 STATE_SIGNALS: List[str] = [
-    "gOBJ", "gSTA", "gGTO", "gACT", "kFLT", "gFLT", "rARD", "rATR", "rGTO", "rACT",
+    "gOBJ", "gSTA", "gGTO", "gACT", "kFLT", "gFLT", "rARD", "rATR", "rGTO", "rACT", "eOBJ",
 ]
 
 #: Signals checked by default on the bounded chart when none are given: actual
@@ -114,6 +115,12 @@ class GripperVisualizer:
         history buffer (:data:`~pyrobotiqgripper.constants.MAX_HISTORY`
         samples at the typical 100 Hz control loop rate) and is not
         adjustable from the window.
+
+    Note:
+        Pressing Space while the window is active freezes the display (the
+        charts stop updating, and the status bar shows "Frozen..."); pressing
+        it again resumes. Useful to pause on an interesting moment without
+        stopping the underlying control loop.
 
     Warning:
         Reading the gripper's history buffers concurrently with whichever
@@ -263,23 +270,33 @@ class _GripperVisualizerWindow(QMainWindow):
         super().__init__()
         self._gripper = gripper
         self._duration = TIMELINE_DURATION_S
+        self._frozen = False
 
         self.setWindowTitle(window_title)
         self.resize(1000, 700)
+
+        # Space toggles freezing the display. Installed on the QApplication
+        # (rather than overriding keyPressEvent on this window) so it fires
+        # regardless of which child widget currently has keyboard focus --
+        # e.g. a checkbox in the side panel, which would otherwise consume
+        # Space itself to toggle its own checked state.
+        QApplication.instance().installEventFilter(self)
 
         bounded_chart, bounded_view, self._bounded_axis_x, self._bounded_axis_y, self._bounded_series = (
             self._build_chart("Position / Speed / Force (0-255)", y_range=(0, 255), y_tick_interval=25)
         )
         state_chart, state_view, self._state_axis_x, self._state_axis_y, self._state_series = (
-            self._build_chart("Status flags", y_range=(0, 16), y_tick_interval=1)
+            self._build_chart("Status flags", y_range=(-1, 16), y_tick_interval=1)
         )
         self._bounded_chart = bounded_chart
         self._state_chart = state_chart
 
-        for name in BOUNDED_SIGNALS:
-            self._add_series(bounded_chart, self._bounded_axis_x, self._bounded_axis_y, self._bounded_series, name)
-        for name in STATE_SIGNALS:
-            self._add_series(state_chart, self._state_axis_x, self._state_axis_y, self._state_series, name)
+        for i, name in enumerate(BOUNDED_SIGNALS):
+            color = self._distinct_color(i, len(BOUNDED_SIGNALS))
+            self._add_series(bounded_chart, self._bounded_axis_x, self._bounded_axis_y, self._bounded_series, name, color)
+        for i, name in enumerate(STATE_SIGNALS):
+            color = self._distinct_color(i, len(STATE_SIGNALS))
+            self._add_series(state_chart, self._state_axis_x, self._state_axis_y, self._state_series, name, color)
 
         splitter = QSplitter(Qt.Vertical)
         splitter.addWidget(bounded_view)
@@ -300,6 +317,51 @@ class _GripperVisualizerWindow(QMainWindow):
             self._bounded_series[name].setVisible(name in bounded_signals)
         for name in STATE_SIGNALS:
             self._state_series[name].setVisible(name in state_signals)
+
+        # Colors are assigned per currently-*visible* series (see
+        # _recolor_visible), not once for the full signal list: spreading
+        # hues across every signal that could ever be shown -- most of which
+        # start hidden -- left adjacent-by-coincidence pairs like the first
+        # and last entries (e.g. gOBJ/eOBJ) only one hue-step apart on the
+        # wheel and hard to tell apart once both happened to be checked.
+        self._recolor_visible(BOUNDED_SIGNALS, self._bounded_series)
+        self._recolor_visible(STATE_SIGNALS, self._state_series)
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: N802 - Qt override
+        """Toggle freezing the display when Space is pressed.
+
+        Installed on the QApplication itself (see :meth:`__init__`), so it
+        sees every key press in the process before any focused child widget
+        does. Only reacts while this window is the active one, so it stays
+        inert if some other top-level window (e.g. a
+        :class:`~pyrobotiqgripper.mouse_joystick.MouseJoystickVisualizer`
+        overlay, though that one never takes focus) happens to share the
+        same Qt event loop.
+        """
+        if (event.type() == QEvent.KeyPress
+                and event.key() == Qt.Key_Space
+                and self.isActiveWindow()):
+            self._set_frozen(not self._frozen)
+            return True
+        return super().eventFilter(watched, event)
+
+    def _set_frozen(self, frozen: bool) -> None:
+        """Set whether :meth:`refresh` is currently a no-op, and reflect it in the status bar."""
+        self._frozen = frozen
+        if frozen:
+            self.statusBar().showMessage("Frozen (press Space to resume)")
+        else:
+            self.statusBar().clearMessage()
+
+    def closeEvent(self, event) -> None:  # noqa: N802 - Qt override
+        """Remove the app-wide event filter installed in :meth:`__init__`.
+
+        Without this, the filter would keep referencing this window (via a
+        now-invalid native handle) after it's closed, since it's registered
+        on the shared, long-lived QApplication rather than on this window.
+        """
+        QApplication.instance().removeEventFilter(self)
+        super().closeEvent(event)
 
     def _build_chart(self, title: str, y_range: Sequence[float], y_tick_interval: float):
         """Create an empty chart with a time X axis and a value Y axis.
@@ -343,7 +405,7 @@ class _GripperVisualizerWindow(QMainWindow):
         series_by_name: Dict[str, QLineSeries] = {}
         return chart, view, axis_x, axis_y, series_by_name
 
-    def _add_series(self, chart, axis_x, axis_y, series_by_name: Dict[str, QLineSeries], name: str) -> None:
+    def _add_series(self, chart, axis_x, axis_y, series_by_name: Dict[str, QLineSeries], name: str, color: "QColor") -> None:
         """Create and attach one named line series to a chart.
 
         Args:
@@ -354,13 +416,59 @@ class _GripperVisualizerWindow(QMainWindow):
                 is added to, keyed by history column name.
             name (str): History column name (e.g. ``"gPO"``) this series
                 plots.
+            color (QColor): Color for this series' line. Assigned explicitly
+                (see :meth:`_distinct_color`) rather than left to QChart's
+                default theme, whose palette is only ~5 colors deep and so
+                silently repeats -- and becomes visually indistinguishable --
+                once a chart has more series than that (as both charts here
+                do).
         """
         series = QLineSeries()
         series.setName(name)
+        series.setColor(color)
         chart.addSeries(series)
         series.attachAxis(axis_x)
         series.attachAxis(axis_y)
         series_by_name[name] = series
+
+    @staticmethod
+    def _distinct_color(index: int, total: int) -> "QColor":
+        """Return one of ``total`` colors spaced evenly around the hue wheel.
+
+        Used instead of QChart's default theme palette so that charts with
+        many series (this window's "state" chart has 11) never assign the
+        same color to two different series.
+
+        Args:
+            index (int): Position of this color in the sequence, ``0``-based.
+            total (int): Total number of colors needed; must be >= 1.
+        """
+        hue = index / max(total, 1)
+        return QColor.fromHsvF(hue, 0.65, 0.85)
+
+    def _recolor_visible(self, all_signals: Sequence[str], series_by_name: Dict[str, QLineSeries]) -> None:
+        """Re-spread distinct colors across just the currently *visible* series.
+
+        Called once at startup and again every time a checkbox toggles a
+        series on/off. Only the signals someone actually has checked need to
+        be told apart from each other, so this recomputes colors for exactly
+        that subset each time (in ``all_signals`` order, for a stable,
+        deterministic assignment) rather than fixing colors once across the
+        full, mostly-hidden signal list -- which is what previously let two
+        *visible* series end up hue-adjacent (and hard to tell apart) purely
+        by where they happened to fall in the full list. Hidden series keep
+        whatever color they last had; it's repainted the moment they're shown
+        again.
+
+        Args:
+            all_signals (Sequence[str]): Every signal name selectable for
+                this chart, in the fixed order colors are assigned in.
+            series_by_name (Dict[str, QLineSeries]): Series registry for this
+                chart.
+        """
+        visible_names = [name for name in all_signals if series_by_name[name].isVisible()]
+        for i, name in enumerate(visible_names):
+            series_by_name[name].setColor(self._distinct_color(i, len(visible_names)))
 
     def _build_side_panel(self,
                            bounded_signals: Sequence[str],
@@ -421,18 +529,39 @@ class _GripperVisualizerWindow(QMainWindow):
             checkbox = QCheckBox(name)
             checkbox.setChecked(name in checked_signals)
             checkbox.toggled.connect(
-                lambda checked, series_name=name, registry=series_by_name: registry[series_name].setVisible(checked)
+                lambda checked, series_name=name, registry=series_by_name, signals=all_signals:
+                    self._on_signal_toggled(checked, series_name, registry, signals)
             )
             layout.addWidget(checkbox)
         group.setLayout(layout)
         return group
 
+    def _on_signal_toggled(self,
+                            checked: bool,
+                            name: str,
+                            series_by_name: Dict[str, QLineSeries],
+                            all_signals: Sequence[str]) -> None:
+        """Checkbox callback: show/hide one series, then recolor the visible set.
+
+        Args:
+            checked (bool): New checked state of the checkbox.
+            name (str): Signal name the checkbox controls.
+            series_by_name (Dict[str, QLineSeries]): Series registry for this chart.
+            all_signals (Sequence[str]): Every signal name selectable for this chart.
+        """
+        series_by_name[name].setVisible(checked)
+        self._recolor_visible(all_signals, series_by_name)
+
     def refresh(self) -> None:
         """Redraw both charts from the gripper's latest command and status history.
 
         Called periodically from :class:`GripperVisualizer`'s poll timer.
-        Does nothing if the gripper has no valid history yet.
+        Does nothing if the gripper has no valid history yet, or while the
+        display is frozen (Space toggles this; see :meth:`eventFilter`).
         """
+        if self._frozen:
+            return
+
         command_history = self._sorted_valid(self._gripper.commandHistory())
         status_history = self._sorted_valid(self._gripper.statusHistoryNumpy())
 

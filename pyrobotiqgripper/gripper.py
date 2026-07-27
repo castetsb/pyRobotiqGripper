@@ -740,8 +740,13 @@ class RobotiqGripper( ):
         #Current
         gCU=currentReg5
 
+        eOBJ = None
+
         self._statusHistory[:-1,:]=self._statusHistory[1:,:]
-        self._statusHistory[-1,:]=[t,gOBJ,gSTA,gGTO,gACT,kFLT,gFLT,gPR,gPO,gCU]
+        self._statusHistory[-1,:]=[t,gOBJ,gSTA,gGTO,gACT,kFLT,gFLT,gPR,gPO,gCU,eOBJ]
+
+        eOBJ = self._estimateObjectDetection()
+        self._statusHistory[-1,EOBJ]=eOBJ
 
         #Save last move time and direction
         pastPosition = self._statusHistory[-2,GPO]
@@ -995,179 +1000,6 @@ class RobotiqGripper( ):
         posBitPerSecond = self._convert_speedParameter_2_bitPerSecond(speed)
         travelTime = abs(float(endPosition-startPosition))/posBitPerSecond
         return travelTime
-
-    def _commandFilter(self,
-                       current_time,
-                       current_rPR,
-                       minSpeedPosDelta=5,
-                       maxSpeedPosDelta=55,
-                       continuousGrip=True,
-                       autoLock=True,
-                       minimalMotion=1,
-                       verbose=0,
-                       refreshStatus=False,
-                       objectDetectionDuration=0.5
-                       ):
-        """"Filter the gripper command to perform a smooth and safe motion of the gripper.\
-        The command filter is based on the gripper command history and the gripper status.
-        
-        Parameters:
-        -----------
-        t0_RequestTime : float
-            Request time.
-        t0_RequestPosition : int
-            Requested position.
-        commandHistory : dict
-            Command history.
-        status : dict
-            Gripper status.
-        minSpeedPosDelta : int
-            Minimum speed position delta.
-        maxSpeedPosDelta : int
-            Maximum speed position delta.
-        continuousGrip : bool
-            Whether to continuously grip.
-        autoLock : bool
-            Whether to automatically lock.
-        minimalMotion : int
-            Minimal motion.
-        verbose : int
-            Verbose level to print. 1 print all executed command. 2 print all commands.
-
-        Returns:
-        --------
-        command : dict
-            Filtered command.
-        """
-        if refreshStatus:
-            self.readStatus()
-
-        #t1: previous command
-        #t0: next command to come
-
-        #Object detection
-
-        history = self.historyNumpy()
-        
-        prev_time=history[-1,TIME]
-        prev_cOBJ=self.objectDetection(refreshStatus=False)
-        prev_gPO=history[-1,M_GPO]
-        prev_rPR=history[-1,RPR]
-        prev_rSP=history[-1,RSP]
-        prev_rFR=history[-1,RFR]
-
-        forceMin = continuousGrip * 1
-        command = {}
-
-        dt = current_time - prev_time
-
-        command["execution"] = NO_COMMAND
-        command["rPR"] = 0
-        command["rSP"] = 0
-        command["rFR"] = forceMin
-        command["wait"] = False
-        command["comment"] = ""
-        
-        cPO = self._positionEstimation(prev_gPO,
-                                       prev_rPR,
-                                       prev_rSP,
-                                       dt)
-        
-        # Check if object detected
-        if prev_cOBJ in [GOBJ_DETECTED_WHILE_OPENING, GOBJ_DETECTED_WHILE_CLOSING]:
-            # Object detected
-            full_grip_applied = (prev_rPR in [0, 255]) and (prev_rSP == 255) and (prev_rFR == 255)
-            if not full_grip_applied:
-                # Apply full grip
-                if prev_cOBJ == GOBJ_DETECTED_WHILE_CLOSING:
-                    command["execution"] = WRITE_READ_COMMAND
-                    command["rPR"] = 255
-                    command["rSP"] = 255
-                    command["rFR"] = 255
-                    command["wait"] = True
-                    command["comment"] = "Object detected while closing, apply full grip"
-                else:  # GOBJ_DETECTED_WHILE_OPENING
-                    command["execution"] = WRITE_READ_COMMAND
-                    command["rPR"] = 0
-                    command["rSP"] = 255
-                    command["rFR"] = 255
-                    command["wait"] = True
-                    command["comment"] = "Object detected while opening, apply full release"
-            else:
-                # Full grip applied
-                # Check if further gripping requested
-                if ((prev_cOBJ == GOBJ_DETECTED_WHILE_CLOSING and current_rPR >= prev_gPO) or
-                    (prev_cOBJ == GOBJ_DETECTED_WHILE_OPENING and current_rPR <= prev_gPO)):
-                    # Further gripping
-                    command["execution"] = READ_COMMAND
-                    command["rPR"] = None
-                    command["rSP"] = None
-                    command["rFR"] = None
-                    command["wait"] = False
-                    command["comment"] = "Full grip applied, further gripping requested, do nothing"
-                else:
-                    # Away from grip or release
-                    command["execution"] = WRITE_READ_COMMAND
-                    command["rPR"] = current_rPR
-                    command["rSP"] = 255
-                    command["rFR"] = 255
-                    command["wait"] = True
-                    command["comment"] = "Object detected, going to release position"
-        else:
-            # No object detected
-            if current_rPR in [0, 255] and not (prev_rPR in [0, 255] and prev_rSP == 255 and prev_rFR == 255):
-                command["execution"] = WRITE_READ_COMMAND
-                command["rPR"] = current_rPR
-                command["rSP"] = 255
-                command["rFR"] = 255
-                command["wait"] = True
-                command["comment"] = f"No object detected, trigger full grip to {current_rPR}"
-
-            elif ((abs(prev_gPO - current_rPR) <= minimalMotion)
-                or (prev_rPR > self._closebit and current_rPR > self._closebit)
-                or (prev_rPR < self._openbit and current_rPR < self._openbit)):
-                command["execution"] = READ_COMMAND
-                command["rPR"] = None
-                command["rSP"] = None
-                command["rFR"] = None
-                command["wait"] = False
-                command["comment"] = "Requested position close to current position or both in extreme position, do nothing"
-            else:
-                # Adjust speed based on distance
-                posDelta = abs(prev_gPO - current_rPR)
-                if posDelta <= minSpeedPosDelta:
-                    speed = 0
-                elif posDelta >= maxSpeedPosDelta:
-                    speed = 255
-                else:
-                    speed = int((posDelta - minSpeedPosDelta) / (maxSpeedPosDelta - minSpeedPosDelta) * 255)
-                force = forceMin
-                wait = False
-                comment = f"No object detected, move with adjusted speed {speed}"
-
-
-                if (prev_rPR==0 and current_rPR > self._openbit) or (prev_rPR==255 and current_rPR < self._closebit):
-                    force = 255
-                    speed = 255
-                    wait =True
-                    comment = f"Move out of a full close of a full opening"
-
-                
-                # Check if requesting extreme position and previous was not full grip
-                command["execution"] = WRITE_READ_COMMAND
-                command["rPR"] = current_rPR
-                command["rSP"] = speed
-                command["rFR"] = force
-                command["wait"] = wait
-                command["comment"] = comment
-        if verbose ==1:
-            if command["execution"]==WRITE_READ_COMMAND:
-                print(f"Time: {current_time:.3f} | ReqPos: {current_rPR:3d} | cPO: {cPO}| ObjDet: {prev_cOBJ} | CmdExe: {command['execution']:1d} | CmdPos: {command['rPR'] or 0:3d} | CmdSpd: {command['rSP'] or 0:3d} | CmdFrc: {command['rFR'] or 0:3d} | CmdWait: {command['wait'] or 0:.3f} | Comment: {command['comment']}")
-        if verbose ==2:
-            print(f"Time: {current_time:.3f} | ReqPos: {current_rPR:3d} | cPO: {cPO} | ObjDet: {prev_cOBJ} | CmdExe: {command['execution']:1d} | CmdPos: {command['rPR'] or 0:3d} | CmdSpd: {command['rSP'] or 0:3d} | CmdFrc: {command['rFR'] or 0:3d} | CmdWait: {command['wait'] or 0:.3f} | Comment: {command['comment']}")
-
-
-        return command
 
     def _complete_command(self,command: dict) -> dict:
         """
@@ -1774,7 +1606,8 @@ class RobotiqGripper( ):
         if speedCommand is not None:
             self.stop(refreshStatus=False)
             self.move(positionCommand,speedCommand,forceCommand,start=True)
-
+        else:
+            self.readStatus()
         
         return positionCommand, speedCommand, forceCommand
     
@@ -2711,75 +2544,164 @@ class RobotiqGripper( ):
         gOBJ = self._statusHistory[-1,GOBJ]
         
         return gOBJ
-    '''
-    def estimatedObjectDetection(self):
-        """Object detection estimated from gripper status history. This is an
-        alternative to the reading of the object detection status of the
-        gripper (gOBJ).
-        gOBJ is set to GOBJ_IN_MOTION (0) when a command with a different
-        position target is sent. In realtime control many commands are sent to
-        the gripper so it may be difficult to use the object detection status
-        of the gripper (gOBJ).
+    
+    def _estimateObjectDetection(self, window_time=0.1, trajectory_window_time=0.5, epsilon=2):
+        """Estimates the object detection and stuck state of the gripper.
+
+        Analyses the history buffer using a dual-window architecture and incorporates
+        advanced slip/squeeze tracking to maintain object presence detection when 
+        the gripper slowly creeps forward into the object.
+
+        Args:
+            window_time (float, optional): Short window for evaluation of axis immobility 
+                and active demand. Defaults to 0.1.
+            trajectory_window_time (float, optional): Larger historical window specifically 
+                used to detect broad path variations/oscillations in gPR. Defaults to 0.4.
+            epsilon (int, optional): Position deadband in bits. Defaults to 2.
+
+        Returns:
+            int: One of the EOBJ constants representing the current system state.
         """
-        # We can consider that an object is detected if all the following
-        # conditions are meet:
-        # (we look at gripper history from t0 (lastest status) toward the
-        # oldest history.
-        # -At t0: rPR!=gPO, direction of move request is calculated from rPR
-        # and gPO delta
-        # -At t-1: (rPR!=gPO) and (direction(t-1) = direction(t0)) and abs((gPO(t0)-gPO(t-1))/(t0 - t-1))<vitesse_min
-        # -At t-2: (rPR!=gPO) and (direction(t-2) = direction(t0)) and abs((gPO(t-1)-gPO(t-2))/(t-1 - t-0))<vitesse_min      
-
-        #Special case:
-        #1
-        # The maximum and minimum gripper position are not 255 and 0.
-        # When the gripper is at its extrem position the current position
-        # is not the target position. This could be persived as a detected
-        # object but it is not the case.
-
-        # If gPO is close to extrem position we consider that the griper is at
-        # its finial position and no object is gripper
-
-        #2
-        # Sometime the gripper can stay stuck at its extrem position. It is
-        # better to go out of extrem position with full speed and full force.
-        # I would like to be able to detect case where the gripper is stuck
-        # in its extrem position.
-
-
-        eOBJ = None
-        positionTolerance = 3
-        investigationTimeDelta = 0.2
-
-        #Check status
-        if not self.is_bit_calibrated():
-            raise GripperCalibrationError("Bit calibration is required to use" \
-            "theestiamteObjectDetectionFunction")
         if not self.is_speed_calibrated():
-            raise GripperCalibrationError("Speed calibration is required to use" \
-            "theestiamteObjectDetectionFunction")
+            return EOBJ_CALCULATION_IMPOSSIBLE
 
-        isAtExtremOpenPosition = self.position(refreshStatus=False) < (self._openbit + positionTolerance)
-        isAtExtremClosePosition = self.position(refreshStatus=False) > (self._closebit - positionTolerance)
+        statusHistory = self.statusHistoryNumpy()
+        Vmin = self.gripper_vmin_bits()
+        minPos = self._openbit
+        maxPos = self._closebit
+        edge_margin = epsilon
 
-        if isAtExtremClosePosition or isAtExtremOpenPosition:
-            # Check if the gripper is requested to go out of it extrem position
-            # Check if the gripper take too much time to go out of its extrem position
-            ## Search for
-            t=self.statusHistoryNumpy()[-1,TIME]
-            investigationStartTime_index = find_last_below_threshold(self.statusHistoryNumpy(),TIME,t- investigationTimeDelta)
+        # 1. Quick Guard: Table must have at least 2 rows to read a previous state
+        if len(statusHistory) < 2:
+            return EOBJ_CALCULATION_IMPOSSIBLE
+
+        # 2. Extract the previous valid state from the second-to-last line
+        previous_state = int(statusHistory[-2, EOBJ])
+
+        # 3. Initialization Guard
+        if np.any(statusHistory[-1] == -1):
+            return EOBJ_CALCULATION_IMPOSSIBLE
+
+        time_array = statusHistory[:, TIME]
+        
+        # 4. History Depth Guard (Must handle the largest required window)
+        valid_times = time_array[time_array != -1]
+        if len(valid_times) == 0:
+            return EOBJ_CALCULATION_IMPOSSIBLE
             
-            eOBJ = EOBJ_AT_POSITION
-            #Check the case where the gripper is stuck in its extrem position
-        else:
-            #t0 investigation
-            positionDelta = self.positionCommand() - self.position(refreshStatus=False)
-            if positionDelta == 0:
-                eOBJ = EOBJ_AT_POSITION
-            else:
-                #Was it possible to reach the position ?
+        current_time = valid_times[-1]
+        
+        # FIX: Measure from index 0 to get a single float representation of history depth
+        total_elapsed_history = current_time - valid_times[0]
+        
+        # Guard against the maximum required history depth
+        max_required_window = max(window_time, trajectory_window_time)
+        if total_elapsed_history < max_required_window:
+            return EOBJ_IN_MOTION
 
-    '''
+        # 5. Extract Broad Trajectory Window for Reversal Detection
+        trajectory_start_time = current_time - trajectory_window_time
+        traj_samples = statusHistory[time_array >= trajectory_start_time]
+        gPR_traj = traj_samples[:, GPR].astype(int)
+        
+        # Calculate steps across the larger trajectory timeline
+        gPR_steps_large = np.diff(gPR_traj)
+        target_is_reversing = np.any(gPR_steps_large > 0) and np.any(gPR_steps_large < 0)
+
+        # 6. Extract Short Diagnostic Window for Stuck/Immobility Detection
+        window_start_time = current_time - window_time
+        samples_in_window = statusHistory[time_array >= window_start_time]
+        num_samples = len(samples_in_window)
+        
+        # 7. Communication drop check
+        comm_threshold = int(window_time / 0.02)
+        if num_samples < comm_threshold:
+            return EOBJ_CALCULATION_IMPOSSIBLE
+            
+        # Extract small window vectors
+        gPR_win = samples_in_window[:, GPR].astype(int)
+        gPO_win = samples_in_window[:, GPO].astype(int)
+        t_win   = samples_in_window[:, TIME]
+        
+        dt = np.diff(t_win)
+        dt = np.where(dt == 0, 1e-6, dt)
+        velocity = np.abs(np.diff(gPO_win)) / dt
+        
+        raw_error = gPR_win[1:] - gPO_win[1:]
+        
+        # Evaluate directional demand inside small window
+        all_positive = np.all(raw_error > epsilon)   # Loop wants to CLOSE
+        all_negative = np.all(raw_error < -epsilon)  # Loop wants to OPEN
+        is_consistently_demanding = all_positive or all_negative
+        
+        is_immobile = np.all(velocity < Vmin)
+        current_gPO = gPO_win[-1]
+
+        # Check if the error is completely resolved (At position)
+        if np.abs(gPR_win[-1] - current_gPO) <= epsilon:
+            return EOBJ_AT_POSITION
+
+        # Define context groups to determine if an object is already known to be held
+        is_holding_closing_family = previous_state in (
+            EOBJ_DETECTED_WHILE_CLOSING, 
+            EOBJ_DETECTED_WHILE_CLOSING_SLIPPING
+        )
+        is_holding_opening_family = previous_state in (
+            EOBJ_DETECTED_WHILE_OPENING, 
+            EOBJ_DETECTED_WHILE_OPENING_SLIPPING
+        )
+
+        # 8. Evaluate Immobile / Stuck Scenarios
+        if is_consistently_demanding and is_immobile:
+            
+            # Use the broader trajectory analysis to filter out target weaving/oscillations
+            if target_is_reversing:
+                return EOBJ_IN_MOTION
+            
+            # Scenario A: Handled Edge Boundaries (Normal mechanical limits)
+            is_at_min_edge = current_gPO <= (minPos + edge_margin)
+            is_at_max_edge = current_gPO >= (maxPos - edge_margin)
+            
+            if (is_at_min_edge and all_negative) or (is_at_max_edge and all_positive):
+                return EOBJ_AT_POSITION
+
+            # Scenario B: Stuck AT an extreme edge trying to move OUTward
+            if is_at_min_edge and all_positive:
+                return EOBJ_STUCK_AT_FULL_OPENING
+            if is_at_max_edge and all_negative:
+                return EOBJ_STUCK_AT_FULL_CLOSING
+
+            # Scenario C: Context-Aware State Evaluation
+            if previous_state == EOBJ_CALCULATION_IMPOSSIBLE:
+                return EOBJ_CALCULATION_IMPOSSIBLE
+
+            # Define release-stuck families
+            was_stuck_closing_release = previous_state == EOBJ_DETECTED_WHILE_CLOSING_STUCK_ON_RELEASE
+            was_stuck_opening_release = previous_state == EOBJ_DETECTED_WHILE_OPENING_STUCK_ON_RELEASE
+
+            # --- CASE 1: Loop demands CLOSING ---
+            if all_positive:
+                if was_stuck_opening_release or is_holding_opening_family:
+                    return EOBJ_DETECTED_WHILE_OPENING_STUCK_ON_RELEASE
+                return EOBJ_DETECTED_WHILE_CLOSING
+
+            # --- CASE 2: Loop demands OPENING ---
+            if all_negative:
+                if was_stuck_closing_release or is_holding_closing_family:
+                    return EOBJ_DETECTED_WHILE_CLOSING_STUCK_ON_RELEASE
+                return EOBJ_DETECTED_WHILE_OPENING
+
+        # 9. Squeeze / Slip Scenario Handling
+        elif is_consistently_demanding and not is_immobile:
+            
+            if all_positive and is_holding_closing_family:
+                return EOBJ_DETECTED_WHILE_CLOSING_SLIPPING
+                
+            if all_negative and is_holding_opening_family:
+                return EOBJ_DETECTED_WHILE_OPENING_SLIPPING
+
+        # Default fallback: Axis is actively clearing error tracking normally
+        return EOBJ_IN_MOTION
     
     def evaluateGrip(self,refreshStatus = True):
         """Evaluate from gripper past state the status of the grip

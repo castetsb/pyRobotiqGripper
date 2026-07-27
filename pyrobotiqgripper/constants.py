@@ -15,6 +15,109 @@ from typing import Final
 # index. For example, to select the column corresponding to the rACT register,
 # you can use the constant RACT instead of the integer 4.
 
+#Constants
+
+
+BAUDRATE=115200
+
+BYTESIZE=8
+
+PARITY="N"
+
+STOPBITS=1
+
+TIMEOUT=0.2
+
+AUTO_DETECTION="auto"
+
+#GRIPPER_2F85_VMAX = 150  # mm/s.
+#GRIPPER_2F85_VMIN = 20   # mm/s.
+
+#GRIPPER_2F140_VMAX = 250  # mm/s.
+#GRIPPER_2F140_VMIN = 30   # mm/s.
+
+#GRIPPER_HANDE_VMAX = 150  # mm/s.
+#GRIPPER_HANDE_VMIN = 20   # mm/s.
+
+GRIP_NOT_REQUESTED = 0
+GRIP_REQUESTED = 1
+GRIP_VALIDATED = 2
+
+NO_COMMAND =0
+WRITE_READ_COMMAND = 1
+READ_COMMAND = 2
+
+COM_TIME = 0.016 #Approximative time needed to make one communication with the gripper
+
+GRIPPER_MODE_RTU_VIA_TCP = "RTU_VIA_TCP"
+
+GRIPPER_MODE_RTU = "RTU"
+
+MAX_HISTORY = 500 #Command/status history buffer size. Gives ~5s of history
+#at a typical 100Hz control loop.
+
+GSTA_NOT_ACTIVATED = 0
+GSTA_ACTIVATION_IN_PROGRESS = 1
+GSTA_ACTIVATED = 3
+
+GGTO_STOPPED_OR_ACTIVATING = 0
+GGTO_GO_TO_REQUESTED_POSITION = 1
+
+GOBJ_IN_MOTION = 0
+GOBJ_DETECTED_WHILE_OPENING = 1
+GOBJ_DETECTED_WHILE_CLOSING = 2
+GOBJ_AT_POSITION = 3
+
+#Estimated object detection
+EOBJ_IN_MOTION = 0
+EOBJ_AT_POSITION = 3
+
+EOBJ_DETECTED_WHILE_OPENING = 1
+EOBJ_DETECTED_WHILE_OPENING_STUCK_ON_RELEASE = 4
+EOBJ_STUCK_AT_FULL_OPENING = 5
+EOBJ_DETECTED_WHILE_OPENING_SLIPPING = 9
+
+EOBJ_DETECTED_WHILE_CLOSING = 2
+EOBJ_DETECTED_WHILE_CLOSING_STUCK_ON_RELEASE = 6
+EOBJ_STUCK_AT_FULL_CLOSING = 7
+EOBJ_DETECTED_WHILE_CLOSING_SLIPPING = 8
+
+EOBJ_CALCULATION_IMPOSSIBLE = -1
+
+RGTO_STOP = 0
+RGTO_GO_TO_REQUESTED_POSITION = 1
+
+GACT_RESET = 0
+GACT_ACTIVATE = 1
+
+RACT_DESACTIVATE = 0
+RACT_ACTIVATE =1
+
+GRIP_EVALUATION_NO_GRIP = 0
+GRIP_EVALUATION_STABLE_GRIP =1
+GRIP_EVALUATION_SLIPPING = 2
+GRIP_EVALUATION_LOST =3
+
+REALTIME_POSITION_MOVE_MODE_FREEMOVE = 0
+REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_CLOSING = 100
+REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_CLOSING = 101
+REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_CLOSING = 102
+REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_OPENING = 200
+REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_OPENING = 201
+REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_OPENING = 202
+REALTIME_POSITION_MOVE_MODE_SECURE = 300
+REALTIME_POSITION_IN_LOWER_BUFFER = -2
+REALTIME_POSITION_IN_ACTIVATION_BUFFER = -1
+REALTIME_POSITION_IN_UPPER_BUFFER = 256
+REALTIME_POSITION_POSITION_DELTA_REFERENCE_LAST_AT_POSITION = 0
+REALTIME_POSITION_POSITION_DELTA_REFERENCE_CURRENT_POSITION = 1
+
+REALTIME_SPEED_MOVE_MODE_FREEMOVE = 0
+REALTIME_SPEED_MOVE_MODE_OBJECT_DETECTED = 100
+REALTIME_SPEED_MOVE_MODE_FORCE_DEACTIVATED = 101
+REALTIME_SPEED_MOVE_MODE_FORCE_ACTIVATED = 102
+REALTIME_SPEED_MOVE_MODE_SECURE = 300
+
 #Command table
 TIME = 0
 RARD = 1
@@ -60,6 +163,7 @@ GFLT = 6
 GPR = 7
 GPO = 8
 GCU = 9
+EOBJ = 10 #estiamted object detection, this is a calculated object detection. Not available in gripper register.
 
 # The following dictionaries allow to convert between column names and their
 # corresponding index.
@@ -72,7 +176,8 @@ STATUS_HISTORY_COLUMNS_ID_2_NAME= {0:"time",
                           6:"gFLT",
                           7:"gPR",
                           8:"gPO",
-                          9:"gCU"}
+                          9:"gCU",
+                          10:"eOBJ"}
 
 # The following dictionary is the inverse of STATUS_HISTORY_COLUMNS_ID_2_NAME,
 # allowing to convert from column names to their corresponding index.
@@ -99,7 +204,8 @@ HISTORY_COLUMNS_ID_2_NAME={0:"time",
                  13:"gFLT",
                  14:"gPR",
                  15:"gPO",
-                 16:"gCU"}
+                 16:"gCU",
+                 17:"eOBJ"}
 
 # The following dictionary is the inverse of HISTORY_COLUMNS_ID_2_NAME,
 # allowing to convert from column names to their corresponding index.
@@ -117,6 +223,8 @@ M_GFLT = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + GFLT
 M_GPR = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + GPR
 M_GPO = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + GPO
 M_GCU = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + GCU
+M_EOBJ = len(COMMAND_HISTORY_COLUMNS_ID_2_NAME) -1 + EOBJ
+
 
 def _build_register_dic():
     """Builds a dictionary containing all input and output registers of the
@@ -145,7 +253,8 @@ def _build_register_dic():
                                 "gFLT":{},
                                 "gPR":{},
                                 "gPO":{},
-                                "gCU":{}})
+                                "gCU":{},
+                                "eOBJ":{}})
     
     #gOBJ
     gOBJdic=register_dic["gOBJ"]
@@ -276,6 +385,18 @@ def _build_register_dic():
         force=i*10
         rFRdic[i]="The final gripping force for the Gripper is set to {}/255".format(force)
         i+=1
+
+    eOBJdic=register_dic["eOBJ"]
+
+    eOBJdic[EOBJ_AT_POSITION]="Fingers are at requested position. No object detected or object has been loss / dropped."
+    eOBJdic[EOBJ_DETECTED_WHILE_CLOSING]="Fingers have stopped due to a contact while closing before requested position. Object detected closing."
+    eOBJdic[EOBJ_DETECTED_WHILE_CLOSING_STUCK_ON_RELEASE]="Stuck on release after detecting an object while closing"
+    eOBJdic[EOBJ_DETECTED_WHILE_OPENING]="Fingers have stopped due to a contact while opening before requested position. Object detected opening."
+    eOBJdic[EOBJ_DETECTED_WHILE_OPENING_STUCK_ON_RELEASE]="Stuck on release after detectin an object while opening"
+    eOBJdic[EOBJ_IN_MOTION]="Fingers are in motion towards requested position. No object detected."
+    eOBJdic[EOBJ_STUCK_AT_FULL_CLOSING]="Stuck in the extrem close position"
+    eOBJdic[EOBJ_STUCK_AT_FULL_OPENING]="Stuck in the extrem open position"
+
     return register_dic
 
 
@@ -326,111 +447,3 @@ Output registers (`r` prefix):
 
 This dictionary is mapping integer codes to human-readable descriptions for every register.
 """
-#Constants
-
-
-BAUDRATE: Final[int]=115200
-
-BYTESIZE: Final[int]=8
-
-PARITY: Final[str]="N"
-
-STOPBITS: Final[int]=1
-
-TIMEOUT: Final[float]=0.2
-
-AUTO_DETECTION: Final[str]="auto"
-
-#GRIPPER_2F85_VMAX = 150  # mm/s.
-#GRIPPER_2F85_VMIN = 20   # mm/s.
-
-#GRIPPER_2F140_VMAX = 250  # mm/s.
-#GRIPPER_2F140_VMIN = 30   # mm/s.
-
-#GRIPPER_HANDE_VMAX = 150  # mm/s.
-#GRIPPER_HANDE_VMIN = 20   # mm/s.
-
-GRIP_NOT_REQUESTED = 0
-GRIP_REQUESTED = 1
-GRIP_VALIDATED = 2
-
-NO_COMMAND =0
-WRITE_READ_COMMAND = 1
-READ_COMMAND = 2
-
-COM_TIME = 0.016 #Approximative time needed to make one communication with the gripper
-
-GRIPPER_MODE_RTU_VIA_TCP: Final[str] = "RTU_VIA_TCP"
-
-GRIPPER_MODE_RTU: Final[str] = "RTU"
-
-MAX_HISTORY = 500 #Command/status history buffer size. Gives ~5s of history
-#at a typical 100Hz control loop.
-
-GSTA_NOT_ACTIVATED = 0
-GSTA_ACTIVATION_IN_PROGRESS = 1
-GSTA_ACTIVATED = 3
-
-GGTO_STOPPED_OR_ACTIVATING = 0
-GGTO_GO_TO_REQUESTED_POSITION = 1
-
-GOBJ_IN_MOTION = 0
-GOBJ_DETECTED_WHILE_OPENING = 1
-GOBJ_DETECTED_WHILE_CLOSING = 2
-GOBJ_AT_POSITION = 3
-
-#Estimated object detection
-EOBJ_IN_MOTION = 0
-EOBJ_AT_POSITION = 3
-
-EOBJ_DETECTED_WHILE_OPENING = 1
-EOBJ_DETECTED_WHILE_OPENING_SLIPPING = 4
-EBOJ_DETECTED_WHILE_OPENING_LOST =5
-EOBJ_DETECTED_WHILE_OPENING_STUCK_ON_RELEASE = 6
-EOBJ_STUCK_AT_FULL_OPENING = 7
-
-EOBJ_DETECTED_WHILE_CLOSING = 2
-EOBJ_DETECTED_WHILE_CLOSING_SLIPPING = 8
-EBOJ_DETECTED_WHILE_CLOSING_LOST = 9
-EOBJ_DETECTED_WHILE_CLOSING_STUCK_ON_RELEASE = 10
-EOBJ_STUCK_AT_FULL_CLOSING = 11
-
-RGTO_STOP = 0
-RGTO_GO_TO_REQUESTED_POSITION = 1
-
-GACT_RESET = 0
-GACT_ACTIVATE = 1
-
-RACT_DESACTIVATE = 0
-RACT_ACTIVATE =1
-
-GRIP_EVALUATION_NO_GRIP = 0
-GRIP_EVALUATION_STABLE_GRIP =1
-GRIP_EVALUATION_SLIPPING = 2
-GRIP_EVALUATION_LOST =3
-
-
-
-
-REALTIME_POSITION_MOVE_MODE_FREEMOVE = 0
-REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_CLOSING = 100
-REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_CLOSING = 101
-REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_CLOSING = 102
-REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_OPENING = 200
-REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_OPENING = 201
-REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_OPENING = 202
-REALTIME_POSITION_MOVE_MODE_SECURE = 300
-REALTIME_POSITION_IN_LOWER_BUFFER = -2
-REALTIME_POSITION_IN_ACTIVATION_BUFFER = -1
-REALTIME_POSITION_IN_UPPER_BUFFER = 256
-REALTIME_POSITION_POSITION_DELTA_REFERENCE_LAST_AT_POSITION = 0
-REALTIME_POSITION_POSITION_DELTA_REFERENCE_CURRENT_POSITION = 1
-
-REALTIME_SPEED_MOVE_MODE_FREEMOVE = 0
-REALTIME_SPEED_MOVE_MODE_OBJECT_DETECTED = 100
-REALTIME_SPEED_MOVE_MODE_FORCE_DEACTIVATED = 101
-REALTIME_SPEED_MOVE_MODE_FORCE_ACTIVATED = 102
-REALTIME_SPEED_MOVE_MODE_SECURE = 300
-
-
-
