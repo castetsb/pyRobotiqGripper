@@ -2556,7 +2556,7 @@ class RobotiqGripper( ):
             window_time (float, optional): Short window for evaluation of axis immobility 
                 and active demand. Defaults to 0.1.
             trajectory_window_time (float, optional): Larger historical window specifically 
-                used to detect broad path variations/oscillations in gPR. Defaults to 0.4.
+                used to detect broad path variations/oscillations in gPR. Defaults to 0.5.
             epsilon (int, optional): Position deadband in bits. Defaults to 2.
 
         Returns:
@@ -2591,7 +2591,7 @@ class RobotiqGripper( ):
             
         current_time = valid_times[-1]
         
-        # FIX: Measure from index 0 to get a single float representation of history depth
+        # Measure from index 0 to get a single float representation of history depth
         total_elapsed_history = current_time - valid_times[0]
         
         # Guard against the maximum required history depth
@@ -2627,17 +2627,26 @@ class RobotiqGripper( ):
         dt = np.where(dt == 0, 1e-6, dt)
         velocity = np.abs(np.diff(gPO_win)) / dt
         
+        # --- [NEW] Dynamic Tracking Error Deadband ---
+        # Calculate how fast the target request itself is moving in bits/second
+        target_velocity = np.abs(np.diff(gPR_win)) / dt
+        target_is_moving_slowly = np.any(target_velocity > 0)
+        
+        # If the target is moving, pad epsilon slightly to absorb normal mechanical lag
+        dynamic_epsilon = epsilon + 1 if target_is_moving_slowly else epsilon
+        # ---------------------------------------------
+        
         raw_error = gPR_win[1:] - gPO_win[1:]
         
-        # Evaluate directional demand inside small window
-        all_positive = np.all(raw_error > epsilon)   # Loop wants to CLOSE
-        all_negative = np.all(raw_error < -epsilon)  # Loop wants to OPEN
+        # Evaluate directional demand inside small window using the dynamic epsilon
+        all_positive = np.all(raw_error > dynamic_epsilon)   # Loop wants to CLOSE
+        all_negative = np.all(raw_error < -dynamic_epsilon)  # Loop wants to OPEN
         is_consistently_demanding = all_positive or all_negative
         
         is_immobile = np.all(velocity < Vmin)
         current_gPO = gPO_win[-1]
 
-        # Check if the error is completely resolved (At position)
+        # Check if the error is completely resolved (At position) using original epsilon
         if np.abs(gPR_win[-1] - current_gPO) <= epsilon:
             return EOBJ_AT_POSITION
 
@@ -2702,6 +2711,7 @@ class RobotiqGripper( ):
 
         # Default fallback: Axis is actively clearing error tracking normally
         return EOBJ_IN_MOTION
+
     
     def evaluateGrip(self,refreshStatus = True):
         """Evaluate from gripper past state the status of the grip
