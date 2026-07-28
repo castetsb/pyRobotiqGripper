@@ -2428,7 +2428,7 @@ class RobotiqGripper( ):
         if not self.is_mm_calibrated():
             raise GripperCalibrationError("The gripper is not mm calibrated")
         
-        return self._openmm()
+        return self._openmm
     
     def close_mm(self):
         """Return distance between fingers in open position
