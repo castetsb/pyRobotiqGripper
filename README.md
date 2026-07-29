@@ -1,4 +1,10 @@
-📖 **Full documentation:** https://pyrobotiqgripper.readthedocs.io/en/latest/
+<p align="center">
+  <a href="https://pyrobotiqgripper.readthedocs.io/en/latest/">
+    <img src="https://img.shields.io/badge/Full%20Documentation-00B0F0?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Full Documentation">
+  </a>
+  <br>
+  <sub>👉 <a href="https://pyrobotiqgripper.readthedocs.io/en/latest/">pyrobotiqgripper.readthedocs.io</a> -- installation, usage guides and the full API reference live there, this README is just a quick overview.</sub>
+</p>
 
 <!-- --8<-- [start:intro] -->
 # pyRobotiqGripper
@@ -22,18 +28,22 @@ It is compatible with 2F85, 2F140, and Hande.
      the docs site embeds the video inline (see docs/index.md). -->
 <p align="center">
   <a href="https://www.youtube.com/watch?v=82S5LgefvJo">
-    <img src="https://img.youtube.com/vi/82S5LgefvJo/maxresdefault.jpg" alt="pyRobotiqGripper introduction video">
+    <img src="https://raw.githubusercontent.com/castetsb/pyRobotiqGripper/master/docs/_static/intro_video.jpg" alt="pyRobotiqGripper introduction video">
   </a>
 </p>
 
-<!-- --8<-- [start:outro] -->
+<!-- --8<-- [start:disclaimer] -->
+
 ## Disclaimer
 
 This library can be seen as a starting point for a Robotiq integration project.
 You are responsible for what you do with this library.
 The author takes no responsibility for any malfunction.
+<!-- --8<-- [end:disclaimer] -->
 
-**Note:** This python package is in constant evolution. Some breaking change may happen from one version to another. This can mainly impact the high level functions.
+> [!NOTE]
+> This python package is in constant evolution. Some breaking change may happen from one version to another. This can mainly impact the high level functions.
 
-**Other related software tools:** C++, ROS2 and other software tools are available on the Robotiq GitHub page: [Robotiq GitHub Repository](https://github.com/robotiq).
-<!-- --8<-- [end:outro] -->
+> [!TIP]
+> **Other related software tool**
+> C++, ROS2 and other software tools are available on the Robotiq GitHub page: [Robotiq GitHub Repository](https://github.com/robotiq).
