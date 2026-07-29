@@ -70,6 +70,15 @@ code.doc-symbol-method::after {
   content: "method";
 }
 
+/* On the Constants page specifically, the "attr" badge reads as "constant"
+   instead -- griffe has no distinct "constant" kind (everything module/class
+   level is "attribute"), so this is scoped to that page only. Elsewhere,
+   "attr" also labels genuinely mutable attributes (e.g. Bipper's runtime
+   properties), where "constant" would be wrong. */
+.constants-page code.doc-symbol-attribute::after {
+  content: "constant";
+}
+
 .doc-class > .doc-heading,
 .doc-function > .doc-heading {
   padding: 0.5em 0.8em;

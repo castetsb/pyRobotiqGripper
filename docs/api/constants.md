@@ -4,6 +4,8 @@ Every constant below is documented at its definition in
 `pyrobotiqgripper/constants.py`; this page just pulls those docstrings in,
 grouped by topic.
 
+<div class="constants-page" markdown="1">
+
 ## a. Communication settings
 
 ::: pyrobotiqgripper.constants.BAUDRATE
@@ -137,3 +139,5 @@ status merged).
 ## j. Register reference
 
 ::: pyrobotiqgripper.constants.REGISTER_DIC
+
+</div>
