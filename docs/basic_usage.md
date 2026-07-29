@@ -1,7 +1,8 @@
 # Basic Usage
 
-```{youtube} 0TauzknU79I
-```
+<div class="video-wrapper">
+  <iframe src="https://www.youtube.com/embed/0TauzknU79I" title="YouTube video player" allowfullscreen></iframe>
+</div>
 
 Activate the gripper and do whatever you want with the gripper: open, close, get
 position feedback, etc.
@@ -20,14 +21,12 @@ position_in_mm = gripper.positionmm()
 print(position_in_mm)
 ```
 
-```{note}
-During activation, the gripper is going to fully open and close. Do not disturb
-this process. Do not place an object inside the gripper.
-```
+!!! note
+    During activation, the gripper is going to fully open and close. Do not disturb
+    this process. Do not place an object inside the gripper.
 
-```{note}
-Position, Speed and Force varie from 0 to 255. It is coded on 8 bits.
-```
+!!! note
+    Position, Speed and Force varie from 0 to 255. It is coded on 8 bits.
 
 You can print the current status of gripper registers using `printStatus()`.
 

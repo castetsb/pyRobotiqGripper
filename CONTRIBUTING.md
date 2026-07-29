@@ -1,8 +1,8 @@
-# Contributing
+# Contribute
 
 Contributions to pyRobotiqGripper are welcome.
 
-## 1. Branch and pull request
+## Branch and pull request
 
 Contributions must go through a branch and a pull request: do not commit
 directly to `master`.
@@ -13,7 +13,7 @@ directly to `master`.
    [GitHub](https://github.com/castetsb/pyRobotiqGripper) describing what
    the change does and why.
 
-## 2. Version bump
+## Version bump
 
 Any change intended to be released must bump the package version in
 `pyproject.toml`:
@@ -27,7 +27,7 @@ Follow [semantic versioning](https://semver.org/): increment the patch
 number for bug fixes, the minor number for backward-compatible features, and
 the major number for breaking changes.
 
-## 3. Update the lock file
+## Update the lock file
 
 After bumping the version (or changing any dependency), regenerate
 `uv.lock` so it stays in sync with `pyproject.toml`:
@@ -38,10 +38,13 @@ uv lock --upgrade
 
 Commit the updated `uv.lock` together with your change.
 
-## 4. Render the documentation locally
+## Render the documentation locally
 
-The documentation lives in `docs/` (Markdown rendered by Sphinx with
-`myst-parser`) and is published on
+The documentation lives in `docs/` (Markdown rendered by
+[MkDocs](https://www.mkdocs.org/) with the
+[Material](https://squidfunk.github.io/mkdocs-material/) theme and
+[mkdocstrings](https://mkdocstrings.github.io/) for the API reference) and is
+published on
 [readthedocs](https://pyrobotiqgripper.readthedocs.io/en/latest/). To preview
 your changes before opening a pull request:
 
@@ -51,32 +54,17 @@ your changes before opening a pull request:
    uv sync --extra docs
    ```
 
-2. Build the HTML docs:
+2. Serve the site locally with live-reload -- it watches `docs/`, `mkdocs.yml`
+   and the package source, and rebuilds on every save:
 
    ```bash
-   uv run --extra docs sphinx-build -b html docs docs/_build/html
+   uv run --extra docs mkdocs serve
    ```
 
-3. Serve the built site and open it in your browser:
+   Then browse to <http://localhost:8000/>. Stop it with Ctrl+C.
 
-   ```bash
-   python -m http.server 8000 --directory docs/_build/html
-   ```
-
-   Then browse to <http://localhost:8000/>.
-
-After editing a file, rerun the `sphinx-build` command from step 2 and
-refresh the page; there is no need to restart the HTTP server.
-
-### Live-reloading while editing
-
-Instead of steps 2-3 above, `sphinx-autobuild` (included in the `docs`
-extra) watches `docs/` and the package source, rebuilds on every save, and
-auto-refreshes the page open in your browser:
+Alternatively, build a static copy of the site into `site/`:
 
 ```bash
-uv run --extra docs sphinx-autobuild docs docs/_build/html
+uv run --extra docs mkdocs build
 ```
-
-Then browse to <http://localhost:8000/> (the port it prints). Stop it with
-Ctrl+C.

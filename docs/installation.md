@@ -2,14 +2,15 @@
 
 Install the pyRobotiqGripper python package using pip or uv.
 
-```{youtube} TuXBFMDqD1g
-```
+<div class="video-wrapper">
+  <iframe src="https://www.youtube.com/embed/TuXBFMDqD1g" title="YouTube video player" allowfullscreen></iframe>
+</div>
 
 We recommend using [uv](https://docs.astral.sh/uv/), a fast, modern Python
 package and project manager, but a traditional pip installation works just
 as well.
 
-## Using uv (recommended)
+## 1. Using uv (recommended)
 
 If you don't already have a pyproject.toml in you project folder, use UV to
 create it.
@@ -33,26 +34,21 @@ Install pyrobotiqgripper with all dependencies to have extra features like:
 uv add "pyrobotiqgripper[all]"
 ```
 
-```{note}
-uv automatically create a virtual environment in the project folder ./.venv
-```
+!!! note
+    uv automatically create a virtual environment in the project folder ./.venv
 
-```{note}
-If not already installed, follow the instructions to install uv from the
-official documentation:
-https://docs.astral.sh/uv/getting-started/installation/
-```
+    If not already installed, follow the instructions to install uv from the
+    official documentation:
+    https://docs.astral.sh/uv/getting-started/installation/
 
-````{note}
-`uv add` requires a uv-managed project, i.e. a directory with a
-`pyproject.toml`. If your project doesn't have one yet, create it first:
+    `uv add` requires a uv-managed project, i.e. a directory with a
+    `pyproject.toml`. If your project doesn't have one yet, create it first:
 
-```bash
-uv init
-```
-````
+    ```bash
+    uv init
+    ```
 
-## Using pip
+## 2. Using pip
 
 It is good practice to work in a virtual environment.
 Here below are instructions to create and activate virtual environment to

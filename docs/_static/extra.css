@@ -1,0 +1,110 @@
+/* Responsive 16:9 wrapper used for embedded YouTube videos. */
+.video-wrapper {
+  position: relative;
+  padding-bottom: 56.25%;
+  height: 0;
+  overflow: hidden;
+  max-width: 100%;
+  margin: 1em 0;
+}
+
+.video-wrapper iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* -------------------------------------------------------------------
+ * Robotiq graphic chart (2023/06): blue, black and white are the brand's
+ * primary colors; red only ever appears in the chart as a "don't do this"
+ * marker, never as a design color, so it's intentionally not used here.
+ * This only sets the "custom" palette's color variables -- everything
+ * else (headings, code, tables, admonitions) is Material's own styling.
+ * ------------------------------------------------------------------- */
+
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #00B0F0;
+  --md-primary-fg-color--light: #33C1F5;
+  --md-primary-fg-color--dark: #0B66A3;
+  --md-primary-bg-color: #ffffff;
+  --md-accent-fg-color: #0B66A3;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #00B0F0;
+  --md-primary-fg-color--light: #33C1F5;
+  --md-primary-fg-color--dark: #0B66A3;
+  --md-accent-fg-color: #33C1F5;
+}
+
+/* Header logo, twice the default size (1.2rem -> 2.4rem). */
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 2.4rem;
+}
+
+/* -------------------------------------------------------------------
+ * Class / method / function signatures: colored header bar, like
+ * Sphinx's autodoc "class"/"method" boxes. Class = dark blue, method
+ * and function = light blue. Also recolors the small "class"/"method"/
+ * "function"/"attribute" badges to blue (Material's defaults mix in
+ * purple/orange, which isn't part of the brand palette), and renames
+ * the "meth" badge label to "method".
+ * ------------------------------------------------------------------- */
+
+:root {
+  --doc-symbol-class-fg-color: #0B66A3;
+  --doc-symbol-class-bg-color: #0B66A31a;
+  --doc-symbol-method-fg-color: #0B66A3;
+  --doc-symbol-method-bg-color: #0B66A31a;
+  --doc-symbol-function-fg-color: #0B66A3;
+  --doc-symbol-function-bg-color: #0B66A31a;
+  --doc-symbol-attribute-fg-color: #0B66A3;
+  --doc-symbol-attribute-bg-color: #0B66A31a;
+}
+
+code.doc-symbol-method::after {
+  content: "method";
+}
+
+.doc-class > .doc-heading,
+.doc-function > .doc-heading {
+  padding: 0.5em 0.8em;
+  border-radius: 4px;
+  margin: 1.2em 0 0.8em;
+  font-size: 0.85rem;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.doc-class > .doc-heading {
+  background-color: #0B66A3;
+}
+
+.doc-class > .doc-heading code.highlight,
+.doc-class > .doc-heading code.highlight * {
+  background: transparent;
+  color: #ffffff !important;
+}
+
+.doc-class > .doc-heading code.doc-symbol-class {
+  background-color: #ffffff;
+}
+
+.doc-function > .doc-heading {
+  background-color: #E3F6FD;
+}
+
+.doc-function > .doc-heading code.highlight,
+.doc-function > .doc-heading code.highlight * {
+  background: transparent;
+  color: #0B66A3 !important;
+}
+
+.doc-function > .doc-heading code.doc-symbol-method,
+.doc-function > .doc-heading code.doc-symbol-function {
+  background-color: #ffffff;
+}

@@ -85,6 +85,10 @@ TIMELINE_DURATION_S: float = 5.0
 class GripperVisualizer:
     """Background window plotting a gripper's live history.
 
+    !!! note
+        Requires the optional `PySide6` package, included in the `all` extra
+        (`uv add "pyrobotiqgripper[all]"`).
+
     The window is created and driven on a shared background Qt thread (see
     :mod:`pyrobotiqgripper.qt_app_host`), started and stopped explicitly with
     :meth:`start` and :meth:`stop`. Closing the window from the UI also tears

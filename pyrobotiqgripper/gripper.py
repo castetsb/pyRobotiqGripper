@@ -34,32 +34,31 @@ class RobotiqGripper( ):
 
     This class provides methods to initialize, open, close, and monitor the gripper.
 
-    Physical connection
-    -------------------    
-    The physical connection with the gripper can done in 2 ways:
+    **Physical connection**
+
+    The physical connection with the gripper can be done in 2 ways:
+
     - Connected to the PC via the USB/RS485 adapter.
-    - Connected to the UR robot: In this case the UR RS485 URCAP needs to be installed
-    on the robot controller.
+    - Connected to the UR robot: In this case the UR RS485 URCAP needs to be
+      installed on the robot controller.
 
-    Modbus RTU/TCP communication
-    ----------------------------
-    Modbus RTU function code supported by robotiq gripper
+    **Modbus RTU/TCP communication**
 
-    =======================================  ====================
-    Description                              Modbus function code
-    =======================================  ====================
-    Read registers                           4
-    Write registers                          16
-    Master read & write multiple registers   23
-    =======================================  ====================
-    
+    Modbus RTU function code supported by robotiq gripper:
+
+    | Description | Modbus function code |
+    | --- | --- |
+    | Read registers | 4 |
+    | Write registers | 16 |
+    | Master read & write multiple registers | 23 |
+
     For more information for gripper communication please check gripper manual
     on Robotiq website.
     https://robotiq.com/support/2f-85-2f-140
 
-    .. note::
-        This class cannot be use to control epick, 3F or powerpick.
-    """    
+    !!! note
+        This class cannot be used to control epick, 3F or powerpick.
+    """
     def __init__(self,
                  com_port: str = AUTO_DETECTION,
                  device_id: int=9,
@@ -1091,7 +1090,7 @@ class RobotiqGripper( ):
                 can make the activation faster if you are sure the gripper status
                 is up to date.
 
-        .. warning::
+        !!! warning
             When you execute this function, the gripper will fully open and close.
             During this operation, the gripper must be able to move freely.
             Do not place any object inside the gripper.
@@ -1223,7 +1222,7 @@ class RobotiqGripper( ):
             openbit (int, optional): Position value in bits when the gripper is open.
             closebit (int, optional): Position value in bits when the gripper is closed.
 
-        .. warning::
+        !!! warning
             If no parameters are provided, the gripper will make a full open
             followed by a full close to measure the maximum and minimum positions
             in bits. Ensure the gripper can move freely during this operation.
@@ -1258,7 +1257,7 @@ class RobotiqGripper( ):
             maxSpeedClosingTime (float, optional): Time in seconds for the gripper
                 to move from fully open to fully closed at maximum speed.
 
-        .. warning::
+        !!! warning
             If no parameters are provided, the gripper will perform a full-speed
             closing and a slow-speed closing to evaluate its motion. Ensure the
             gripper can move freely during this operation.
@@ -1300,7 +1299,7 @@ class RobotiqGripper( ):
             closemm (float): Distance between the fingers when the gripper is fully closed.
             openmm (float): Distance between the fingers when the gripper is fully open.
 
-        .. warning::
+        !!! warning
             Bit calibration is required before executing this function. If the bit
             calibration is not done, the function `calibrate_bit()` will be executed
             automatically before calibrating in millimeters.
@@ -1476,7 +1475,7 @@ class RobotiqGripper( ):
                 can make the command process faster if the gripper status is up to date.
                 Defaults to False.
 
-        .. note::
+        !!! note
             Millimeter calibration is required to use this function.
             Execute the function `calibrate_mm()` before using this function.
         """
@@ -1651,9 +1650,9 @@ class RobotiqGripper( ):
     
     def realTimePositionMove_Mode(self):
         """Return the mode of the realTimePositionMove function
-        
-        Return:
-            control_mode (int): Control mode code. See constants for details.
+
+        Returns:
+            int: Control mode code. See constants for details.
                 REALTIME_POSITION_MOVE_MODE_FREEMOVE = 0
                 REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_CLOSING = 100
                 REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_CLOSING = 101
@@ -1661,7 +1660,6 @@ class RobotiqGripper( ):
                 REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_OPENING = 200
                 REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_OPENING = 201
                 REALTIME_POSITION_MOVE_MODE_FORCE_ACTIVATED_OPENING = 202
-        
         """
 
         return self._realtimePositionMove_Mode
@@ -2526,7 +2524,7 @@ class RobotiqGripper( ):
         Returns:
             float: Current gripper position in millimeters.
 
-        .. note::
+        !!! note
             Calibration is required to use this function.
             Execute the calibration function at least once before using this function.
         """
@@ -2540,9 +2538,7 @@ class RobotiqGripper( ):
         """Return the last set speed parameter value.
 
         Returns:
-        --------
-        int or None
-            The last speed value set (0-255), or None if history is empty.
+            int | None: The last speed value set (0-255), or None if history is empty.
         """
         value=self._commandHistory[-1, RSP]
         if (value == -1) or (value is None):

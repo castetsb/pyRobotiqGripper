@@ -43,6 +43,10 @@ class JoystickVisualTool:
     """Thin, full-screen-width overlay bar showing a live marker position and
     optional colored control zones.
 
+    !!! note
+        Requires the optional `PySide6` package, included in the `all` extra
+        (`uv add "pyrobotiqgripper[all]"`).
+
     Dedicated to a joystick-like object, given at construction: the marker
     tracks ``joystick.get_axis(axis)`` on its own (polled on this
     visualizer's own timer -- a caller never pushes marker updates itself).

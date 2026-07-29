@@ -1,0 +1,28 @@
+{#- Override of mkdocstrings-python's default function/method heading.
+
+Shows methods qualified by their class ("RobotiqGripper.connect") instead of
+the bare method name, so a method heading makes it clear which class it
+belongs to without repeating the full package path. Plain module-level
+functions (parent is not a class) are unaffected.
+
+This re-declares the whole `heading` block (Jinja block overrides replace
+the entire block, not just the changed line) -- keep this in sync with
+mkdocstrings_handlers/python/templates/material/_base/function.html.jinja
+if that file's `heading` block ever changes upstream.
+-#}
+{% extends "_base/function.html.jinja" %}
+
+{% block heading scoped %}
+  {% if config.show_symbol_type_heading %}<code class="doc-symbol doc-symbol-heading doc-symbol-{{ symbol_type }}"></code>{% endif %}
+  {% if config.heading and root %}
+    {{ config.heading }}
+  {% elif config.separate_signature %}
+    <span class="doc doc-object-name doc-function-name">{{ function.parent.name ~ "." ~ function.name if function.parent.is_class else function_name }}</span>
+  {% else %}
+    {%+ filter highlight(language="python", inline=True) -%}
+      {{ function.parent.name ~ "." ~ function.name if function.parent.is_class else function_name }}
+      {%- include "type_parameters.html.jinja" with context -%}
+      {%- include "signature.html.jinja" with context -%}
+    {%- endfilter %}
+  {% endif %}
+{% endblock heading %}

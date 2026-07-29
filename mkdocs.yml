@@ -1,0 +1,85 @@
+site_name: pyRobotiqGripper
+site_description: Python Driver for Robotiq Grippers
+site_url: https://pyrobotiqgripper.readthedocs.io/en/latest/
+repo_url: https://github.com/castetsb/pyRobotiqGripper
+repo_name: castetsb/pyRobotiqGripper
+docs_dir: docs
+watch:
+  - pyrobotiqgripper
+  - templates
+
+nav:
+  - Documentation:
+    - Introduction: index.md
+    - Installation: installation.md
+    - Gripper Connection: connection.md
+    - Basic control: basic_usage.md
+    - Realtime control: realtime.md
+  - API:
+    - RobotiqGripper: api/robotiqgripper.md
+    - Tools: api/tools.md
+    - Constants: api/constants.md
+  - Contribute: contributing.md
+
+theme:
+  name: material
+  logo: _static/logo.png
+  favicon: _static/logo.png
+  font:
+    text: Montserrat
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.top
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.footer
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+extra_css:
+  - _static/extra.css
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.superfences
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+  - mkdocstrings:
+      custom_templates: templates
+      handlers:
+        python:
+          paths: ["."]
+          options:
+            docstring_style: google
+            docstring_section_style: table
+            show_root_heading: true
+            show_root_full_path: false
+            show_source: false
+            show_signature_annotations: true
+            show_symbol_type_heading: true
+            members_order: source
+            merge_init_into_class: true
+            heading_level: 3

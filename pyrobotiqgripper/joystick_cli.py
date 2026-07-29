@@ -46,7 +46,13 @@ def _print_shutdown_notice() -> None:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    """Entry point for the joystick CLI."""
+    """Console script (``pyrobotiqgripper-joystick``) used to drive a gripper
+    with a joystick or mouse from the command line.
+
+    See [the Joystick CLI usage guide](../realtime.md#3-joystick-cli-feature)
+    for installation and examples; run ``pyrobotiqgripper-joystick --help``
+    for the full list of options.
+    """
     parser = argparse.ArgumentParser(
         prog="pyrobotiqgripper-joystick",
         description="Control a Robotiq gripper using a joystick (pygame) or mouse.",

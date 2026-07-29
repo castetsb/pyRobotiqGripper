@@ -10,7 +10,12 @@ from __future__ import annotations
 
 from pynput import mouse
 
+#: Axis index for the horizontal mouse position, for use with
+#: :meth:`~pyrobotiqgripper.mouse_joystick.MouseJoystick.get_axis`.
 AXIS_X = 0
+
+#: Axis index for the vertical mouse position, for use with
+#: :meth:`~pyrobotiqgripper.mouse_joystick.MouseJoystick.get_axis`.
 AXIS_Y = 1
 
 

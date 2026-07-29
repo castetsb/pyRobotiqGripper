@@ -4,6 +4,16 @@ import time
 import threading
 
 class Bipper:
+    """Plays a continuous tone whose beep rate speeds up as
+    :attr:`input_signal` increases towards ``1.0``. Used by the Joystick
+    CLI's ``--bipper`` option to give an audio cue of grip force during
+    realtime control.
+
+    !!! note
+        Requires the optional `sounddevice` package, included in the `all`
+        extra (`uv add "pyrobotiqgripper[all]"`).
+    """
+
     def __init__(self, sample_rate=44100, volume=0.3, audio_pitch=600.0, min_beep_rate=1.5, max_beep_rate=12.0):
         # Audio configuration constants
         self.sample_rate = sample_rate
@@ -27,6 +37,8 @@ class Bipper:
 
     @property
     def input_signal(self):
+        """Current input signal in [0.0, 1.0], driving the beep rate towards
+        max_beep_rate as it increases towards 1.0."""
         with self._lock: return self._input_signal
     @input_signal.setter
     def input_signal(self, value):
@@ -109,44 +121,3 @@ class Bipper:
             self._stream.stop()
             self._stream.close()
             self._stream = None
-
-'''
-# ---------------------------------------------------------
-# Main Application Test Run
-# ---------------------------------------------------------
-if __name__ == "__main__":
-    bipper = Bipper()
-    bipper.start()
-
-    try:
-        print("Testing dynamic updates from main thread. Press Ctrl+C to stop.\n")
-        
-        # Step 1: Modulate Input Signal (0.0 -> 1.0)
-        print("--> Modulating signal (speeding up beeps)...")
-        for val in np.linspace(0.0, 1.0, 30):
-            bipper.input_signal = val
-            time.sleep(0.1)
-
-        # Step 2: Dynamically shift base pitch mid-stream
-        print("--> Shifting base pitch higher...")
-        bipper.audio_pitch = 900.0
-        time.sleep(1.5)
-
-        # Step 3: Change the beep scaling frequencies entirely 
-        print("--> Scaling up maximum possible beep speed...")
-        bipper.max_beep_rate = 25.0
-        time.sleep(2.0)
-
-        # Step 4: Drop pitch and slow everything back down
-        print("--> Resetting to low pitch and slow speeds...")
-        bipper.audio_pitch = 400.0
-        bipper.max_beep_rate = 12.0
-        bipper.input_signal = 0.1
-        time.sleep(2.0)
-            
-    except KeyboardInterrupt:
-        pass
-    finally:
-        bipper.stop()
-        print("Stopped.")
-'''

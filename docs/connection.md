@@ -1,7 +1,8 @@
 # Connection
 
-```{youtube} rh-5ABvLBVI
-```
+<div class="video-wrapper">
+  <iframe src="https://www.youtube.com/embed/rh-5ABvLBVI" title="YouTube video player" allowfullscreen></iframe>
+</div>
 
 Before running the examples below, activate the virtual environment you used
 to install the package, then launch a Python interpreter.
@@ -26,16 +27,17 @@ Once the virtual environment is activated, launch a Python interpreter:
 python
 ```
 
-````{note}
-With uv you can directly run a python interpreter in the virtual environment
-without having to activate it.
+!!! note
+    With uv you can directly run a python interpreter in the virtual environment
+    without having to activate it.
 
-```bash
-uv run python
-```
-````
+    ```bash
+    uv run python
+    ```
 
-## Robotiq gripper connected at PC USB port via a USB to RS485 converter
+## 1. Via USB
+
+Robotiq gripper connected at PC USB port via a USB to RS485 converter
 
 ```python
 import pyrobotiqgripper as rq
@@ -55,7 +57,8 @@ import pyrobotiqgripper as rq
 gripper = rq.RobotiqGripper(com_port="COM3")
 ```
 
-## Robotiq gripper connected to a UR robot with RS485 URCAP installed
+## 2. Via Ethernet 
+It is possible to connect to a gripper using modbus RTU over ethernet. There is typical how you would communicate with a Robotiq gripper connected at the wirst of a UR robot with the RS485 URCAP installed.
 
 Replace <UR_ROBOT_IP> with the actual IP address of your UR robot.
 

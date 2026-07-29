@@ -24,11 +24,9 @@ dependencies = [
 [project.optional-dependencies]
 
 docs = [
-  "sphinx",
-  "sphinx-rtd-theme",
-  "sphinxcontrib-youtube",
-  "myst-parser",
-  "sphinx-autobuild",
+  "mkdocs",
+  "mkdocs-material",
+  "mkdocstrings[python]",
 ]
 
 all = [

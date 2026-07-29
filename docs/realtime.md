@@ -1,7 +1,8 @@
 # Realtime control
 
-```{youtube} 37321zn1-Vo
-```
+<div class="video-wrapper">
+  <iframe src="https://www.youtube.com/embed/37321zn1-Vo" title="YouTube video player" allowfullscreen></iframe>
+</div>
 
 There are use cases where you may want to control the gripper in realtime,
 like doing remote control of a robotic system (teleoperation, teaching
@@ -13,37 +14,33 @@ human vision is between 30 and 60 hz and that we are actually using our
 vision to do remote control operation, the default control frequency is
 sufficient.
 
-```{note}
-Using robotiq user interface (RUI), it is possible to increase the gripper
-baudrate.
-```
+!!! note
+    Using robotiq user interface (RUI), it is possible to increase the gripper
+    baudrate.
 
 The gripper is typically controlled with a joystick.
 
 The analog signal of such a joystick may be [-1,1] in the case of a game
 console controller:
 
-```{figure} _static/game_controller.jpg
-:alt: Game controller
-:align: center
-```
+<p align="center">
+  <img src="_static/game_controller.jpg" alt="Game controller">
+</p>
 
 Or in the range [0,1] in the case of a VR controller trigger:
 
-```{figure} _static/VR_controller.jpg
-:alt: VR controller
-:align: center
-```
+<p align="center">
+  <img src="_static/VR_controller.jpg" alt="VR controller">
+</p>
 
-```{note}
-The quality of joystick is important to take into account. You will not be
-able to control the gripper with precision if you don't have a good control
-signal.
+!!! note
+    The quality of joystick is important to take into account. You will not be
+    able to control the gripper with precision if you don't have a good control
+    signal.
 
-You have to also consider your ability to operate the joystick. Like for
-computer games, an experienced gamer will navigate with greater precision
-in the game than a beginner player.
-```
+    You have to also consider your ability to operate the joystick. Like for
+    computer games, an experienced gamer will navigate with greater precision
+    in the game than a beginner player.
 
 2 functions designed to be called at high frequency for realtime control are
 available in the pyrobotiqgripper package.
@@ -52,21 +49,20 @@ available in the pyrobotiqgripper package.
 
 2) realTimeSpeedMove function
 
-```{note}
-In case of a trigger joystick of a VR controller, a button could be used
-to reverse the signal so that the signal range goes from [0,1] to [-1,1]
-```
+!!! note
+    In case of a trigger joystick of a VR controller, a button could be used
+    to reverse the signal so that the signal range goes from [0,1] to [-1,1]
 
-```{note}
-While pyRobotiqPackage have quite good performance, it runs with python which
-is slower than C++. If you want to switch to C++ check Robotiq C++ driver:
-https://github.com/robotiq/grippers
-```
+!!! note
+    While pyRobotiqPackage have quite good performance, it runs with python which
+    is slower than C++. If you want to switch to C++ check Robotiq C++ driver:
+    https://github.com/robotiq/grippers
 
-## 1- Realtime control with position signal
+## 1. Realtime position control
 
-```{youtube} jxQrXifJz1g
-```
+<div class="video-wrapper">
+  <iframe src="https://www.youtube.com/embed/jxQrXifJz1g" title="YouTube video player" allowfullscreen></iframe>
+</div>
 
 Example of realtime control loop with realTimePositionMove function.
 
@@ -140,7 +136,7 @@ control mode.
 If a gripSpeed and gripForce is set the manual force setting mode is disabled
 and the gripper secure the object with those parmeters once an object is detected.
 
-## 2- Realtime control with speed and force signals
+## 2. Realtime speed control
 
 Example of realtime control loop with realTimeSpeedMove function.
 
@@ -206,9 +202,7 @@ operator manually fixe the grip force.
 If a gripSpeed and gripForce is set the manual force setting mode is disabled
 and the gripper secure the object with those parmeters once an object is detected.
 
-(joystick-cli-feature)=
-
-## Joystick CLI Feature
+## 3. Joystick CLI Feature
 
 The pyrobotiqgripper package includes a command-line interface CLI to
 experiment with the realtime functions.
@@ -227,11 +221,10 @@ To use the Joystick CLI, run the following command:
 pyrobotiqgripper-joystick
 ```
 
-```{note}
-By default the application will automatically detect the port on which
-the gripper is connected. It expects that the gripper is connected to
-the PC via USB and that a joystick is also connected to the PC.
-```
+!!! note
+    By default the application will automatically detect the port on which
+    the gripper is connected. It expects that the gripper is connected to
+    the PC via USB and that a joystick is also connected to the PC.
 
 You can check the help for details about available options:
 
@@ -252,6 +245,5 @@ The communication control loop uses speed control (i.e. implements realTimeSpeed
 pyrobotiqgripper-joystick --connection-type "RTU_VIA_TCP" --tcp-host 10.0.0.153 --tcp-port 2000 --joystick-id -1 --verbose 1 --control-method speed
 ```
 
-```{note}
---connection-type "RTU" is recommanded to have a fast communication.
-```
+!!! note
+    --connection-type "RTU" is recommanded to have a fast communication.
