@@ -57,12 +57,15 @@ In case of a trigger joystick of a VR controller, a button could be used
 to reverse the signal so that the signal range goes from [0,1] to [-1,1]
 ```
 
+```{note}
+While pyRobotiqPackage have quite good performance, it runs with python which
+is slower than C++. If you want to switch to C++ check Robotiq C++ driver:
+https://github.com/robotiq/grippers
+```
+
 ## 1- Realtime control with position signal
 
-```{note}
-The above video is about the first prototype of the realTimePositionMove
-function. Function name changed to realTimePositionMove and the input is a
-[0,1] analog signal instead of a 0-255 position value.
+```{youtube} jxQrXifJz1g
 ```
 
 Example of realtime control loop with realTimePositionMove function.

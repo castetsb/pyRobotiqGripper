@@ -1721,6 +1721,27 @@ class RobotiqGripper( ):
         Meant to be called at high frequency (e.g. 100 Hz) in a non-blocking
         control loop for remote operation application.
 
+        If gripSpeed and gripForce are not set, the grip force can be
+        fine-tuned once an object is detected, by moving through the
+        following states:
+
+        1. An object is detected while closing (or opening): mode switches
+           to "object detected". The gripper holds its position and
+           controlSignal is ignored.
+        2. Bring the joystick back to the neutral end of the signal
+           (< controlBuffer if closing, > 1-controlBuffer if opening) to
+           switch to "force deactivated". The gripper still holds, and is
+           now ready to enter force mode.
+        3. Push the joystick again past that same threshold, toward the
+           grip direction, to switch to "force activated". The holding
+           force now increases with how far you push - pushing further can
+           only increase the force, it cannot be decreased this way.
+        4. To leave force mode, bring the signal back to the neutral end
+           (step 2's threshold). If the force was increased in step 3, you
+           return to "force deactivated" and can push again to increase it
+           further. If it was not increased, control returns to normal free
+           positioning and the object is released.
+
         Args:
             controlSignal: Analogic position control signal in range [0,1]
             controlBuffer: Dimension of the signal deadzones express in percentage of the
@@ -2062,6 +2083,29 @@ class RobotiqGripper( ):
 
         Meant to be called at high frequency (e.g. 100 Hz) in a non-blocking
         control loop for remote operation application.
+
+        If gripSpeed and gripForce are not set, the grip force can be
+        fine-tuned once an object is detected, by moving through the
+        following states:
+
+        1. An object is detected while closing or opening: mode switches
+           to "object detected". The gripper holds its position and
+           controlSignal is ignored.
+        2. Bring the joystick back to center (abs(controlSignal) <
+           controlBuffer) to switch to "force deactivated". The gripper
+           still holds, and is now ready to enter force mode.
+        3. Push the joystick toward the closing direction (positive
+           values), past controlBuffer, to switch to "force activated".
+           The holding force ramps up once the signal passes
+           2*controlBuffer, increasing with how far you push - pushing
+           further can only increase the force, it cannot be decreased
+           this way. Note this direction is always "closing", even if the
+           object was detected while opening.
+        4. To leave force mode, bring the signal back to center. If the
+           force was increased in step 3, you return to "force
+           deactivated" and can push again to increase it further. If it
+           was not increased, control returns to normal free speed control
+           and the object is released.
 
         Args:
             controlSignal (float): Analogic signal in the range [-1, 1] use to

@@ -27,6 +27,7 @@ This library can be seen as a starting point for a Robotiq integration project.
 You are responsible for what you do with this library.
 The author takes no responsibility for any malfunction.
 
-[!NOTE]
-This python package is in constant evolution. Some breaking change may happen from one vesion to another. This can mainly impact the high level functions.
+```{note}
+This python package is in constant evolution. Some breaking change may happen from one version to another. This can mainly impact the high level functions.
+```
 
