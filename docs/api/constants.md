@@ -6,7 +6,7 @@ grouped by topic.
 
 <div class="constants-page" markdown="1">
 
-## a. Communication settings
+## Communication settings
 
 ::: pyrobotiqgripper.constants.BAUDRATE
 ::: pyrobotiqgripper.constants.BYTESIZE
@@ -18,11 +18,11 @@ grouped by topic.
 ::: pyrobotiqgripper.constants.GRIPPER_MODE_RTU_VIA_TCP
 ::: pyrobotiqgripper.constants.COM_TIME
 
-## b. History buffer
+## History buffer
 
 ::: pyrobotiqgripper.constants.MAX_HISTORY
 
-## c. Gripper status register values (gSTA / gGTO / gOBJ / gACT)
+## Gripper status register values
 
 ::: pyrobotiqgripper.constants.GSTA_NOT_ACTIVATED
 ::: pyrobotiqgripper.constants.GSTA_ACTIVATION_IN_PROGRESS
@@ -36,14 +36,14 @@ grouped by topic.
 ::: pyrobotiqgripper.constants.GACT_RESET
 ::: pyrobotiqgripper.constants.GACT_ACTIVATE
 
-## d. Gripper command register values (rGTO / rACT)
+## Gripper command register values
 
 ::: pyrobotiqgripper.constants.RGTO_STOP
 ::: pyrobotiqgripper.constants.RGTO_GO_TO_REQUESTED_POSITION
 ::: pyrobotiqgripper.constants.RACT_DESACTIVATE
 ::: pyrobotiqgripper.constants.RACT_ACTIVATE
 
-## e. Estimated object detection (eOBJ) values
+## Estimated object detection (eOBJ) values
 
 Computed by the gripper from position/speed history (not a raw Modbus
 register) and stored in the `eOBJ` history column.
@@ -60,7 +60,7 @@ register) and stored in the `eOBJ` history column.
 ::: pyrobotiqgripper.constants.EOBJ_DETECTED_WHILE_CLOSING_SLIPPING
 ::: pyrobotiqgripper.constants.EOBJ_CALCULATION_IMPOSSIBLE
 
-## f. Realtime position move modes
+## Realtime position move modes
 
 State values of
 [`realTimePositionMove_Mode`][pyrobotiqgripper.RobotiqGripper.realTimePositionMove_Mode].
@@ -79,7 +79,7 @@ State values of
 ::: pyrobotiqgripper.constants.REALTIME_POSITION_POSITION_DELTA_REFERENCE_LAST_AT_POSITION
 ::: pyrobotiqgripper.constants.REALTIME_POSITION_POSITION_DELTA_REFERENCE_CURRENT_POSITION
 
-## g. Realtime speed move modes
+## Realtime speed move modes
 
 State values of
 [`realTimeSpeedMove_Mode`][pyrobotiqgripper.RobotiqGripper.realTimeSpeedMove_Mode].
@@ -90,7 +90,7 @@ State values of
 ::: pyrobotiqgripper.constants.REALTIME_SPEED_MOVE_MODE_FORCE_ACTIVATED
 ::: pyrobotiqgripper.constants.REALTIME_SPEED_MOVE_MODE_SECURE
 
-## h. History table column indices
+## History table column indices
 
 Column indices into the numpy arrays returned by
 [`commandHistory`][pyrobotiqgripper.RobotiqGripper.commandHistory],
@@ -127,7 +127,7 @@ status merged).
 ::: pyrobotiqgripper.constants.M_GCU
 ::: pyrobotiqgripper.constants.M_EOBJ
 
-## i. Column name / index lookup dictionaries
+## Column name / index lookup dictionaries
 
 ::: pyrobotiqgripper.constants.COMMAND_HISTORY_COLUMNS_ID_2_NAME
 ::: pyrobotiqgripper.constants.COMMAND_HISTORY_COLUMNS_NAME_2_ID
@@ -136,7 +136,7 @@ status merged).
 ::: pyrobotiqgripper.constants.HISTORY_COLUMNS_ID_2_NAME
 ::: pyrobotiqgripper.constants.HISTORY_COLUMNS_NAME_2_ID
 
-## j. Register reference
+## Register reference
 
 ::: pyrobotiqgripper.constants.REGISTER_DIC
 
