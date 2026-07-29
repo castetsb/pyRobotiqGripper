@@ -95,7 +95,7 @@ class GripperVisualizer:
     it down.
 
     Args:
-        gripper: The RobotiqGripper instance to read history from. Only its
+        gripper (RobotiqGripper): The RobotiqGripper instance to read history from. Only its
             ``commandHistory()`` and ``statusHistoryNumpy()`` methods are
             called; the gripper is never written to or read live from Modbus
             by this class.

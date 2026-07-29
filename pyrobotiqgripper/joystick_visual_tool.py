@@ -71,7 +71,7 @@ class JoystickVisualTool:
     cursor happens to be over it, so whatever's underneath remains visible.
 
     Args:
-        joystick: Anything exposing ``get_axis(axis) -> float`` (e.g.
+        joystick (Any): Anything exposing ``get_axis(axis) -> float`` (e.g.
             :class:`~pyrobotiqgripper.mouse_joystick.MouseJoystick` or a
             ``pygame.joystick.Joystick``). Its live reading drives the
             marker.

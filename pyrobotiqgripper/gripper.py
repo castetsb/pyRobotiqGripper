@@ -78,8 +78,6 @@ class RobotiqGripper( ):
                 On Windows, COM ports are named COM1, COM2, etc. On Linux, COM ports are
                 named /dev/ttyUSB0, /dev/ttyUSB1, etc. Default is AUTO_DETECTION.
             device_id (int): Address of the gripper (integer) usually 9.
-            gripper_type (str): Type of the gripper. Currently only "2F" is supported.
-                Default is "2F".
             connection_type (str): Type of connection to the gripper.
                 "RTU" (or equal to the constant GRIPPER_MODE_RTU) for direct Modbus RTU
                 connection (e.g. via USB/RS485 adapter). "RTU_VIA_TCP" (or equal to the
@@ -1652,7 +1650,7 @@ class RobotiqGripper( ):
         """Return the mode of the realTimePositionMove function
 
         Returns:
-            int: Control mode code. See constants for details.
+            (int): Control mode code. See constants for details.
                 REALTIME_POSITION_MOVE_MODE_FREEMOVE = 0
                 REALTIME_POSITION_MOVE_MODE_OBJECT_DETECTED_CLOSING = 100
                 REALTIME_POSITION_MOVE_MODE_FORCE_DEACTIVATED_CLOSING = 101
@@ -1741,21 +1739,21 @@ class RobotiqGripper( ):
            positioning and the object is released.
 
         Args:
-            controlSignal: Analogic position control signal in range [0,1]
-            controlBuffer: Dimension of the signal deadzones express in percentage of the
+            controlSignal (float): Analogic position control signal in range [0,1]
+            controlBuffer (float): Dimension of the signal deadzones express in percentage of the
                 the control signal. Deadzones are positionned at the bottom and
                 the top of the control range.
-            speedLowerControlThreshold: The speed is function of the difference
+            speedLowerControlThreshold (int): The speed is function of the difference
                 between current position and target position. The function is ramp
                 that start at speedLowerControlThreshold and finish at
                 speedUpperControlThreshold.
-            speedUpperControlThreshold: The speed is function of the difference
+            speedUpperControlThreshold (int): The speed is function of the difference
                 between current position and target position. The function is ramp
                 that start at speedLowerControlThreshold and finish at
                 speedUpperControlThreshold.
-            gripSpeed: Speed parameter use to secure a grip when an object is
+            gripSpeed (int, optional): Speed parameter use to secure a grip when an object is
                 detected. If used, gripForce and gripSpeed have to be both set.
-            gripForce: Force parameter use to secure a grip when an object is
+            gripForce (int, optional): Force parameter use to secure a grip when an object is
                 detected. If used, gripForce and gripSpeed have to be both set.
             verbose (int, optional): Verbose level for debug.
 
@@ -2113,9 +2111,9 @@ class RobotiqGripper( ):
             controlBuffer (float): controlSignal deadzone express in percentage
                 of the control range (Joystick position range between -1 and 1).
                 The deadzone is positionned at the center of the control range.
-            gripSpeed: Speed parameter use to secure a grip when an object is
+            gripSpeed (int, optional): Speed parameter use to secure a grip when an object is
                 detected. If used, gripForce and gripSpeed have to be both set.
-            gripForce: Force parameter use to secure a grip when an object is
+            gripForce (int, optional): Force parameter use to secure a grip when an object is
                 detected. If used, gripForce and gripSpeed have to be both set.
             verbose (int, optional): Verbose level for debug.
 
@@ -2339,8 +2337,9 @@ class RobotiqGripper( ):
                 Defaults to True.
 
         Returns:
-            bool: True if the gripper is activated, False if not activated,
-            None if there is no available information to confirm gripper activation status
+            (bool | None): True if the gripper is activated, False if not activated,
+                or None if there is no available information to confirm gripper
+                activation status.
         """
         if refreshStatus:
             self.readStatus()
@@ -2365,8 +2364,9 @@ class RobotiqGripper( ):
         """Check whether the gripper is started.
 
         Returns:
-            bool: True if the gripper is started, False if not started, None
-            is there is not enough information to confirm if the gripper is started.
+            (bool | None): True if the gripper is started, False if not started,
+                or None if there is not enough information to confirm if the
+                gripper is started.
         """
         if refreshStatus:
             self.readStatus()
@@ -2402,7 +2402,7 @@ class RobotiqGripper( ):
         its position in bit when fully open and fully closed).
 
         Returns:
-            bool: True if the gripper is bit calibrated, False otherwise.
+            (bool): True if the gripper is bit calibrated, False otherwise.
         """
         return self._is_bit_calibrated
 
@@ -2410,7 +2410,7 @@ class RobotiqGripper( ):
         """Check whether the gripper millimeter (mm) calibration is done.
 
         Returns:
-            bool: True if the gripper is mm calibrated, False otherwise.
+            (bool): True if the gripper is mm calibrated, False otherwise.
         """
         return self._is_mm_calibrated
 
@@ -2439,7 +2439,7 @@ class RobotiqGripper( ):
         """Check whether the gripper speed calibration is done.
 
         Returns:
-            bool: True if the gripper speed is calibrated, False otherwise.
+            (bool): True if the gripper speed is calibrated, False otherwise.
         """
         return self._is_speed_calibrated
 
@@ -2447,7 +2447,7 @@ class RobotiqGripper( ):
         """Return the maximum gripper speed in bits per second.
 
         Returns:
-            int: Maximum gripper speed in bits per second.
+            (int): Maximum gripper speed in bits per second.
         """
         if not self.is_speed_calibrated():
             raise GripperCalibrationError("The gripper is not speed calibrated")
@@ -2457,7 +2457,7 @@ class RobotiqGripper( ):
         """Return the minimum gripper speed in bits per second.
 
         Returns:
-            int: Minimum gripper speed in bits per second.
+            (int): Minimum gripper speed in bits per second.
         """
 
         if not self.is_speed_calibrated():
@@ -2484,7 +2484,7 @@ class RobotiqGripper( ):
         """Return the last commanded position value.
 
         Returns:
-            int | None: The last position command value (0-255), or None if the history is empty.
+            (int | None): The last position command value (0-255), or None if the history is empty.
         """
         value = self._commandHistory[-1,RPR]
         if value == -1:
@@ -2502,7 +2502,7 @@ class RobotiqGripper( ):
                 faster if the gripper status is already up to date. Defaults to True.
 
         Returns:
-            int | None: Current gripper position in bits (0-255), or None if history is empty.
+            (int | None): Current gripper position in bits (0-255), or None if history is empty.
         """
         if refreshStatus:
             self.readStatus()
@@ -2522,7 +2522,7 @@ class RobotiqGripper( ):
                 faster if the gripper status is already up to date. Defaults to True.
 
         Returns:
-            float: Current gripper position in millimeters.
+            (float): Current gripper position in millimeters.
 
         !!! note
             Calibration is required to use this function.
@@ -2538,7 +2538,7 @@ class RobotiqGripper( ):
         """Return the last set speed parameter value.
 
         Returns:
-            int | None: The last speed value set (0-255), or None if history is empty.
+            (int | None): The last speed value set (0-255), or None if history is empty.
         """
         value=self._commandHistory[-1, RSP]
         if (value == -1) or (value is None):
@@ -2550,7 +2550,7 @@ class RobotiqGripper( ):
         """Return the last set force paramater value.
 
         Returns:
-            int | None: The last force value set (0-255), or None if the history is empty.
+            (int | None): The last force value set (0-255), or None if the history is empty.
         """
         value = self._commandHistory[-1, RFR]
         if (value == -1) or (value is None):
@@ -2579,13 +2579,13 @@ class RobotiqGripper( ):
         status have never been retrieved.
 
         Args:
-            refreshSatus (boolean):
+            refreshStatus (bool):
                 Indicate if the object detection status is directly retrieved
                 from the gripper or if it is taken from the last previously
                 read status.
 
         Returns:
-            int: Object detection status code.
+            (int): Object detection status code.
                 - 0: Fingers in motion, no object detected
                 - 1: Fingers stopped while opening, object detected
                 - 2: Fingers stopped while closing, object detected
@@ -2783,7 +2783,7 @@ class RobotiqGripper( ):
             commandHistory().copy()
 
         Returns:
-            numpy array: A numpy array containing the status history.
+            (numpy.ndarray): A numpy array containing the status history.
 
                 Columns are
 
@@ -2810,7 +2810,7 @@ class RobotiqGripper( ):
         """Return the gripper command history as a pandas DataFrame.
 
         Returns:
-            pd.DataFrame: A DataFrame containing the command history with columns for
+            (pd.DataFrame): A DataFrame containing the command history with columns for
                 time and various command registers (rARD, rATR, etc.).
         """
         pd = _get_pandas()
@@ -2843,7 +2843,7 @@ class RobotiqGripper( ):
                 Defaults to True.
 
         Returns:
-            dict: A dictionary containing current status values for all registers.
+            (dict): A dictionary containing current status values for all registers.
         """
         if refreshStatus:
             self.readStatus()
@@ -2940,7 +2940,7 @@ class RobotiqGripper( ):
             statusHistoryNumpy().copy()
 
         Returns:
-            numpy array: A numpy array containing the status history.
+            (numpy.ndarray): A numpy array containing the status history.
 
                 Columns are
 
@@ -2967,7 +2967,7 @@ class RobotiqGripper( ):
         """Return the gripper status history as a pandas DataFrame.
 
         Returns:
-            pd.DataFrame: A DataFrame containing the status history with columns for
+            (pd.DataFrame): A DataFrame containing the status history with columns for
                 time and various status registers (gOBJ, gSTA, etc.).
         """
         pd = _get_pandas()
@@ -2982,7 +2982,7 @@ class RobotiqGripper( ):
         status entry.
 
         Returns:
-            numpy array: A numpy array containing the merged history.
+            (numpy.ndarray): A numpy array containing the merged history.
 
                 Columns are
 
@@ -3019,7 +3019,7 @@ class RobotiqGripper( ):
         status entry.
 
         Returns:
-            pd.DataFrame: A DataFrame containing the merged history with columns for
+            (pd.DataFrame): A DataFrame containing the merged history with columns for
                 time, commands, and status values.
         """
         pd = _get_pandas()
@@ -3042,7 +3042,7 @@ class RobotiqGripper( ):
         position history
 
         Returns:
-            int: Last direction of movement. 1 for closing, -1 for opening, 0 if unknown.
+            (int): Last direction of movement. 1 for closing, -1 for opening, 0 if unknown.
         """
 
         return self._lastMoveDirection
