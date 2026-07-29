@@ -1,6 +1,6 @@
 📖 **Full documentation:** https://pyrobotiqgripper.readthedocs.io/en/latest/
 
-<!-- --8<-- [start:body] -->
+<!-- --8<-- [start:intro] -->
 # pyRobotiqGripper
 <p style="margin-top: -15px; color: var(--md-typeset-color); font-size: 1.1em; font-style: italic;">Python Driver for Robotiq Grippers.</p>
 
@@ -16,22 +16,24 @@
 
 pyRobotiqGripper is a Python library designed to facilitate control of Robotiq grippers using Modbus RTU communication via serial port or over ethernet.
 It is compatible with 2F85, 2F140, and Hande.
+<!-- --8<-- [end:intro] -->
 
-<div class="video-wrapper">
-  <iframe src="https://www.youtube.com/embed/82S5LgefvJo" title="YouTube video player" allowfullscreen></iframe>
-</div>
+<!-- GitHub strips <iframe>, so a clickable thumbnail is used here instead;
+     the docs site embeds the video inline (see docs/index.md). -->
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=82S5LgefvJo">
+    <img src="https://img.youtube.com/vi/82S5LgefvJo/maxresdefault.jpg" alt="pyRobotiqGripper introduction video">
+  </a>
+</p>
 
+<!-- --8<-- [start:outro] -->
 ## Disclaimer
 
 This library can be seen as a starting point for a Robotiq integration project.
 You are responsible for what you do with this library.
 The author takes no responsibility for any malfunction.
 
-!!! note
-    This python package is in constant evolution. Some breaking change may happen from one version to another. This can mainly impact the high level functions.
+**Note:** This python package is in constant evolution. Some breaking change may happen from one version to another. This can mainly impact the high level functions.
 
-!!! info "Other related software tool"
-    C++, ROS2 and other software tools are available on the Robotiq GitHub page.
-
-    [Robotiq GitHub Repository](https://github.com/robotiq)
-<!-- --8<-- [end:body] -->
+**Other related software tools:** C++, ROS2 and other software tools are available on the Robotiq GitHub page: [Robotiq GitHub Repository](https://github.com/robotiq).
+<!-- --8<-- [end:outro] -->
