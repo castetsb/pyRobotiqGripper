@@ -24,13 +24,13 @@ The analog signal of such a joystick may be [-1,1] in the case of a game
 console controller:
 
 <p align="center">
-  <img src="_static/game_controller.jpg" alt="Game controller">
+  <img src="https://raw.githubusercontent.com/castetsb/pyRobotiqGripper/master/docs/_static/game_controller.jpg" alt="Game controller">
 </p>
 
 Or in the range [0,1] in the case of a VR controller trigger:
 
 <p align="center">
-  <img src="_static/VR_controller.jpg" alt="VR controller">
+  <img src="https://raw.githubusercontent.com/castetsb/pyRobotiqGripper/master/docs/_static/VR_controller.jpg" alt="VR controller">
 </p>
 
 !!! note
