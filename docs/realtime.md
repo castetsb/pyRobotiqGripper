@@ -138,6 +138,10 @@ and the gripper secure the object with those parmeters once an object is detecte
 
 ## 2. Realtime speed control
 
+<div class="video-wrapper">
+  <iframe src="https://www.youtube.com/embed/pbdqvZbBmBg" title="YouTube video player" allowfullscreen></iframe>
+</div>
+
 Example of realtime control loop with realTimeSpeedMove function.
 
 ```python
