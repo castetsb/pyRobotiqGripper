@@ -198,7 +198,9 @@ class RobotiqGripper( ):
         #Initialisation
         ###############
         self._configure_logging()
-        self.readStatus()
+        # Do not raise on a fault here: a gripper in fault must still be
+        # reachable, so that activate() can reset it.
+        self.readStatus(raiseOnFault=False)
 
     ####################################################
     ### PRIVATE FUNCTIONS
@@ -645,7 +647,7 @@ class RobotiqGripper( ):
         self._completeAndSaveCommand(command)
  
     #DATA SAVING FUNCTIONS
-    def _saveStatus(self,t,statusRegisters,readWrite):
+    def _saveStatus(self,t,statusRegisters,readWrite,raiseOnFault=True):
         """Save the gripper status register values in status history.
 
         Args:
@@ -657,6 +659,10 @@ class RobotiqGripper( ):
                 Whether the status was read after a write command or not. This is
                 to manage the object detection status while is reset following read
                 write command.
+            raiseOnFault (boolean) :
+                Whether to raise GripperFaultError if the status reports a
+                fault in GFLT_BLOCKING. The status is saved in the history
+                either way, before raising.
         """
         #########################################
         #Register 2000
@@ -697,12 +703,6 @@ class RobotiqGripper( ):
         kFLT=(faultStatusReg2 >> 4) & 0b1111 #xxxx0000
         #Fault
         gFLT=faultStatusReg2 & 0b00001111 #0000xxxx
-
-        if gFLT in [7,8,10,11,12,13,14,15]:
-            print(f"gFLT = {gFLT}")
-            print("Gripper status history:")
-            print(self.statusHistory())
-            raise GripperFaultError(REGISTER_DIC["gFLT"][gFLT])
 
         
         #if gFLT in [5,9]:
@@ -752,6 +752,11 @@ class RobotiqGripper( ):
         if pastPosition != currentPosition:
             self._lastMoveTime = t
             self._lastMoveDirection= np.sign(currentPosition-pastPosition)
+
+        #Raise only once the status is saved, so that status() reports the
+        #fault and the activation status that comes with it.
+        if raiseOnFault and gFLT in GFLT_BLOCKING:
+            raise GripperFaultError(REGISTER_DIC["gFLT"][gFLT], code=gFLT)
         
   
     def _completeAndSaveCommand(self,command):
@@ -1073,7 +1078,9 @@ class RobotiqGripper( ):
         self._is_speed_calibrated=False
         self._is_mm_calibrated=False
 
-        self.readStatus()
+        # A major fault stays reported until the gripper is reactivated, so
+        # it is not an error here: clearing faults is what a reset is for.
+        self.readStatus(raiseOnFault=False)
 
     def activate(self,reset= True, start=True,refreshStatus=True):
         """Activate the gripper if it is not already active.
@@ -1103,7 +1110,11 @@ class RobotiqGripper( ):
         t=floor_to_ms(time.monotonic())
         command={"time": t,
                  "rACT": RACT_ACTIVATE}
-        if not self.isActivated(refreshStatus=refreshStatus):
+        # Read without raising on a fault: a major fault is cleared by the
+        # activation below (rising edge on rACT after the reset).
+        if refreshStatus:
+            self.readStatus(raiseOnFault=False)
+        if not self.isActivated(refreshStatus=False):
             #Activate the gripper
             #rACT=1 Activate Gripper (must stay on after activation routine is
             #completed).
@@ -1123,12 +1134,18 @@ class RobotiqGripper( ):
             activationStartTime=floor_to_ms(time.monotonic())
             activationTime=0
 
-            while not self.isActivated(refreshStatus=True) and (activationTime < self.timeOut):
+            # The fault being cleared can still be reported for a moment
+            # after the rising edge, so the loop does not raise on it. A
+            # fault still there at the end is raised by readStatus() below.
+            while activationTime < self.timeOut:
+                self.readStatus(raiseOnFault=False)
+                if self.isActivated(refreshStatus=False):
+                    break
                 activationTime = floor_to_ms(time.monotonic()) - activationStartTime
-            if activationTime > self.timeOut:
-                raise GripperTimeoutError("Activation", self.timeOut)
-            
+
             self.readStatus()
+            if not self.isActivated(refreshStatus=False):
+                raise GripperTimeoutError("Activation", self.timeOut)
             self._completeAndSaveCommand(command)
         else:
             res = None
@@ -2819,8 +2836,19 @@ class RobotiqGripper( ):
         return df
 
    #Read only: Modbus function code 4 (Read input registers)
-    def readStatus(self):
+    def readStatus(self, raiseOnFault=True):
         """Retrieve gripper output register information and save it in the status history.
+
+        Args:
+            raiseOnFault (bool, optional): Whether to raise GripperFaultError
+                when the gripper reports a fault in GFLT_BLOCKING. The status
+                is saved in the history before raising, so status() reports
+                the fault either way. Defaults to True.
+
+        Raises:
+            GripperFaultError: If raiseOnFault is True and the gripper
+                reports a blocking fault. Its ``code`` attribute is the
+                ``gFLT`` value.
         """
         #Read 3 16bits registers starting from register 2000
         res = self._client.read_input_registers(2000,
@@ -2833,7 +2861,7 @@ class RobotiqGripper( ):
 
         registers=res.registers
         t = floor_to_ms(time.monotonic())
-        self._saveStatus(t, registers, readWrite=False)
+        self._saveStatus(t, registers, readWrite=False, raiseOnFault=raiseOnFault)
     
     def status(self, refreshStatus=True):
         """Return the current gripper status as a dictionary.
