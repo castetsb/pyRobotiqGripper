@@ -90,6 +90,13 @@ GGTO_GO_TO_REQUESTED_POSITION = 1
 (alongside the ``rGTO`` command echo) in
 :meth:`~pyrobotiqgripper.RobotiqGripper.isStarted`."""
 
+GFLT_BLOCKING = (7, 8, 10, 11, 12, 13, 14, 15)
+"""``gFLT`` values for which a status read raises
+:class:`~pyrobotiqgripper.GripperFaultError`. Faults 10 to 15 are major
+faults: they are only cleared by a reset followed by a reactivation (a rising
+edge on ``rACT``), which :meth:`~pyrobotiqgripper.RobotiqGripper.activate`
+does."""
+
 GOBJ_IN_MOTION = 0
 """``gOBJ`` value: fingers in motion towards the requested position, no
 object detected. Polling-loop exit condition in the gripper's internal

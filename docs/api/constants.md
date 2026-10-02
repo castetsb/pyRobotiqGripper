@@ -29,6 +29,7 @@ grouped by topic.
 ::: pyrobotiqgripper.constants.GSTA_ACTIVATED
 ::: pyrobotiqgripper.constants.GGTO_STOPPED_OR_ACTIVATING
 ::: pyrobotiqgripper.constants.GGTO_GO_TO_REQUESTED_POSITION
+::: pyrobotiqgripper.constants.GFLT_BLOCKING
 ::: pyrobotiqgripper.constants.GOBJ_IN_MOTION
 ::: pyrobotiqgripper.constants.GOBJ_DETECTED_WHILE_OPENING
 ::: pyrobotiqgripper.constants.GOBJ_DETECTED_WHILE_CLOSING

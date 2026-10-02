@@ -68,8 +68,15 @@ class GripperCommunicationError(RobotiqGripperError):
 
 
 class GripperFaultError(RobotiqGripperError):
-    """Raised when the gripper reports a fault."""
-    pass
+    """Raised when the gripper reports a fault.
+
+    Attributes:
+        code (int | None): The ``gFLT`` fault code reported by the gripper.
+    """
+
+    def __init__(self, message: str, code: int = None):
+        super().__init__(message)
+        self.code = code
 
 
 class GripperValidationError(RobotiqGripperError):
