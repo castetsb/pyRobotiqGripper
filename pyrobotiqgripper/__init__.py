@@ -39,6 +39,9 @@ except PackageNotFoundError:
 # Main class
 from .gripper import RobotiqGripper
 
+# Device detection
+from .detection import DetectedDevice, find_devices, find_gripper, list_candidate_ports
+
 # Constants
 from .constants import *
 
@@ -61,6 +64,11 @@ from .exceptions import (
 __all__ = [
     # Main class
     "RobotiqGripper",
+    # Device detection
+    "DetectedDevice",
+    "find_devices",
+    "find_gripper",
+    "list_candidate_ports",
     #Constants
     "REGISTER_DIC",
     "BAUDRATE",
@@ -71,6 +79,12 @@ __all__ = [
     "AUTO_DETECTION",
     "GRIPPER_MODE_RTU_VIA_TCP",
     "GRIPPER_MODE_RTU", 
+    "POTENTIAL_MODBUS_IDS",
+    "DETECTION_TIMEOUT",
+    "FIRMWARE_VERSION_REGISTER",
+    "SERIAL_NUMBER_REGISTER",
+    "DEVICE_DEFINITIONS",
+    "SUPPORTED_GRIPPER_FIRMWARES",
     # Exceptions
     "RobotiqGripperError",
     "GripperConnectionError",

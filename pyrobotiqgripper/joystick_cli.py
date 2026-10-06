@@ -83,6 +83,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="COM port for RTU connection (default: %(default)s)",
     )
     common_group.add_argument(
+        "--skip-ports",
+        nargs="+",
+        default=None,
+        metavar="PORT",
+        help="Serial ports never to probe when auto-detecting the gripper.",
+    )
+    common_group.add_argument(
         "--gripper-type",
         default="2F85",
         help="Type of gripper (default: %(default)s)",
@@ -245,7 +252,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         com_port=args.com_port,
         device_id=args.device_id,
         gripper_type=args.gripper_type,
-        debug=args.debug
+        debug=args.debug,
+        skip_ports=args.skip_ports,
     )
 
     gripper.connect()

@@ -58,6 +58,38 @@ GRIPPER_MODE_RTU_VIA_TCP = "RTU_VIA_TCP"
 GRIPPER_MODE_RTU = "RTU"
 """``connection_type`` value: direct Modbus RTU over a serial port."""
 
+# --- Device detection --------------------------------------------------------
+
+POTENTIAL_MODBUS_IDS = (9, 1, 2, 3, 4, 5, 6, 7, 8)
+"""Modbus device IDs tried, in this order, when auto-detecting a Robotiq
+device on a serial port. 9 is the factory default."""
+
+DETECTION_TIMEOUT = 0.05
+"""Modbus timeout, in seconds, of each detection read. A Robotiq device
+answers within a few milliseconds, so a silent port or device ID is given up
+quickly."""
+
+FIRMWARE_VERSION_REGISTER = 500
+"""Holding register holding the firmware version: 3 ASCII characters
+followed by 3 version numbers (e.g. ``GC3-1.7.0``). The first 3 characters
+identify the product (see [`DEVICE_DEFINITIONS`][pyrobotiqgripper.constants.DEVICE_DEFINITIONS])."""
+
+SERIAL_NUMBER_REGISTER = 510
+"""Holding register holding the serial number: up to 4 ASCII letters
+followed by a 32-bit number (e.g. ``C-12345``)."""
+
+DEVICE_DEFINITIONS = {
+    "GC3": "2F",
+    "GD1": "Hand-E",
+}
+"""Gripper identified by the 3-character prefix of its firmware version, for
+the grippers that [`RobotiqGripper`][pyrobotiqgripper.RobotiqGripper] can
+control."""
+
+SUPPORTED_GRIPPER_FIRMWARES = tuple(DEVICE_DEFINITIONS)
+"""Firmware prefixes of the products that
+[`RobotiqGripper`][pyrobotiqgripper.RobotiqGripper] can control (2F and Hand-E)."""
+
 # --- History buffer ---------------------------------------------------------
 
 MAX_HISTORY = 500

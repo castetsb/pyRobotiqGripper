@@ -18,6 +18,15 @@ grouped by topic.
 ::: pyrobotiqgripper.constants.GRIPPER_MODE_RTU_VIA_TCP
 ::: pyrobotiqgripper.constants.COM_TIME
 
+## Device detection
+
+::: pyrobotiqgripper.constants.POTENTIAL_MODBUS_IDS
+::: pyrobotiqgripper.constants.DETECTION_TIMEOUT
+::: pyrobotiqgripper.constants.FIRMWARE_VERSION_REGISTER
+::: pyrobotiqgripper.constants.SERIAL_NUMBER_REGISTER
+::: pyrobotiqgripper.constants.DEVICE_DEFINITIONS
+::: pyrobotiqgripper.constants.SUPPORTED_GRIPPER_FIRMWARES
+
 ## History buffer
 
 ::: pyrobotiqgripper.constants.MAX_HISTORY

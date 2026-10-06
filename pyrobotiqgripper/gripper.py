@@ -8,13 +8,11 @@ import numpy as np
 from pymodbus.client import ModbusSerialClient, ModbusTcpClient
 from pymodbus.framer import FramerType
 import time
-import serial
-import serial.tools.list_ports
 from .utils import *
+from .detection import DetectedDevice, find_gripper
 from .constants import *
 from .exceptions import *
 import logging
-import multiprocessing
 import warnings
 
 def _get_pandas():
@@ -67,6 +65,8 @@ class RobotiqGripper( ):
                  tcp_port: int = 54321,
                  baudrate = BAUDRATE,
                  debug: bool = False,
+                 skip_ports: list = None,
+                 candidate_ports: list = None,
                  **kwargs):
         """Create a RobotiqGripper object which can be use to control Robotiq
         grippers using modbus RTU protocol USB/RS485 connection.
@@ -78,6 +78,9 @@ class RobotiqGripper( ):
                 On Windows, COM ports are named COM1, COM2, etc. On Linux, COM ports are
                 named /dev/ttyUSB0, /dev/ttyUSB1, etc. Default is AUTO_DETECTION.
             device_id (int): Address of the gripper (integer) usually 9.
+                With auto-detection, this ID is tried first, then the other
+                IDs of POTENTIAL_MODBUS_IDS, and it is replaced by the ID the
+                gripper answered on.
             connection_type (str): Type of connection to the gripper.
                 "RTU" (or equal to the constant GRIPPER_MODE_RTU) for direct Modbus RTU
                 connection (e.g. via USB/RS485 adapter). "RTU_VIA_TCP" (or equal to the
@@ -88,6 +91,12 @@ class RobotiqGripper( ):
             baudrate (int): Gripper communication baudrate.
             debug (bool): If True, enable debug logging for Modbus communication.
                 Default is False.
+            skip_ports (list[str]): With auto-detection, serial ports never to
+                probe, e.g. the ports of your other serial devices. Symlinks
+                such as udev aliases are resolved before comparing.
+            candidate_ports (list[str]): With auto-detection, the only serial
+                ports to probe, in order. By default all USB serial ports are
+                probed.
         
         Examples:
 
@@ -132,11 +141,18 @@ class RobotiqGripper( ):
         self.tcp_host=tcp_host
         self.tcp_port=tcp_port
         self.debug = debug
+        self.skip_ports = skip_ports
+        self.candidate_ports = candidate_ports
+        #: Gripper found by auto-detection (port, Modbus ID, firmware version,
+        #: serial number), or None if com_port was given explicitly.
+        self.detected_device: DetectedDevice = None
         #Maximum allowed time to perform and action
         self.timeOut=5
 
         #Private properties
         ###################
+        self._configure_logging()
+
         #Client managing gripper commmunication
         self._client=self._create_modbus_client()
 
@@ -197,7 +213,6 @@ class RobotiqGripper( ):
 
         #Initialisation
         ###############
-        self._configure_logging()
         # Do not raise on a fault here: a gripper in fault must still be
         # reachable, so that activate() can reset it.
         self.readStatus(raiseOnFault=False)
@@ -207,81 +222,6 @@ class RobotiqGripper( ):
     ###################################################
     
     #SETUP FUNCTIONS
-    def _probe_port_process(self, port, device_id, return_dict, timeout=1):
-        """Probe a serial port to check if a gripper is connected.
-
-        This method attempts to connect to a Modbus device on the specified port
-        and reads a register to verify if it's a gripper.
-
-        Parameters:
-        -----------
-        port : str
-            The serial port to probe (e.g., 'COM1', '/dev/ttyUSB0').
-        device_id : int
-            The Modbus device ID to use for communication.
-        return_dict : dict
-            A shared dictionary to store the result of the probe.
-        timeout : float, optional
-            Timeout for the connection attempt in seconds. Default is 1.
-        """
-        try:
-            client = ModbusSerialClient(
-                port=port,
-                baudrate=self.baudrate,
-                parity='N',
-                stopbits=1,
-                bytesize=8,
-                timeout=timeout
-            )
-
-            print(f"Trying to connect to {port}...")
-            if not client.connect():
-                err = f"Fail to connect to modbus RTU device on {port}."
-                print(err)
-                return_dict["success"] = False
-                return_dict["error"] = err
-                return
-
-            result = client.read_input_registers(
-                address=2000,
-                count=1,
-                device_id=device_id
-            )
-
-            if result is None:
-                err = f"No response from {port} (register read returned None)"
-                print(err)
-                return_dict["success"] = False
-                return_dict["error"] = err
-                return
-
-            if hasattr(result, 'isError') and result.isError():
-                error_code = getattr(result, 'exception_code', 'unknown')
-                err = f"Modbus error on {port}: {error_code}"
-                print(err)
-                return_dict["success"] = False
-                return_dict["error"] = err
-                return
-                
-            if hasattr(result, 'registers') and len(result.registers) > 0:
-                return_dict["success"] = True
-            else:
-                print(f"Invalid register response from {port}: {result}")
-                return_dict["success"] = False
-
-        except Exception as e:
-            error_msg = f"Connection failed on port {port}: {type(e).__name__}: {str(e)}"
-            print(error_msg)
-            logging.error(error_msg)  # Also log for debugging
-            return_dict["success"] = False
-
-
-        finally:
-            try:
-                client.close()
-            except:
-                pass
-    
     def _configure_logging(self):
         """Configure logging for Modbus communication based on the debug flag."""
         logger = logging.getLogger("pymodbus")
@@ -306,9 +246,16 @@ class RobotiqGripper( ):
                 framer=FramerType.RTU)
         elif self.connection_type == GRIPPER_MODE_RTU:
             if self.com_port == AUTO_DETECTION:
-                self.com_port = self._autoConnect()
-                
-            
+                device_ids = [self.device_id] + [i for i in POTENTIAL_MODBUS_IDS
+                                                 if i != self.device_id]
+                self.detected_device = find_gripper(
+                    candidate_ports=self.candidate_ports,
+                    skip_ports=self.skip_ports,
+                    device_ids=device_ids,
+                    baudrate=self.baudrate)
+                self.com_port = self.detected_device.port
+                self.device_id = self.detected_device.device_id
+
             return ModbusSerialClient(
                 port=self.com_port,
                 baudrate=self.baudrate,
@@ -316,64 +263,6 @@ class RobotiqGripper( ):
                 stopbits=1,
                 bytesize=8,
                 timeout=1)
-
-    def _autoConnect(self):
-        """Automatically detect the COM port to which the gripper is connected.
-
-        This method scans available serial ports and attempts to communicate with
-        a gripper on each one to find the correct port.
-
-        Returns:
-        --------
-        str
-            The COM port where the gripper was detected.
-
-        Raises:
-        ------
-        GripperConnectionError
-            If no gripper is detected on any available port.
-        """
-        ports = serial.tools.list_ports.comports()
-        manager = multiprocessing.Manager()  # Create ONCE
-
-        for port in ports:
-            print(f"Testing: {port.device}")
-
-            return_dict = manager.dict()
-
-            p = multiprocessing.Process(
-                target=self._probe_port_process,
-                args=(port.device, self.device_id, return_dict)
-                )
-
-            p.start()
-            p.join(3.0)  # HARD TIMEOUT (1 second)
-
-            if p.is_alive():
-                print(f"Hard timeout — killing process on {port.device}")
-                p.terminate()
-                p.join()
-                print(f"Probe timed out on {port.device}; no port response from probe worker. This means the port may not be a Modbus device or is very slow.")
-                continue
-
-            if p.exitcode is not None and p.exitcode != 0:
-                print(f"Probe process for {port.device} exited with code {p.exitcode}")
-
-            if return_dict.get("success", False):
-                print(f"Gripper detected on {port.device}")
-                return port.device
-
-            reason = return_dict.get("error", "none")
-            print(f"No gripper response on {port.device} (reason: {reason})")
-
-
-        raise GripperConnectionError(
-            f"No gripper detected on any of {len(list(serial.tools.list_ports.comports()))} "
-            f"available ports. Tested ports: "
-            f"{', '.join([p.device for p in serial.tools.list_ports.comports()])}. "
-            f"Please check: 1) Gripper is powered, 2) USB cable connected, "
-            f"3) Device ID matches (expected {self.device_id})"
-        )
 
     #COMMUNICATION FUNCTIONS
 

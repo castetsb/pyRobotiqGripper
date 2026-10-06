@@ -17,6 +17,7 @@ nav:
     - Realtime control: realtime.md
   - API:
     - RobotiqGripper: api/robotiqgripper.md
+    - Device detection: api/detection.md
     - Tools: api/tools.md
     - Constants: api/constants.md
   - Contribute: contributing.md

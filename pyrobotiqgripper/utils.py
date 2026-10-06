@@ -4,7 +4,6 @@ This module provides helper functions for common operations used by the gripper 
 including list manipulation and mathematical utilities.
 """
 
-import threading
 from .constants import *
 import numpy as np
 
@@ -116,69 +115,6 @@ def floor_to_ms(t):
         Time floored to millisecond precision.
     """
     return np.floor(t * 1000) / 1000
-
-def modbus_probe_with_timeout(port, device_id, timeout=1.0):
-    """Probe a Modbus serial port with a timeout to check for device connectivity.
-
-    Parameters:
-    -----------
-    port : str
-        The serial port to probe.
-    device_id : int
-        The Modbus device ID.
-    timeout : float, optional
-        Timeout in seconds. Default is 1.0.
-
-    Returns:
-    --------
-    bool
-        True if device responds, False otherwise.
-    """
-    result_container = {"success": False}
-
-    def worker():
-        from pymodbus.client import ModbusSerialClient
-
-        client = ModbusSerialClient(
-            port=port,
-            baudrate=115200,
-            parity='N',
-            stopbits=1,
-            bytesize=8,
-            timeout=0.2
-        )
-
-        try:
-            if not client.connect():
-                return
-
-            result = client.read_input_registers(
-                address=2000,
-                count=1,
-                device_id=device_id
-            )
-
-            if result and not result.isError():
-                result_container["success"] = True
-
-        except Exception:
-            pass
-        finally:
-            try:
-                client.close()
-            except:
-                pass
-
-    thread = threading.Thread(target=worker)
-    thread.daemon = True
-    thread.start()
-    thread.join(timeout)
-
-    if thread.is_alive():
-        print("Hard timeout reached")
-        return False
-
-    return result_container["success"]
 
 def find_last_below_threshold(arr, col_idx, threshold):
     """

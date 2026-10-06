@@ -50,6 +50,46 @@ By default, the serial port on which the gripper is connected is automatically d
 However, you can manually specify the serial port name if you want to. Refer to the
 API documentation for more information.
 
+### How auto-detection works
+
+Auto-detection works in three steps:
+
+1. Only USB serial ports (ports with a USB vendor and product ID) are probed.
+   Built-in and Bluetooth serial ports are skipped.
+2. On each port, the Modbus IDs 9, 1, 2, ..., 8 are tried in turn (the
+   `device_id` you pass is tried first). Each try reads the firmware version
+   (holding register 500), with a 50 ms timeout and no retry.
+3. The first 3 characters of the firmware version identify the product, e.g.
+   `GC3-1.7.0` is a 2F gripper and `GD1-...` a Hand-E. Only these two products
+   are accepted. Other devices answering on the port are skipped.
+
+You can restrict the ports that are probed. This is useful when other serial
+devices are connected, since probing writes a Modbus request to each port.
+
+```python
+import pyrobotiqgripper as rq
+
+# Never probe the port of another device.
+gripper = rq.RobotiqGripper(skip_ports=["/dev/ttyACM0"])
+
+# Probe only these ports.
+gripper = rq.RobotiqGripper(candidate_ports=["/dev/ttyUSB0", "/dev/ttyUSB1"])
+```
+
+Detection is also available on its own, e.g. to find the gripper before
+opening your other serial devices, or to list the Robotiq devices connected:
+
+```python
+import pyrobotiqgripper as rq
+
+found = rq.find_gripper()
+print(found.port, found.device_id, found.product, found.firmware_version, found.serial_number)
+gripper = rq.RobotiqGripper(com_port=found.port, device_id=found.device_id)
+
+for device in rq.find_devices():
+    print(device)
+```
+
 ```python
 import pyrobotiqgripper as rq
 
